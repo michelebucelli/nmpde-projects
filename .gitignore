@@ -33,4 +33,4 @@
 *.out
 *.app
 
-*/build/*
+build
