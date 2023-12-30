@@ -1,5 +1,20 @@
 #include "NavierStokes.hpp"
 
+// Static members have to be defined in the .cpp file.
+// Forcing term.
+NavierStokes::ForcingTerm NavierStokes::forcing_term;
+
+// Inlet velocity.
+NavierStokes::InletVelocity NavierStokes::inlet_velocity;
+
+// Initial conditions.
+NavierStokes::InitialConditions NavierStokes::initial_conditions;
+
+// Reynolds number.
+NavierStokes::ReynoldsNumber NavierStokes::reynolds_number;
+
+
+
 void
 NavierStokes::setup()
 {
@@ -320,10 +335,7 @@ NavierStokes::solve()
   // preconditioner.initialize(system_matrix.block(0, 0),
   //                           pressure_mass.block(1, 1));
 
-  PreconditionBlockTriangular preconditioner;
-  preconditioner.initialize(system_matrix.block(0, 0),
-                            pressure_mass.block(1, 1),
-                            system_matrix.block(1, 0));
+  PreconditionIdentity preconditioner;
 
   pcout << "Solving the linear system" << std::endl;
   solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
