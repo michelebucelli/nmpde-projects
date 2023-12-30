@@ -14,6 +14,12 @@ NavierStokes::InitialConditions NavierStokes::initial_conditions;
 NavierStokes::ReynoldsNumber NavierStokes::reynolds_number;
 
 
+//Current issues:
+//-nothing was tested
+//-MPI communication has to be checked
+//-the mass term in the right hand side is missing (refer to assemble_rhs)
+//-the initial condition is not applied
+
 
 void
 NavierStokes::setup()
@@ -158,8 +164,27 @@ NavierStokes::setup()
                                     sparsity_pressure_mass);
     sparsity_pressure_mass.compress();
 
+    // We also build a sparsity pattern for the mass matrix.
+    for (unsigned int c = 0; c < dim + 1; ++c)
+      {
+        for (unsigned int d = 0; d < dim + 1; ++d)
+          {
+            if (c != dim && d != dim) // velocity-velocity term
+              coupling[c][d] = DoFTools::always;
+            else // other combinations
+              coupling[c][d] = DoFTools::none;
+          }
+      }
+    TrilinosWrappers::BlockSparsityPattern sparsity_mass(
+      block_owned_dofs, MPI_COMM_WORLD);
+    DoFTools::make_sparsity_pattern(dof_handler,
+                                    coupling,
+                                    sparsity_mass);
+    sparsity_mass.compress();
+
     pcout << "  Initializing the matrices" << std::endl;
-    system_matrix.reinit(sparsity);
+    lhs_matrix.reinit(sparsity);
+    mass_matrix.reinit(sparsity_mass);
     pressure_mass.reinit(sparsity_pressure_mass);
 
     pcout << "  Initializing the system right-hand side" << std::endl;
@@ -171,7 +196,7 @@ NavierStokes::setup()
 }
 
 void
-NavierStokes::assemble()
+NavierStokes::assemble_matrices()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Assembling the system" << std::endl;
@@ -189,14 +214,15 @@ NavierStokes::assemble()
                                    update_values | update_normal_vectors |
                                      update_JxW_values);
 
-  FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-  FullMatrix<double> cell_pressure_mass_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_lhs_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_mass_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_pressure_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double>     cell_rhs(dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
-  system_matrix = 0.0;
-  system_rhs    = 0.0;
+  lhs_matrix = 0.0;
+  mass_matrix = 0.0;
   pressure_mass = 0.0;
 
   FEValuesExtractors::Vector velocity(0);
@@ -209,9 +235,137 @@ NavierStokes::assemble()
 
       fe_values.reinit(cell);
 
-      cell_matrix               = 0.0;
+      cell_lhs_matrix = 0.0;
+      cell_mass_matrix = 0.0;
+      cell_pressure_matrix = 0.0;
+
+      for (unsigned int q = 0; q < n_q; ++q)
+        {
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            {
+              for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                {
+                  // Mass term.
+                  cell_mass_matrix(i, j) +=
+                    scalar_product(fe_values[velocity].value(i, q),
+                                   fe_values[velocity].value(j, q)) *
+                    fe_values.JxW(q) / deltat;
+                  cell_lhs_matrix(i, j) += cell_mass_matrix(i, j);
+
+                  // Viscosity term.
+                  cell_lhs_matrix(i, j) +=
+                    nu *
+                    scalar_product(fe_values[velocity].gradient(i, q),
+                                   fe_values[velocity].gradient(j, q)) *
+                    fe_values.JxW(q);
+
+                  // Pressure term in the momentum equation.
+                  cell_lhs_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
+                                       fe_values[pressure].value(j, q) *
+                                       fe_values.JxW(q);
+
+                  // Pressure term in the continuity equation.
+                  cell_lhs_matrix(i, j) -= fe_values[velocity].divergence(j, q) *
+                                       fe_values[pressure].value(i, q) *
+                                       fe_values.JxW(q);
+
+                  // Convection term. Other types of disrectization are possible. 
+                  Tensor<1, dim> convection_term;
+                  for (unsigned int k = 0; k < dim; k++) {
+                    convection_term[k] = 0.0;
+                    for (unsigned int l = 0; l < dim; l++) {
+                      convection_term[k] += fe_values[velocity].value(j, q)[l] * fe_values[velocity].gradient(j, q)[k][l];
+                    }
+                  }
+                  cell_lhs_matrix(i, j) += scalar_product(
+                                       convection_term,
+                                       fe_values[velocity].value(i, q)) *
+                                       fe_values.JxW(q);
+
+                  // Pressure mass matrix.
+                  cell_pressure_matrix(i, j) +=
+                    fe_values[pressure].value(i, q) *
+                    fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);
+                }
+            }
+        }
+
+      cell->get_dof_indices(dof_indices);
+
+      lhs_matrix.add(dof_indices, cell_lhs_matrix);
+      mass_matrix.add(dof_indices, cell_mass_matrix);
+      pressure_mass.add(dof_indices, cell_pressure_matrix);
+    }
+
+  lhs_matrix.compress(VectorOperation::add);
+  mass_matrix.compress(VectorOperation::add);
+  pressure_mass.compress(VectorOperation::add);
+
+  // Dirichlet boundary conditions.
+  // If time dependent boundary conditions are used instead, this has to be moved to the assemble_rhs() method.
+  // Assuming inlet has boundary tag 0, outlet has tag 1 and other boundaries have tags 2 to 9
+  {
+    std::map<types::global_dof_index, double>           boundary_values;
+    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+
+    // We interpolate first the inlet velocity condition alone, then the wall
+    // condition alone, so that the latter "win" over the former where the two
+    // boundaries touch.
+    boundary_functions[0] = &inlet_velocity;
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                             boundary_functions,
+                                             boundary_values,
+                                             ComponentMask(
+                                               {true, true, true, false}));
+
+    boundary_functions.clear();
+    Functions::ZeroFunction<dim> zero_function(dim + 1);
+    for (unsigned int i = 2; i < 10; i++)
+      boundary_functions[i] = &zero_function;
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                             boundary_functions,
+                                             boundary_values,
+                                             ComponentMask(
+                                               {true, true, true, false}));
+  }
+}
+
+void
+NavierStokes::assemble_rhs(const double &time_step)
+{
+  pcout << "===============================================" << std::endl;
+  pcout << "Assembling the system" << std::endl;
+
+  const unsigned int dofs_per_cell = fe->dofs_per_cell;
+  const unsigned int n_q           = quadrature->size();
+  const unsigned int n_q_face      = quadrature_face->size();
+
+  FEValues<dim>     fe_values(*fe,
+                          *quadrature,
+                          update_values | update_gradients |
+                            update_quadrature_points | update_JxW_values);
+  FEFaceValues<dim> fe_face_values(*fe,
+                                   *quadrature_face,
+                                   update_values | update_normal_vectors |
+                                     update_JxW_values);
+
+  Vector<double>     cell_rhs(dofs_per_cell);
+
+  std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
+
+  system_rhs    = 0.0;
+
+  FEValuesExtractors::Vector velocity(0);
+  FEValuesExtractors::Scalar pressure(dim);
+
+  for (const auto &cell : dof_handler.active_cell_iterators())
+    {
+      if (!cell->is_locally_owned())
+        continue;
+
+      fe_values.reinit(cell);
+
       cell_rhs                  = 0.0;
-      cell_pressure_mass_matrix = 0.0;
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
@@ -224,45 +378,29 @@ NavierStokes::assemble()
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
-              for (unsigned int j = 0; j < dofs_per_cell; ++j)
-                {
-                  // Viscosity term.
-                  cell_matrix(i, j) +=
-                    nu *
-                    scalar_product(fe_values[velocity].gradient(i, q),
-                                   fe_values[velocity].gradient(j, q)) *
-                    fe_values.JxW(q);
-
-                  // Pressure term in the momentum equation.
-                  cell_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
-                                       fe_values[pressure].value(j, q) *
-                                       fe_values.JxW(q);
-
-                  // Pressure term in the continuity equation.
-                  cell_matrix(i, j) -= fe_values[velocity].divergence(j, q) *
-                                       fe_values[pressure].value(i, q) *
-                                       fe_values.JxW(q);
-
-                  // Pressure mass matrix.
-                  cell_pressure_mass_matrix(i, j) +=
-                    fe_values[pressure].value(i, q) *
-                    fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);
-                }
-
               // Forcing term.
               cell_rhs(i) += scalar_product(forcing_term_tensor,
                                             fe_values[velocity].value(i, q)) *
+                             fe_values.JxW(q);
+
+              // Mass matrix.
+              Tensor<1, dim> mass_term;
+              // mass_term should be the product of the mass matrix and the latest velocity solution. Each device/CPU needs to have the entire solution vector.
+              //mass_matrix.vmult(mass_term, solution);
+              cell_rhs(i) += scalar_product(mass_term,
+                             fe_values[velocity].value(i, q)) *
                              fe_values.JxW(q);
             }
         }
 
       // Boundary integral for Neumann BCs.
+      // Assuming tag for outlet boundary is 1.
       if (cell->at_boundary())
         {
           for (unsigned int f = 0; f < cell->n_faces(); ++f)
             {
               if (cell->face(f)->at_boundary() &&
-                  cell->face(f)->boundary_id() == 2)
+                  cell->face(f)->boundary_id() == 1)
                 {
                   fe_face_values.reinit(cell, f);
 
@@ -284,46 +422,14 @@ NavierStokes::assemble()
 
       cell->get_dof_indices(dof_indices);
 
-      system_matrix.add(dof_indices, cell_matrix);
       system_rhs.add(dof_indices, cell_rhs);
-      pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
     }
 
-  system_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
-  pressure_mass.compress(VectorOperation::add);
-
-  // Dirichlet boundary conditions.
-  {
-    std::map<types::global_dof_index, double>           boundary_values;
-    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
-
-    // We interpolate first the inlet velocity condition alone, then the wall
-    // condition alone, so that the latter "win" over the former where the two
-    // boundaries touch.
-    boundary_functions[0] = &inlet_velocity;
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                             boundary_functions,
-                                             boundary_values,
-                                             ComponentMask(
-                                               {true, true, true, false}));
-
-    boundary_functions.clear();
-    Functions::ZeroFunction<dim> zero_function(dim + 1);
-    boundary_functions[1] = &zero_function;
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                             boundary_functions,
-                                             boundary_values,
-                                             ComponentMask(
-                                               {true, true, true, false}));
-
-    MatrixTools::apply_boundary_values(
-      boundary_values, system_matrix, solution, system_rhs, false);
-  }
 }
 
 void
-NavierStokes::solve()
+NavierStokes::solve_time_step()
 {
   pcout << "===============================================" << std::endl;
 
@@ -331,14 +437,10 @@ NavierStokes::solve()
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
-  // PreconditionBlockDiagonal preconditioner;
-  // preconditioner.initialize(system_matrix.block(0, 0),
-  //                           pressure_mass.block(1, 1));
-
   PreconditionIdentity preconditioner;
 
   pcout << "Solving the linear system" << std::endl;
-  solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
+  solver.solve(lhs_matrix, solution_owned, system_rhs, preconditioner);
   pcout << "  " << solver_control.last_step() << " GMRES iterations"
         << std::endl;
 
@@ -346,7 +448,44 @@ NavierStokes::solve()
 }
 
 void
-NavierStokes::output()
+NavierStokes::solve()
+{
+  assemble_matrices();
+
+  pcout << "===============================================" << std::endl;
+
+  time = 0.0;
+
+  // Apply the initial condition.
+  {
+    // TODO: apply the real initial condition.
+    pcout << "Applying the initial condition" << std::endl;
+
+    solution = solution_owned;
+
+    // Output the initial solution.
+    output(0);
+    pcout << "-----------------------------------------------" << std::endl;
+  }
+
+  unsigned int time_step = 0;
+
+  while (time < T - 0.5 * deltat)
+    {
+      time += deltat;
+      ++time_step;
+
+      pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
+            << time << ":" << std::flush;
+
+      assemble_rhs(time);
+      solve_time_step();
+      output(time_step);
+    }
+}
+
+void
+NavierStokes::output(const unsigned int &time_step) const
 {
   pcout << "===============================================" << std::endl;
 

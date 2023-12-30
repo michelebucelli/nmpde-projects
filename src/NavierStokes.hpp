@@ -52,7 +52,13 @@ public:
   // Amplitude of inlet velocity.
   static constexpr double U_m = (dim == 2) ? 1.5 : 2.25;
   // Outlet pressure [Pa] (the outflow condition can be changed freely).
-  static constexpr double p_out = 10;
+  static constexpr double p_out = 10.0;
+
+  // Time parameters ////////////////////////////////////////////////////////
+  // Parameters for time disrectization, can be changed
+  const double T = 10.0;
+  const double deltat = 0.1;
+  double time;
 
   // Function for the forcing term.
   // While it is always 0, it was implemented in case changes have to be made.
@@ -190,10 +196,17 @@ public:
   void
   setup();
 
-  // Assemble system. We also assemble the pressure mass matrix (needed for the
-  // preconditioner).
+  // Assemble system matrices.
   void
-  assemble();
+  assemble_matrices();
+
+  // Assemble the right-hand side of the problem.
+  void
+  assemble_rhs(const double &time);
+
+  // Solve the problem for one time step.
+  void
+  solve_time_step();
 
   // Solve system.
   void
@@ -201,7 +214,7 @@ public:
 
   // Output results.
   void
-  output();
+  output(const unsigned int &time_step) const;
 
 protected:
   // MPI parallel. /////////////////////////////////////////////////////////////
@@ -267,12 +280,14 @@ protected:
   // DoFs relevant to current process in the velocity and pressure blocks.
   std::vector<IndexSet> block_relevant_dofs;
 
-  // System matrix.
-  TrilinosWrappers::BlockSparseMatrix system_matrix;
-
-  // Pressure mass matrix, needed for preconditioning. We use a block matrix for
-  // convenience, but in practice we only look at the pressure-pressure block.
+  // Pressure mass matrix B.
   TrilinosWrappers::BlockSparseMatrix pressure_mass;
+
+  // Mass matrix M/delta t.
+  TrilinosWrappers::BlockSparseMatrix mass_matrix;
+
+  // Matrix on the left-hand side (M / deltat + A + C).
+  TrilinosWrappers::BlockSparseMatrix lhs_matrix;
 
   // Right-hand side vector in the linear system.
   TrilinosWrappers::MPI::BlockVector system_rhs;

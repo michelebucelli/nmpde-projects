@@ -16,9 +16,8 @@ main(int argc, char *argv[])
   NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure);
 
   problem.setup();
-  problem.assemble();
+  problem.assemble_matrices();
   problem.solve();
-  problem.output();
 
   return 0;
 }
