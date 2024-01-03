@@ -196,13 +196,13 @@ public:
   void
   setup();
 
-  // Assemble system matrices.
+  // Assemble constant system matrices.
   void
-  assemble_matrices();
+  assemble_constant_matrices();
 
-  // Assemble the right-hand side of the problem.
+  // Assemble the right-hand side of the problem and the convection matrix.
   void
-  assemble_rhs(const double &time);
+  assemble_time_dependent(const double &time);
 
   // Solve the problem for one time step.
   void
@@ -285,6 +285,9 @@ protected:
 
   // Mass matrix M/delta t.
   TrilinosWrappers::BlockSparseMatrix mass_matrix;
+
+  // Constant part of the matrix on the left-hand side (M / deltat + A).
+  TrilinosWrappers::BlockSparseMatrix constant_lhs_matrix;
 
   // Matrix on the left-hand side (M / deltat + A + C).
   TrilinosWrappers::BlockSparseMatrix lhs_matrix;

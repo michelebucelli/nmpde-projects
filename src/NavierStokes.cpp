@@ -17,7 +17,8 @@ NavierStokes::ReynoldsNumber NavierStokes::reynolds_number;
 //Current issues:
 //-nothing was tested
 //-MPI communication has to be checked
-//-the mass term in the right hand side is missing (refer to assemble_rhs)
+//-the mass term in the right hand side is missing (refer to assemble_time_dependent)
+//-the convection term in the matrix is missing (refer to assemble_time_dependent)
 //-the initial condition is not applied
 
 
@@ -183,6 +184,7 @@ NavierStokes::setup()
     sparsity_mass.compress();
 
     pcout << "  Initializing the matrices" << std::endl;
+    constant_lhs_matrix.reinit(sparsity);
     lhs_matrix.reinit(sparsity);
     mass_matrix.reinit(sparsity_mass);
     pressure_mass.reinit(sparsity_pressure_mass);
@@ -196,7 +198,7 @@ NavierStokes::setup()
 }
 
 void
-NavierStokes::assemble_matrices()
+NavierStokes::assemble_constant_matrices()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Assembling the system" << std::endl;
@@ -217,11 +219,10 @@ NavierStokes::assemble_matrices()
   FullMatrix<double> cell_lhs_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> cell_mass_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> cell_pressure_matrix(dofs_per_cell, dofs_per_cell);
-  Vector<double>     cell_rhs(dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
-  lhs_matrix = 0.0;
+  constant_lhs_matrix = 0.0;
   mass_matrix = 0.0;
   pressure_mass = 0.0;
 
@@ -269,19 +270,6 @@ NavierStokes::assemble_matrices()
                                        fe_values[pressure].value(i, q) *
                                        fe_values.JxW(q);
 
-                  // Convection term. Other types of disrectization are possible. 
-                  Tensor<1, dim> convection_term;
-                  for (unsigned int k = 0; k < dim; k++) {
-                    convection_term[k] = 0.0;
-                    for (unsigned int l = 0; l < dim; l++) {
-                      convection_term[k] += fe_values[velocity].value(j, q)[l] * fe_values[velocity].gradient(j, q)[k][l];
-                    }
-                  }
-                  cell_lhs_matrix(i, j) += scalar_product(
-                                       convection_term,
-                                       fe_values[velocity].value(i, q)) *
-                                       fe_values.JxW(q);
-
                   // Pressure mass matrix.
                   cell_pressure_matrix(i, j) +=
                     fe_values[pressure].value(i, q) *
@@ -292,12 +280,12 @@ NavierStokes::assemble_matrices()
 
       cell->get_dof_indices(dof_indices);
 
-      lhs_matrix.add(dof_indices, cell_lhs_matrix);
+      constant_lhs_matrix.add(dof_indices, cell_lhs_matrix);
       mass_matrix.add(dof_indices, cell_mass_matrix);
       pressure_mass.add(dof_indices, cell_pressure_matrix);
     }
 
-  lhs_matrix.compress(VectorOperation::add);
+  constant_lhs_matrix.compress(VectorOperation::add);
   mass_matrix.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
 
@@ -331,7 +319,7 @@ NavierStokes::assemble_matrices()
 }
 
 void
-NavierStokes::assemble_rhs(const double &time_step)
+NavierStokes::assemble_time_dependent(const double &time_step)
 {
   pcout << "===============================================" << std::endl;
   pcout << "Assembling the system" << std::endl;
@@ -350,13 +338,14 @@ NavierStokes::assemble_rhs(const double &time_step)
                                      update_JxW_values);
 
   Vector<double>     cell_rhs(dofs_per_cell);
+  FullMatrix<double> cell_lhs_matrix(dofs_per_cell, dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
   system_rhs    = 0.0;
+  lhs_matrix = constant_lhs_matrix;
 
   FEValuesExtractors::Vector velocity(0);
-  FEValuesExtractors::Scalar pressure(dim);
 
   for (const auto &cell : dof_handler.active_cell_iterators())
     {
@@ -365,7 +354,8 @@ NavierStokes::assemble_rhs(const double &time_step)
 
       fe_values.reinit(cell);
 
-      cell_rhs                  = 0.0;
+      cell_rhs = 0.0;
+      cell_lhs_matrix = 0.0;
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
@@ -378,6 +368,17 @@ NavierStokes::assemble_rhs(const double &time_step)
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
+              for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                {
+                  // Convection term. Other types of disrectization are possible. 
+                  Tensor<1, dim> convection_term;
+                  // convection_term needs the value of the latest solution to be computable.
+                  cell_lhs_matrix(i, j) += scalar_product(
+                                       convection_term,
+                                       fe_values[velocity].value(i, q)) *
+                                       fe_values.JxW(q);
+                }
+
               // Forcing term.
               cell_rhs(i) += scalar_product(forcing_term_tensor,
                                             fe_values[velocity].value(i, q)) *
@@ -423,9 +424,11 @@ NavierStokes::assemble_rhs(const double &time_step)
       cell->get_dof_indices(dof_indices);
 
       system_rhs.add(dof_indices, cell_rhs);
+      lhs_matrix.add(dof_indices, cell_lhs_matrix);
     }
 
   system_rhs.compress(VectorOperation::add);
+  lhs_matrix.compress(VectorOperation::add);
 }
 
 void
@@ -450,8 +453,6 @@ NavierStokes::solve_time_step()
 void
 NavierStokes::solve()
 {
-  assemble_matrices();
-
   pcout << "===============================================" << std::endl;
 
   time = 0.0;
@@ -478,7 +479,7 @@ NavierStokes::solve()
       pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
             << time << ":" << std::flush;
 
-      assemble_rhs(time);
+      assemble_time_dependent(time);
       solve_time_step();
       output(time_step);
     }
