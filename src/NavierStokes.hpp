@@ -20,6 +20,7 @@
 
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/precondition.h>
 #include <deal.II/lac/trilinos_block_sparse_matrix.h>
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 #include <deal.II/lac/trilinos_precondition.h>
@@ -39,7 +40,7 @@ class NavierStokes
 {
 public:
   // Physical parameters //////////////////////////////////////////////////////
-  // Physical dimension. (can be 2 or 3)
+  // Physical dimension (currently only dim=3 is supported).
   static constexpr unsigned int dim = 3;
   // Kinematic viscosity [m^2/s].
   static constexpr double nu = 1e-3;
@@ -54,32 +55,6 @@ public:
   // Outlet pressure [Pa] (the outflow condition can be changed freely).
   static constexpr double p_out = 10.0;
 
-  // Time parameters ////////////////////////////////////////////////////////
-  // Parameters for time disrectization, can be changed
-  const double T = 10.0;
-  const double deltat = 0.1;
-  double time;
-
-  // Function for the forcing term.
-  // While it is always 0, it was implemented in case changes have to be made.
-  class ForcingTerm : public Function<dim>
-  {
-  public:
-    virtual void
-    vector_value(const Point<dim> & /*p*/,
-                 Vector<double> &values) const override
-    {
-      for (unsigned int i = 0; i < dim; ++i)
-        values[i] = 0.0;
-    }
-
-    virtual double
-    value(const Point<dim> & /*p*/,
-          const unsigned int component = 0) const override
-    {
-      return 0.0;
-    }
-  };
 
   // Function for inlet velocity. This actually returns an object with four
   // components (one for each velocity component, and one for the pressure), but
@@ -87,6 +62,7 @@ public:
   // applying boundary conditions at the end of assembly). If we only return
   // three components, however, we may get an error message due to this function
   // being incompatible with the finite element space.
+  // This is the function for the steady case.
   class InletVelocity : public Function<dim>
   {
   public:
@@ -94,7 +70,6 @@ public:
       : Function<dim>(dim + 1)
     {}
 
-    // For the unsteady case, multiply the first component by sin(pi*t/8.0) and add time dependency (1 more dimension to p).
     virtual void
     vector_value(const Point<dim> &p, Vector<double> &values) const override
     {
@@ -123,8 +98,8 @@ public:
       }
     }
   };
-  
-  // Function for the initial conditions. Refer to explanation of InletVelocity for details.
+
+  // Function for the initial conditions (u=p=0).
   class InitialConditions : public Function<dim>
   {
   public:
@@ -133,37 +108,19 @@ public:
     {}
 
     virtual void
-    vector_value(const Point<dim> &p, Vector<double> &values) const override
+    vector_value(const Point<dim> &/*p*/, Vector<double> &values) const override
     {
       for (unsigned int i = 0; i < dim + 1; ++i)
         values[i] = 0.0;
     }
 
     virtual double
-    value(const Point<dim> &p, const unsigned int component = 0) const override
+    value(const Point<dim> &/*p*/, const unsigned int /*component*/ = 0) const override
     {
       return 0.0;
     }
   };
 
-  // Since we're working with block matrices, we need to make our own
-  // preconditioner class. A preconditioner class can be any class that exposes
-  // a vmult method that applies the inverse of the preconditioner.
-
-  // Identity preconditioner.
-  class PreconditionIdentity
-  {
-  public:
-    // Application of the preconditioner: we just copy the input vector (src)
-    // into the output vector (dst).
-    void
-    vmult(TrilinosWrappers::MPI::BlockVector       &dst,
-          const TrilinosWrappers::MPI::BlockVector &src) const
-    {
-      dst = src;
-    }
-  };
-  
   // A class to calculate the Reynolds number of the system.
   class ReynoldsNumber
   {
@@ -177,46 +134,52 @@ public:
         return 4.0 * inlet_velocity.value(Point<dim>(0, H/2.0, H/2.0), 0) / 9.0 * D / nu;
       }
     }
+  protected:
+    InletVelocity inlet_velocity;
   };
 
   // Constructor.
   NavierStokes(const std::string  &mesh_file_name_,
          const unsigned int &degree_velocity_,
-         const unsigned int &degree_pressure_)
+         const unsigned int &degree_pressure_,
+         const double &T_,
+         const double &deltat_)
     : mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , pcout(std::cout, mpi_rank == 0)
     , mesh_file_name(mesh_file_name_)
     , degree_velocity(degree_velocity_)
     , degree_pressure(degree_pressure_)
+    , T(T_)
+    , deltat(deltat_)
     , mesh(MPI_COMM_WORLD)
   {}
 
-  // Setup system.
+  // Initialization.
   void
   setup();
 
-  // Assemble constant system matrices.
+  // Solve the problem.
   void
-  assemble_constant_matrices();
+  solve();
 
-  // Assemble the right-hand side of the problem and the convection matrix.
+protected:
+  // Assemble the constant part of the matrix.
   void
-  assemble_time_dependent(const double &time);
+  assemble_constant();
+
+  // Assemble the right-hand side and nonlinear term.
+  void
+  assemble_time_dependent();
 
   // Solve the problem for one time step.
   void
   solve_time_step();
 
-  // Solve system.
-  void
-  solve();
-
-  // Output results.
+  // Output.
   void
   output(const unsigned int &time_step) const;
 
-protected:
   // MPI parallel. /////////////////////////////////////////////////////////////
 
   // Number of MPI processes.
@@ -228,19 +191,16 @@ protected:
   // Parallel output stream.
   ConditionalOStream pcout;
 
-  // Problem definition. ///////////////////////////////////////////////////////
-
-  // Forcing term.
-  static ForcingTerm forcing_term;
+  // Problem. //////////////////////////////////////////////////////////////////
 
   // Inlet velocity.
-  static InletVelocity inlet_velocity;
-  
+  InletVelocity inlet_velocity;
+
   // Initial conditions.
-  static InitialConditions initial_conditions;
-  
+  InitialConditions initial_conditions;
+
   // Reynolds number.
-  static ReynoldsNumber reynolds_number;
+  ReynoldsNumber reynolds_number;
 
   // Discretization. ///////////////////////////////////////////////////////////
 
@@ -253,6 +213,12 @@ protected:
   // Polynomial degree used for pressure.
   const unsigned int degree_pressure;
 
+  // Final time.
+  const double T;
+
+  // Time step.
+  const double deltat;
+
   // Mesh.
   parallel::fullydistributed::Triangulation<dim> mesh;
 
@@ -262,7 +228,7 @@ protected:
   // Quadrature formula.
   std::unique_ptr<Quadrature<dim>> quadrature;
 
-  // Quadrature formula for face integrals.
+  // Quadrature formula for Neumann BC.
   std::unique_ptr<Quadrature<dim - 1>> quadrature_face;
 
   // DoF handler.
@@ -280,19 +246,16 @@ protected:
   // DoFs relevant to current process in the velocity and pressure blocks.
   std::vector<IndexSet> block_relevant_dofs;
 
-  // Pressure mass matrix B.
-  TrilinosWrappers::BlockSparseMatrix pressure_mass;
+  // Velocity mass matrix (M/deltat).
+  TrilinosWrappers::BlockSparseMatrix velocity_mass;
 
-  // Mass matrix M/delta t.
-  TrilinosWrappers::BlockSparseMatrix mass_matrix;
+  // Constant part of the matrix (M/deltat + A B^T; -B 0).
+  TrilinosWrappers::BlockSparseMatrix constant_matrix;
 
-  // Constant part of the matrix on the left-hand side (M / deltat + A).
-  TrilinosWrappers::BlockSparseMatrix constant_lhs_matrix;
+  // System matrix (constant_matrix + [C 0; 0 0])
+  TrilinosWrappers::BlockSparseMatrix system_matrix;
 
-  // Matrix on the left-hand side (M / deltat + A + C).
-  TrilinosWrappers::BlockSparseMatrix lhs_matrix;
-
-  // Right-hand side vector in the linear system.
+  // Right-hand side vector in the linear system at the current time step.
   TrilinosWrappers::MPI::BlockVector system_rhs;
 
   // System solution (without ghost elements).

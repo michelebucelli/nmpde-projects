@@ -1,9 +1,10 @@
-### Organizing the source code
-Please place all your sources into the `src` folder.
-
-Binary files must not be uploaded to the repository (including executables).
-
-Mesh files should not be uploaded to the repository. If applicable, upload `gmsh` scripts with suitable instructions to generate the meshes (and ideally a Makefile that runs those instructions). If not applicable, consider uploading the meshes to a different file sharing service, and providing a download link as part of the building and running instructions.
+### Current issues
+- Part of the nonlinear term is missing (first issue that has to be fixed)
+- Missing mesh files
+- Nothing was tested (waiting for mesh files)
+- Boundary tags are placeholders (waiting for mesh files)
+- No preconditioner is used
+- Missing computation of the requested quantities
 
 ### Compiling
 To build the executable, make sure you have loaded the needed modules with
@@ -19,5 +20,5 @@ $ make
 ```
 The executable will be created into `build`, and can be executed through
 ```bash
-$ ./executable-name
+$ ./main
 ```
