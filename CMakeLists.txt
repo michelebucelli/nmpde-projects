@@ -35,5 +35,5 @@ deal_ii_initialize_cached_variables()
 # Add useful compiler flags.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfloat-conversion -Wmissing-braces -Wnon-virtual-dtor")
 
-add_executable(navier_stokes src/main.cpp src/NavierStokes.cpp)
+add_executable(navier_stokes src/main.cpp src/Setup.cpp src/Assemble.cpp src/Solve.cpp src/Output.cpp)
 deal_ii_setup_target(navier_stokes)

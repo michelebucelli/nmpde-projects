@@ -1,4 +1,5 @@
 ### Current issues
+- CMakeLists should be improved so that .cpp and .hpp files are automatically added as sources and includes
 - Missing mesh files
 - Nothing was tested (waiting for mesh files)
 - Boundary tags are placeholders (waiting for mesh files)
