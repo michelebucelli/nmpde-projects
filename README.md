@@ -1,5 +1,4 @@
 ### Current issues
-- Part of the nonlinear term is missing (first issue that has to be fixed)
 - Missing mesh files
 - Nothing was tested (waiting for mesh files)
 - Boundary tags are placeholders (waiting for mesh files)

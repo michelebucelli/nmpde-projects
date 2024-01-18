@@ -259,6 +259,7 @@ NavierStokes::assemble_time_dependent()
     FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
 
     std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
+    std::vector<Tensor<2, dim>> old_solution_gradients(n_q);
 
     // Copy the contant term.
     system_matrix.copy_from(constant_matrix);
@@ -273,6 +274,10 @@ NavierStokes::assemble_time_dependent()
 
         fe_values.reinit(cell);
 
+        // Calculate the gradient of the previous solution.
+        // Source: https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
+        fe_values[velocity].get_function_gradients(solution, old_solution_gradients);
+
         cell_matrix = 0.0;
 
         for (unsigned int q = 0; q < n_q; ++q)
@@ -281,10 +286,22 @@ NavierStokes::assemble_time_dependent()
               {
                 for (unsigned int j = 0; j < dofs_per_cell; ++j)
                   {
+                    // Calculate (u . nabla) u.
+                    Tensor<2, dim> local_old_solution_gradient = old_solution_gradients[q];
+                    Tensor<1, dim> nonlinear_term;
+
+                    for(unsigned int k=0; k<dim; k++) {
+                      nonlinear_term[i] = 0.0;
+                      for(unsigned int l=0; l<dim; l++) {
+                        nonlinear_term[i] += fe_values[velocity].value(j, q)[l] *
+                                             local_old_solution_gradient[k][l];
+                      }
+                    }
+
+                    // Add the term (u . nabla) uv.
                     cell_matrix(i, j) += scalar_product(
-                                         fe_values[velocity].value(j, q)
-                                         // TODO: Missing a term. Understand how to compute the needed quantity and add it.
-                                         , fe_values[velocity].value(i, q)) *
+                                         nonlinear_term,
+                                         fe_values[velocity].value(i, q)) *
                                          fe_values.JxW(q);
                   }              
               }
