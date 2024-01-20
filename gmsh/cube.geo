@@ -1,24 +1,22 @@
-/**
-I've been trying to learn the gmsh scripting language. This is a small playground for me to test out some of the features.
-This script in particular defines the geometry of a 3D cube, with positive-coordinate vertices. One of the vertices is at the origin.
-**/
+//I've been trying to learn the gmsh scripting language. This is a small playground for me to test out some of the features.
+// This script in particular defines the geometry of a 3D cube, making sure that the origin is at the center of the cube.
 
 // This value is used to define the characteristic length of the mesh elements.
 // The characteristic length is used to define the size of the mesh elements, so
 // if we want a finer mesh, we can decrease this value.
-characteristic_length = 0.1;
+characteristic_length = 0.25;
 
 // The cube is defined by four points, that will be extruded into a 3D shape.
 // The points are defined by their x, y, and z coordinates, and the characteristic length.
 // Below, we define the edge size of the cube.
-cube_size = 1.0;
+cube_size = 2.0;
 
 // The points are defined here. You might be expecting eight points, but we only need four,
 // since we will be extruding them into a 3D shape.
-Point(1) = {0.0,       0.0,       0.0, characteristic_length};
-Point(2) = {cube_size, 0.0,       0.0, characteristic_length};
-Point(3) = {cube_size, cube_size, 0.0, characteristic_length};
-Point(4) = {0.0,       cube_size, 0.0, characteristic_length};
+Point(1) = {-cube_size / 2, -cube_size / 2, -cube_size / 2, characteristic_length};
+Point(2) = {+cube_size / 2, -cube_size / 2, -cube_size / 2, characteristic_length};
+Point(3) = {+cube_size / 2, +cube_size / 2, -cube_size / 2, characteristic_length};
+Point(4) = {-cube_size / 2, +cube_size / 2, -cube_size / 2, characteristic_length};
 
 // Connect the points to form a square.
 Line(1) = {1, 2};
@@ -32,7 +30,7 @@ Line Loop(5) = {1, 2, 3, 4};
 Plane Surface(6) = {5};
 
 // Extrusion is used to define the 3D shape of the cube, by adding four more points.
-tmp[] = Extrude {0.0,0.0,cube_size} {
+tmp[] = Extrude {0.0, 0.0, cube_size} {
   Surface{6};
 };
 
