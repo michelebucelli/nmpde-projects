@@ -1,4 +1,4 @@
-//I've been trying to learn the gmsh scripting language. This is a small playground for me to test out some of the features.
+// I've been trying to learn the gmsh scripting language. This is a small playground for me to test out some of the features.
 // This script in particular defines the geometry of a 3D cube, making sure that the origin is at the center of the cube.
 
 // This value is used to define the characteristic length of the mesh elements.
