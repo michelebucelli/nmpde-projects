@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12.0)
-project(navier_stokes_Allahakbari_Miotti_Pesce LANGUAGES CXX C)
+project(navier_stokes LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED "ON")
@@ -35,5 +35,14 @@ deal_ii_initialize_cached_variables()
 # Add useful compiler flags.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfloat-conversion -Wmissing-braces -Wnon-virtual-dtor")
 
-add_executable(navier_stokes src/main.cpp src/Setup.cpp src/Assemble.cpp src/Solve.cpp src/Output.cpp)
-deal_ii_setup_target(navier_stokes)
+# Add all .cpp and .c files in src folder to compile list.
+file(GLOB SRC_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp
+                    ${PROJECT_SOURCE_DIR}/src/*.c
+                    ${PROJECT_SOURCE_DIR}/src/*.cu)
+
+# Add all header files located include to headers list.
+include_directories(${PROJECT_SOURCE_DIR}/include)
+
+# Add and setup executable.
+add_executable(${CMAKE_PROJECT_NAME} ${SRC_FILES})
+deal_ii_setup_target(${CMAKE_PROJECT_NAME})

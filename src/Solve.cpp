@@ -6,8 +6,11 @@
 
 #include <deal.II/numerics/vector_tools.h>
 
-void
-NavierStokes::solve_time_step()
+template class NavierStokes<2U>;
+template class NavierStokes<3U>;
+
+template <unsigned int dim>
+void NavierStokes<dim>::solve_time_step()
 {
   SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
 
@@ -19,8 +22,8 @@ NavierStokes::solve_time_step()
   solution = solution_owned;
 }
 
-void
-NavierStokes::solve()
+template <unsigned int dim>
+void NavierStokes<dim>::solve()
 {
   assemble_constant();
 
@@ -30,7 +33,7 @@ NavierStokes::solve()
   {
     pcout << "Applying the initial condition" << std::endl;
 
-    VectorTools::interpolate(dof_handler, initial_conditions, solution_owned);
+    VectorTools::interpolate(dof_handler, *initial_conditions, solution_owned);
     solution = solution_owned;
 
     // Output the initial solution.
@@ -41,6 +44,7 @@ NavierStokes::solve()
   unsigned int time_step = 0;
   double time            = 0;
 
+  // Solvethe problem at each time step.
   while (time < T)
     {
       time += deltat;

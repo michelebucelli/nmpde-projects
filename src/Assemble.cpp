@@ -9,11 +9,14 @@
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/vector_tools.h>
 
-void
-NavierStokes::assemble_constant()
+template class NavierStokes<2U>;
+template class NavierStokes<3U>;
+
+template <unsigned int dim>
+void NavierStokes<dim>::assemble_constant()
 {
   pcout << "===============================================" << std::endl;
-  pcout << "Assembling the system" << std::endl;
+  pcout << "Assembling the constant terms of the system" << std::endl;
 
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
@@ -88,9 +91,12 @@ NavierStokes::assemble_constant()
   velocity_mass.compress(VectorOperation::add);
 }
 
-void
-NavierStokes::assemble_time_dependent()
+template <unsigned int dim>
+void NavierStokes<dim>::assemble_time_dependent()
 {
+  pcout << "===============================================" << std::endl;
+  pcout << "Assembling the time dependent terms of the system" << std::endl;
+
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
   const unsigned int n_q_face      = quadrature_face->size();
@@ -186,8 +192,8 @@ NavierStokes::assemble_time_dependent()
           {
             for (unsigned int f = 0; f < cell->n_faces(); ++f)
               {
-                if (cell->face(f)->at_boundary() &&
-                    cell->face(f)->boundary_id() == 2)
+                if (cell->face(f)->at_boundary() && 
+                    neumann_boundary_functions.count(cell->face(f)->boundary_id()))
                   {
                     fe_face_values.reinit(cell, f);
 
@@ -195,8 +201,8 @@ NavierStokes::assemble_time_dependent()
                       {
                         for (unsigned int i = 0; i < dofs_per_cell; ++i)
                           {
-                            cell_rhs(i) +=
-                              -p_out *
+                            cell_rhs(i) -=
+                              neumann_boundary_functions[cell->face(f)->boundary_id()] *
                               scalar_product(fe_face_values.normal_vector(q),
                                             fe_face_values[velocity].value(i,q)) *
                               fe_face_values.JxW(q);
@@ -217,8 +223,7 @@ NavierStokes::assemble_time_dependent()
     
     // Dirichlet boundary conditions.
     {
-      std::map<types::global_dof_index, double>           boundary_values;
-      std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+      std::map<types::global_dof_index, double> boundary_values;
 
       ComponentMask mask;
       if constexpr(dim == 2) {
@@ -227,25 +232,13 @@ NavierStokes::assemble_time_dependent()
         mask = ComponentMask({true, true, true, false});
       }
 
-      // We interpolate first the dirichlet condition on the inlet alone, then on
-      // the other boundaries alone, so that the latter "win" over the former where the two
-      // boundaries touch.
-      boundary_functions[0] = &inlet_velocity;
       VectorTools::interpolate_boundary_values(dof_handler,
-                                              boundary_functions,
-                                              boundary_values,
-                                              mask);
-
-      boundary_functions.clear();
-      Functions::ZeroFunction<dim> zero_function(dim + 1);
-      boundary_functions[1] = &zero_function;
-      VectorTools::interpolate_boundary_values(dof_handler,
-                                              boundary_functions,
+                                              dirichlet_boundary_functions,
                                               boundary_values,
                                               mask);
 
       MatrixTools::apply_boundary_values(
-        boundary_values, constant_matrix, solution, system_rhs, false);
+        boundary_values, system_matrix, solution, system_rhs, false);
     }  
   }
 }

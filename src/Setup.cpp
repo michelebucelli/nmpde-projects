@@ -15,8 +15,11 @@
 
 #include <fstream>
 
-void
-NavierStokes::setup()
+template class NavierStokes<2U>;
+template class NavierStokes<3U>;
+
+template <unsigned int dim>
+void NavierStokes<dim>::setup()
 {
   // Create the mesh.
   {

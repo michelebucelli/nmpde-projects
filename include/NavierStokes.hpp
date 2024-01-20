@@ -2,7 +2,6 @@
 #define NAVIER_STOKES_HPP
 
 #include <deal.II/base/function.h>
-#include <deal.II/base/point.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/quadrature.h>
@@ -10,7 +9,6 @@
 
 #include <deal.II/dofs/dof_handler.h>
 
-#include <deal.II/lac/vector.h>
 #include <deal.II/lac/trilinos_block_sparse_matrix.h>
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 
@@ -21,107 +19,10 @@
 using namespace dealii;
 
 // Class implementing a solver for the Navier Stokes problem.
+template <unsigned int dim>
 class NavierStokes
 {
 public:
-  // Physical parameters //////////////////////////////////////////////////////
-  // Physical dimension (currently only dim=3 is supported).
-  static constexpr unsigned int dim = 3;
-  // Kinematic viscosity [m^2/s].
-  static constexpr double nu = 1e-3;
-  // Fluid density [kg/m^3].
-  static constexpr double ro = 1.0;
-  // Cyclinder diameter [m].
-  static constexpr double D = 0.1;
-  // Inlet side length [m].
-  static constexpr double H = 0.41;
-  // Amplitude of inlet velocity.
-  static constexpr double U_m = (dim == 2) ? 1.5 : 2.25;
-  // Outlet pressure [Pa] (the outflow condition can be changed freely).
-  static constexpr double p_out = 10.0;
-
-  // Function for inlet velocity. This actually returns an object with four
-  // components (one for each velocity component, and one for the pressure), but
-  // then only the first three are really used (see the component mask when
-  // applying boundary conditions at the end of assembly). If we only return
-  // three components, however, we may get an error message due to this function
-  // being incompatible with the finite element space.
-  // This is the function for the steady case.
-  class InletVelocity : public Function<dim>
-  {
-  public:
-    InletVelocity()
-      : Function<dim>(dim + 1)
-    {}
-
-    virtual void
-    vector_value(const Point<dim> &p, Vector<double> &values) const override
-    {
-      if constexpr(dim == 2) {
-        values[0] = 4.0 * U_m * p[1] * (H - p[1]) / (H * H);
-      } else {
-        values[0] = 16.0 * U_m * p[1] * p[2] * (H - p[1]) * (H - p[2]) / (H * H * H * H);
-      }
-
-      for (unsigned int i = 1; i < dim + 1; ++i)
-        values[i] = 0.0;
-    }
-
-    virtual double
-    value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      if (component == 0) {
-        if constexpr(dim == 2) {
-          return 4.0 * U_m * p[1] * (H - p[1]) / (H * H);
-        } else {
-          return 16.0 * U_m * p[1] * p[2] * (H - p[1]) * (H - p[2]) / (H * H * H * H);
-        }
-      }
-      else {
-        return 0.0;
-      }
-    }
-  };
-
-  // Function for the initial conditions (u=p=0).
-  class InitialConditions : public Function<dim>
-  {
-  public:
-    InitialConditions()
-      : Function<dim>(dim + 1)
-    {}
-
-    virtual void
-    vector_value(const Point<dim> &/*p*/, Vector<double> &values) const override
-    {
-      for (unsigned int i = 0; i < dim + 1; ++i)
-        values[i] = 0.0;
-    }
-
-    virtual double
-    value(const Point<dim> &/*p*/, const unsigned int /*component*/ = 0) const override
-    {
-      return 0.0;
-    }
-  };
-
-  // A class to calculate the Reynolds number of the system.
-  class ReynoldsNumber
-  {
-  public:
-    double
-    getValue() const
-    {
-      if constexpr(dim == 2) {
-        return 2.0 * inlet_velocity.value(Point<dim>(0, H/2.0), 0) / 3.0 * D / nu;
-      } else {
-        return 4.0 * inlet_velocity.value(Point<dim>(0, H/2.0, H/2.0), 0) / 9.0 * D / nu;
-      }
-    }
-  protected:
-    InletVelocity inlet_velocity;
-  };
-
   // Constructor.
   NavierStokes(const std::string  &mesh_file_name_,
          const unsigned int &degree_velocity_,
@@ -139,6 +40,9 @@ public:
     , mesh(MPI_COMM_WORLD)
   {}
 
+  // Destructor.
+  virtual ~NavierStokes() = default;
+
   // Initialization.
   void
   setup();
@@ -146,6 +50,10 @@ public:
   // Solve the problem.
   void
   solve();
+
+  // Calculate the Reynolds number.
+  virtual double
+  get_reynolds_number() const = 0;
 
 protected:
   // Assemble the constant part of the matrix.
@@ -177,14 +85,18 @@ protected:
 
   // Problem. //////////////////////////////////////////////////////////////////
 
-  // Inlet velocity.
-  InletVelocity inlet_velocity;
+  // Fluid density [kg/m^3].
+  double ro;
+
+  // Kinematic viscosity [m^2/s].
+  double nu;
 
   // Initial conditions.
-  InitialConditions initial_conditions;
+  std::shared_ptr<Function<dim>> initial_conditions;
 
-  // Reynolds number.
-  ReynoldsNumber reynolds_number;
+  // Boundary conditions.
+  std::map<types::boundary_id, const Function<dim> *> dirichlet_boundary_functions;
+  std::map<types::boundary_id, double> neumann_boundary_functions;
 
   // Discretization. ///////////////////////////////////////////////////////////
 
