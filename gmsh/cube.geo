@@ -15,10 +15,10 @@ cube_size = 1.0;
 
 // The points are defined here. You might be expecting eight points, but we only need four,
 // since we will be extruding them into a 3D shape.
-Point(1) = {0.0, 0.0, 0.0, characteristic_length};
-Point(2) = {1.0, 0.0, 0.0, characteristic_length};
-Point(3) = {1.0, 1.0, 0.0, characteristic_length};
-Point(4) = {0.0, 1.0, 0.0, characteristic_length};
+Point(1) = {0.0,       0.0,       0.0, characteristic_length};
+Point(2) = {cube_size, 0.0,       0.0, characteristic_length};
+Point(3) = {cube_size, cube_size, 0.0, characteristic_length};
+Point(4) = {0.0,       cube_size, 0.0, characteristic_length};
 
 // Connect the points to form a square.
 Line(1) = {1, 2};
@@ -32,7 +32,7 @@ Line Loop(5) = {1, 2, 3, 4};
 Plane Surface(6) = {5};
 
 // Extrusion is used to define the 3D shape of the cube, by adding four more points.
-tmp[] = Extrude {0,0.0,1} {
+tmp[] = Extrude {0.0,0.0,cube_size} {
   Surface{6};
 };
 
