@@ -1,26 +1,21 @@
-#include "NavierStokes.hpp"
-
 #include <deal.II/base/table.h>
-
 #include <deal.II/dofs/dof_renumbering.h>
 #include <deal.II/dofs/dof_tools.h>
-
 #include <deal.II/fe/fe_simplex_p.h>
 #include <deal.II/fe/fe_system.h>
-
+#include <deal.II/grid/grid_in.h>
+#include <deal.II/grid/tria.h>
 #include <deal.II/lac/block_sparsity_pattern.h>
 
-#include <deal.II/grid/tria.h>
-#include <deal.II/grid/grid_in.h>
-
 #include <fstream>
+
+#include "NavierStokes.hpp"
 
 template class NavierStokes<2U>;
 template class NavierStokes<3U>;
 
 template <unsigned int dim>
-void NavierStokes<dim>::setup()
-{
+void NavierStokes<dim>::setup() {
   // Create the mesh.
   {
     pcout << "Initializing the mesh" << std::endl;
@@ -35,7 +30,7 @@ void NavierStokes<dim>::setup()
 
     GridTools::partition_triangulation(mpi_size, mesh_serial);
     const auto construction_data = TriangulationDescription::Utilities::
-      create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
+        create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
     mesh.create_triangulation(construction_data);
 
     pcout << "  Number of elements = " << mesh.n_global_active_cells()
@@ -50,10 +45,8 @@ void NavierStokes<dim>::setup()
 
     const FE_SimplexP<dim> fe_scalar_velocity(degree_velocity);
     const FE_SimplexP<dim> fe_scalar_pressure(degree_pressure);
-    fe = std::make_unique<FESystem<dim>>(fe_scalar_velocity,
-                                         dim,
-                                         fe_scalar_pressure,
-                                         1);
+    fe = std::make_unique<FESystem<dim>>(fe_scalar_velocity, dim,
+                                         fe_scalar_pressure, 1);
 
     pcout << "  Velocity degree:           = " << fe_scalar_velocity.degree
           << std::endl;
@@ -95,14 +88,14 @@ void NavierStokes<dim>::setup()
     // system (velocity and pressure), we will also need those for the
     // individual velocity and pressure blocks.
     std::vector<types::global_dof_index> dofs_per_block =
-      DoFTools::count_dofs_per_fe_block(dof_handler, block_component);
+        DoFTools::count_dofs_per_fe_block(dof_handler, block_component);
     const unsigned int n_u = dofs_per_block[0];
     const unsigned int n_p = dofs_per_block[1];
 
     block_owned_dofs.resize(2);
     block_relevant_dofs.resize(2);
-    block_owned_dofs[0]    = locally_owned_dofs.get_view(0, n_u);
-    block_owned_dofs[1]    = locally_owned_dofs.get_view(n_u, n_u + n_p);
+    block_owned_dofs[0] = locally_owned_dofs.get_view(0, n_u);
+    block_owned_dofs[1] = locally_owned_dofs.get_view(n_u, n_u + n_p);
     block_relevant_dofs[0] = locally_relevant_dofs.get_view(0, n_u);
     block_relevant_dofs[1] = locally_relevant_dofs.get_view(n_u, n_u + n_p);
 
@@ -127,16 +120,14 @@ void NavierStokes<dim>::setup()
     // involving p times q). We build a table to store this information, so that
     // the sparsity pattern can be built accordingly.
     Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
-    for (unsigned int c = 0; c < dim + 1; ++c)
-      {
-        for (unsigned int d = 0; d < dim + 1; ++d)
-          {
-            if (c == dim && d == dim) // pressure-pressure term
-              coupling[c][d] = DoFTools::none;
-            else // other combinations
-              coupling[c][d] = DoFTools::always;
-          }
+    for (unsigned int c = 0; c < dim + 1; ++c) {
+      for (unsigned int d = 0; d < dim + 1; ++d) {
+        if (c == dim && d == dim)  // pressure-pressure term
+          coupling[c][d] = DoFTools::none;
+        else  // other combinations
+          coupling[c][d] = DoFTools::always;
       }
+    }
 
     TrilinosWrappers::BlockSparsityPattern sparsity(block_owned_dofs,
                                                     MPI_COMM_WORLD);
@@ -144,20 +135,17 @@ void NavierStokes<dim>::setup()
     sparsity.compress();
 
     // Do the same for the velocity mass term.
-    for (unsigned int c = 0; c < dim + 1; ++c)
-      {
-        for (unsigned int d = 0; d < dim + 1; ++d)
-          {
-            if (c == dim || d == dim) // terms with no pressure
-              coupling[c][d] = DoFTools::always;
-            else // terms with pressure
-              coupling[c][d] = DoFTools::none;
-          }
+    for (unsigned int c = 0; c < dim + 1; ++c) {
+      for (unsigned int d = 0; d < dim + 1; ++d) {
+        if (c == dim || d == dim)  // terms with no pressure
+          coupling[c][d] = DoFTools::always;
+        else  // terms with pressure
+          coupling[c][d] = DoFTools::none;
       }
+    }
     TrilinosWrappers::BlockSparsityPattern velocity_mass_sparsity(
-      block_owned_dofs, MPI_COMM_WORLD);
-    DoFTools::make_sparsity_pattern(dof_handler,
-                                    coupling,
+        block_owned_dofs, MPI_COMM_WORLD);
+    DoFTools::make_sparsity_pattern(dof_handler, coupling,
                                     velocity_mass_sparsity);
     velocity_mass_sparsity.compress();
 

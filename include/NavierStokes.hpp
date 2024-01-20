@@ -1,76 +1,59 @@
 #ifndef NAVIER_STOKES_HPP
 #define NAVIER_STOKES_HPP
 
-#include <deal.II/base/function.h>
-#include <deal.II/base/mpi.h>
 #include <deal.II/base/conditional_ostream.h>
-#include <deal.II/base/quadrature.h>
+#include <deal.II/base/function.h>
 #include <deal.II/base/index_set.h>
-
+#include <deal.II/base/mpi.h>
+#include <deal.II/base/quadrature.h>
+#include <deal.II/distributed/fully_distributed_tria.h>
 #include <deal.II/dofs/dof_handler.h>
-
+#include <deal.II/fe/fe.h>
 #include <deal.II/lac/trilinos_block_sparse_matrix.h>
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
-
-#include <deal.II/distributed/fully_distributed_tria.h>
-
-#include <deal.II/fe/fe.h>
 
 using namespace dealii;
 
 // Class implementing a solver for the Navier Stokes problem.
 template <unsigned int dim>
-class NavierStokes
-{
-public:
+class NavierStokes {
+ public:
   // Constructor.
-  NavierStokes(const std::string  &mesh_file_name_,
-         const unsigned int &degree_velocity_,
-         const unsigned int &degree_pressure_,
-         const double &T_,
-         const double &deltat_)
-    : mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
-    , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
-    , pcout(std::cout, mpi_rank == 0)
-    , mesh_file_name(mesh_file_name_)
-    , degree_velocity(degree_velocity_)
-    , degree_pressure(degree_pressure_)
-    , T(T_)
-    , deltat(deltat_)
-    , mesh(MPI_COMM_WORLD)
-  {}
+  NavierStokes(const std::string &mesh_file_name_,
+               const unsigned int &degree_velocity_,
+               const unsigned int &degree_pressure_, const double &T_,
+               const double &deltat_)
+      : mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD)),
+        mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)),
+        pcout(std::cout, mpi_rank == 0),
+        mesh_file_name(mesh_file_name_),
+        degree_velocity(degree_velocity_),
+        degree_pressure(degree_pressure_),
+        T(T_),
+        deltat(deltat_),
+        mesh(MPI_COMM_WORLD) {}
 
   // Destructor.
   virtual ~NavierStokes() = default;
 
   // Initialization.
-  void
-  setup();
+  void setup();
 
   // Solve the problem.
-  void
-  solve();
+  void solve();
 
-  // Calculate the Reynolds number.
-  virtual double
-  get_reynolds_number() const = 0;
-
-protected:
+ protected:
   // Assemble the constant part of the matrix.
-  void
-  assemble_constant();
+  void assemble_constant();
 
   // Assemble the right-hand side and nonlinear term.
-  void
-  assemble_time_dependent();
+  void assemble_time_dependent();
 
   // Solve the problem for one time step.
-  void
-  solve_time_step();
+  void solve_time_step();
 
   // Output.
-  void
-  output(const unsigned int &time_step) const;
+  void output(const unsigned int &time_step) const;
 
   // MPI parallel. /////////////////////////////////////////////////////////////
 
@@ -95,7 +78,8 @@ protected:
   std::shared_ptr<Function<dim>> initial_conditions;
 
   // Boundary conditions.
-  std::map<types::boundary_id, const Function<dim> *> dirichlet_boundary_functions;
+  std::map<types::boundary_id, const Function<dim> *>
+      dirichlet_boundary_functions;
   std::map<types::boundary_id, double> neumann_boundary_functions;
 
   // Discretization. ///////////////////////////////////////////////////////////
