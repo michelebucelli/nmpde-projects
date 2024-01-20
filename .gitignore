@@ -38,3 +38,6 @@
 
 # Build
 build
+
+# Mesh files
+*.vtk
