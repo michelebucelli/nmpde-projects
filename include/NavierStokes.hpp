@@ -31,6 +31,7 @@ class NavierStokes {
         degree_pressure(degree_pressure_),
         T(T_),
         deltat(deltat_),
+        time_step(0),
         mesh(MPI_COMM_WORLD) {}
 
   // Destructor.
@@ -50,10 +51,10 @@ class NavierStokes {
   void assemble_time_dependent();
 
   // Solve the problem for one time step.
-  void solve_time_step();
+  virtual void solve_time_step();
 
   // Output.
-  void output(const unsigned int &time_step) const;
+  void output() const;
 
   // MPI parallel. /////////////////////////////////////////////////////////////
 
@@ -98,6 +99,9 @@ class NavierStokes {
 
   // Time step.
   const double deltat;
+
+  // Current time step.
+  unsigned int time_step;
 
   // Mesh.
   parallel::fullydistributed::Triangulation<dim> mesh;

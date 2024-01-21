@@ -1,5 +1,8 @@
 #include "Problem.hpp"
 
+#include <deal.II/fe/fe_simplex_p.h>
+#include <deal.II/fe/mapping_fe.h>
+
 double Cylinder2D::InletVelocity::value(const Point<dim> &p,
                                         const unsigned int component) const {
   if (component == 0) {
@@ -162,4 +165,34 @@ void EthierSteinman::ExactSolution::vector_value(const Point<dim> &p,
   for (unsigned int i = 0; i < dim + 1; i++) {
     values[i] = value(p, i);
   }
+}
+
+double EthierSteinman::compute_error(const VectorTools::NormType &norm_type) {
+  FE_SimplexP<dim> fe_mapping(1);
+  MappingFE mapping(fe_mapping);
+
+  // The error is an integral, and we approximate that integral using a
+  // quadrature formula. To make sure we are accurate enough, we use a
+  // quadrature formula with one node more than what we used in assembly.
+  const QGaussSimplex<dim> quadrature_error(degree_velocity + 2);
+
+  // Set the time for the exact solution.
+  exact_solution.set_time(time_step * deltat);
+
+  // First we compute the norm on each element, and store it in a vector.
+  Vector<double> error_per_cell(mesh.n_active_cells());
+  VectorTools::integrate_difference(mapping, dof_handler, solution,
+                                    exact_solution, error_per_cell,
+                                    quadrature_error, norm_type);
+
+  // Then, we add out all the cells.
+  const double error =
+      VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
+
+  return error;
+}
+
+void EthierSteinman::solve_time_step() {
+  NavierStokes<dim>::solve_time_step();
+  std::cout << "L2 error: " << compute_error(VectorTools::L2_norm) << std::endl;
 }

@@ -7,7 +7,7 @@ template class NavierStokes<2U>;
 template class NavierStokes<3U>;
 
 template <unsigned int dim>
-void NavierStokes<dim>::output(const unsigned int &time_step) const {
+void NavierStokes<dim>::output() const {
   pcout << "===============================================" << std::endl;
 
   DataOut<dim> data_out;

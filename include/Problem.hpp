@@ -1,6 +1,8 @@
 #ifndef PROBLEM_HPP
 #define PROBLEM_HPP
 
+#include <deal.II/numerics/vector_tools.h>
+
 #include "NavierStokes.hpp"
 
 class Cylinder2D : public NavierStokes<2U> {
@@ -121,7 +123,11 @@ class EthierSteinman : public NavierStokes<3U> {
   class ExactSolution : public Function<dim> {
    public:
     // Constructor.
-    ExactSolution(double nu_) : Function<dim>(dim + 1), nu(nu_), exact_velocity(nu_), exact_pressure(nu_) {}
+    ExactSolution(double nu_)
+        : Function<dim>(dim + 1),
+          nu(nu_),
+          exact_velocity(nu_),
+          exact_pressure(nu_) {}
     // Evaluation.
     virtual double value(const Point<dim> &p,
                          const unsigned int component) const override;
@@ -171,6 +177,12 @@ class EthierSteinman : public NavierStokes<3U> {
     // Exact pressure.
     ExactPressure exact_pressure;
   };
+
+  // Solve the problem for one time step and print the L2 error.
+  void solve_time_step() override;
+
+  // Compute the error.
+  double compute_error(const VectorTools::NormType &norm_type);
 
  private:
   // Parameters of the problem.
