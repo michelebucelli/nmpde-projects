@@ -52,4 +52,4 @@ Plane Surface(8) = {6, 7};
 Physical Surface(1) = {8};
 
 // Don't forget to use dimension=2 when creating the mesh.
-// gmsh square-inside-square.geo -2 -format vtk && gmsh square-inside-square.vtk
+// gmsh square-inside-square.geo -2 && gmsh square-inside-square.msh

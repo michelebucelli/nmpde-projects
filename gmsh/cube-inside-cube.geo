@@ -34,4 +34,4 @@ MeshSize{ PointsOf{ Volume{:}; } } = characteristic_length;
 Physical Volume(1) = {3};
 
 // This script should be used with the command
-// gmsh cube-inside-cube.geo -3 -format vtk && gmsh cube-inside-cube.vtk
+// gmsh cube-inside-cube.geo -3 && gmsh cube-inside-cube.msh
