@@ -1,8 +1,9 @@
 ### Current issues
 - Missing exact solution gradient and function to compute the error in Ethier Steinman problem
 - Missing most mesh files
-- Flow past a cyclinder was not tested (waiting for mesh files)
-- Boundary tags for flow past a cyclinder are placeholders (waiting for mesh files)
+- 2D Flow past a cylinder does not converge (missing preconditioner)
+- 3D Flow past a cylinder was not tested (waiting for mesh files)
+- Boundary tags for 3D flow past a cylinder are placeholders (waiting for mesh files)
 - No preconditioner is used
 - Missing computation of the lift and drag coefficients
 - Check if serial computations (e.g. initialization of the triangulation) or dense matrices (e.g. in assembly) cause problems for performance/memory usage, remove them is necessary

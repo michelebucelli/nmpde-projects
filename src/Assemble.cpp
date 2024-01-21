@@ -136,13 +136,13 @@ void NavierStokes<dim>::assemble_time_dependent() {
             Tensor<1, dim> nonlinear_term;
 
             for (unsigned int k = 0; k < dim; k++) {
-              nonlinear_term[i] = 0.0;
+              nonlinear_term[k] = 0.0;
               for (unsigned int l = 0; l < dim; l++) {
                 // local_old_solution_gradient component order:
                 // first: component of the vector valued function
                 // second: derivative direction
                 // local_old_solution_gradient[0][1] = du^n_x / dy
-                nonlinear_term[i] += fe_values[velocity].value(j, q)[l] *
+                nonlinear_term[k] += fe_values[velocity].value(j, q)[l] *
                                      local_old_solution_gradient[k][l];
               }
             }
