@@ -38,72 +38,12 @@ tmp[] = Extrude {0.0, 0.0, cube_size} {
 // In this case, we are defining the physical volume of the cube.
 Physical Volume(1) = tmp[1];
 
-// To add the six faces as physical surfaces, we need to define the physical
-// surface of each face. This is done by defining the physical surface of each
-// line that makes up the face.
-
-// TAG #1 is BOTTOM
 Physical Surface(1) = {6};
-
-// Side face 1 (1, 2, 6, 5)
-Line(101) = {1, 2};
-Line(102) = {2, 6};
-Line(103) = {6, 5};
-Line(104) = {5, 1};
-
-Line Loop(2) = {101, 102, 103, 104};
-Plane Surface(3) = {2};
-
-// TAG #2 is FRONT
-Physical Surface(2) = {3};
-
-// Side face 2 (2, 3, 10, 6)
-Line(105) = {2, 3};
-Line(106) = {3, 10};
-Line(107) = {10, 6};
-Line(108) = {6, 2};
-
-Line Loop(3) = {105, 106, 107, 108};
-Plane Surface(4) = {3};
-
-// TAG #3 is RIGHT
-Physical Surface(3) = {4};
-
-// Side face 3 (3, 4, 14, 10)
-Line(109) = {3, 4};
-Line(110) = {4, 14};
-Line(111) = {14, 10};
-Line(112) = {10, 3};
-
-Line Loop(4) = {109, 110, 111, 112};
-Plane Surface(5) = {4};
-
-// TAG #4 is BACK
-Physical Surface(4) = {5};
-
-// Side face 4 (4, 1, 5, 14)
-Line(113) = {4, 1};
-Line(114) = {1, 5};
-Line(115) = {5, 14};
-Line(116) = {14, 4};
-
-Line Loop(105) = {113, 114, 115, 116};
-Plane Surface(106) = {105};
-
-// TAG #5 is LEFT
-Physical Surface(5) = {106};
-
-// Top face (5, 6, 10, 14)
-Line(117) = {5, 6};
-Line(118) = {6, 10};
-Line(119) = {10, 14};
-Line(120) = {14, 5};
-
-Line Loop(107) = {117, 118, 119, 120};
-Plane Surface(108) = {107};
-
-// TAG #6 is TOP
-Physical Surface(6) = {108};
+Physical Surface(2) = {15};
+Physical Surface(3) = {19};
+Physical Surface(4) = {23};
+Physical Surface(5) = {27};
+Physical Surface(6) = {28};
 
 // If you're wondering why how we can choose the format of the output file, or
 // how to tell gmsh that we also want vertices inside the cube, keep in mind
