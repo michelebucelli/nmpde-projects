@@ -7,7 +7,7 @@ int main(int argc, char *argv[]) {
   const std::string mesh_file_name = "../mesh/cube.msh";
   constexpr unsigned int degree_velocity = 2;
   constexpr unsigned int degree_pressure = 1;
-  constexpr double T = 10;
+  constexpr double T = 1;
   constexpr double deltat = 0.1;
   constexpr double nu = 1.0;
 

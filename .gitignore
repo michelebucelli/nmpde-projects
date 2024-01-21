@@ -40,5 +40,7 @@
 build
 
 # Mesh files
-*.vtk
-*.msh
+mesh/*
+
+# Result files
+results/*

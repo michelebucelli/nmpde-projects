@@ -1,5 +1,5 @@
 ### Current issues
-- Segmentation fault in Ethier Steinman problem (calculation of the gradient of u^n)
+- Missing exact solution gradient and function to compute the error in Ethier Steinman problem
 - Missing most mesh files
 - Flow past a cyclinder was not tested (waiting for mesh files)
 - Boundary tags for flow past a cyclinder are placeholders (waiting for mesh files)

@@ -90,9 +90,9 @@ void NavierStokes<dim>::assemble_time_dependent() {
   const unsigned int n_q = quadrature->size();
   const unsigned int n_q_face = quadrature_face->size();
 
-  FEValues<dim> fe_values(
-      *fe, *quadrature,
-      update_values | update_quadrature_points | update_JxW_values);
+  FEValues<dim> fe_values(*fe, *quadrature,
+                          update_values | update_quadrature_points |
+                              update_JxW_values | update_gradients);
   FEFaceValues<dim> fe_face_values(
       *fe, *quadrature_face,
       update_values | update_normal_vectors | update_JxW_values);
@@ -121,6 +121,7 @@ void NavierStokes<dim>::assemble_time_dependent() {
       // Calculate the gradient of the previous solution.
       // Source:
       // https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
+      // https://www.dealii.org/current/doxygen/deal.II/classFEValuesViews_1_1Vector.html#ace19727c285e8035282a6f3f66ce7f18
       fe_values[velocity].get_function_gradients(solution,
                                                  old_solution_gradients);
 
@@ -137,6 +138,10 @@ void NavierStokes<dim>::assemble_time_dependent() {
             for (unsigned int k = 0; k < dim; k++) {
               nonlinear_term[i] = 0.0;
               for (unsigned int l = 0; l < dim; l++) {
+                // local_old_solution_gradient component order:
+                // first: component of the vector valued function
+                // second: derivative direction
+                // local_old_solution_gradient[0][1] = du^n_x / dy
                 nonlinear_term[i] += fe_values[velocity].value(j, q)[l] *
                                      local_old_solution_gradient[k][l];
               }

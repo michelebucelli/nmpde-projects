@@ -43,15 +43,15 @@ void NavierStokes<dim>::solve() {
   }
 
   unsigned int time_step = 0;
-  double time = 0;
+  double time = deltat;
 
   // Solvethe problem at each time step.
   while (time < T) {
-    time += deltat;
-    ++time_step;
-
     pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
           << time << ": " << std::endl;
+
+    time += deltat;
+    ++time_step;
 
     assemble_time_dependent();
     solve_time_step();
