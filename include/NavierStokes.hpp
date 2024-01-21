@@ -50,6 +50,9 @@ class NavierStokes {
   // Assemble the right-hand side and nonlinear term.
   void assemble_time_dependent();
 
+  // Apply the initial condition.
+  virtual void apply_initial_conditions();
+
   // Solve the problem for one time step.
   virtual void solve_time_step();
 

@@ -9,10 +9,19 @@ template class NavierStokes<2U>;
 template class NavierStokes<3U>;
 
 template <unsigned int dim>
+void NavierStokes<dim>::apply_initial_conditions() {
+  pcout << "Applying the initial conditions" << std::endl;
+
+  initial_conditions->set_time(time_step * deltat);
+  VectorTools::interpolate(dof_handler, *initial_conditions, solution_owned);
+  solution = solution_owned;
+}
+
+template <unsigned int dim>
 void NavierStokes<dim>::solve_time_step() {
   pcout << "  Solving the linear system" << std::endl;
 
-  SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
+  SolverControl solver_control(100000, 1e-3 * system_rhs.l2_norm());
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
@@ -30,31 +39,24 @@ void NavierStokes<dim>::solve() {
 
   pcout << "===============================================" << std::endl;
 
-  // Apply the initial condition.
-  {
-    pcout << "Applying the initial condition" << std::endl;
-
-    initial_conditions->set_time(0.0);
-    VectorTools::interpolate(dof_handler, *initial_conditions, solution_owned);
-    solution = solution_owned;
-
-    // Output the initial solution.
-    output();
-  }
+  // Calculate and output the initial solution.
+  time_step = 0;
+  apply_initial_conditions();
+  output();
 
   time_step = 1;
   double time = deltat;
 
   // Solve the problem at each time step.
-  while (time <= T) {
+  while (time < T + deltat) {
     pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
           << time << ": " << std::endl;
-
-    time += deltat;
-    ++time_step;
 
     assemble_time_dependent();
     solve_time_step();
     output();
+
+    time += deltat;
+    ++time_step;
   }
 }

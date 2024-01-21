@@ -98,7 +98,7 @@ EthierSteinman::EthierSteinman(const std::string &mesh_file_name_,
 
   initial_conditions = std::make_shared<ExactSolution>(nu);
 
-  for (unsigned int i = 0; i < 6U; i++) {
+  for (unsigned int i = 1U; i <= 6U; i++) {
     dirichlet_boundary_functions[i] = &exact_solution.exact_velocity;
   }
 }
@@ -192,7 +192,12 @@ double EthierSteinman::compute_error(const VectorTools::NormType &norm_type) {
   return error;
 }
 
+void EthierSteinman::apply_initial_conditions() {
+  NavierStokes<dim>::apply_initial_conditions();
+  pcout << "L2 error: " << compute_error(VectorTools::L2_norm) << std::endl;
+}
+
 void EthierSteinman::solve_time_step() {
   NavierStokes<dim>::solve_time_step();
-  std::cout << "L2 error: " << compute_error(VectorTools::L2_norm) << std::endl;
+  pcout << "L2 error: " << compute_error(VectorTools::L2_norm) << std::endl;
 }

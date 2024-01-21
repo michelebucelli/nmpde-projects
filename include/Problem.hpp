@@ -178,6 +178,9 @@ class EthierSteinman : public NavierStokes<3U> {
     ExactPressure exact_pressure;
   };
 
+  // Apply the initial conditions and print the L2 error.
+  void apply_initial_conditions() override;
+
   // Solve the problem for one time step and print the L2 error.
   void solve_time_step() override;
 
