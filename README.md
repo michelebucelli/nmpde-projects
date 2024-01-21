@@ -1,7 +1,8 @@
 ### Current issues
-- Missing mesh files
-- Nothing was tested (waiting for mesh files)
-- Boundary tags are placeholders (waiting for mesh files)
+- Segmentation fault in Ethier Steinman problem (calculation of the gradient of u^n)
+- Missing most mesh files
+- Flow past a cyclinder was not tested (waiting for mesh files)
+- Boundary tags for flow past a cyclinder are placeholders (waiting for mesh files)
 - No preconditioner is used
 - Missing computation of the lift and drag coefficients
 - Check if serial computations (e.g. initialization of the triangulation) or dense matrices (e.g. in assembly) cause problems for performance/memory usage, remove them is necessary

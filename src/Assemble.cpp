@@ -84,8 +84,7 @@ void NavierStokes<dim>::assemble_constant() {
 
 template <unsigned int dim>
 void NavierStokes<dim>::assemble_time_dependent() {
-  pcout << "===============================================" << std::endl;
-  pcout << "Assembling the time dependent terms of the system" << std::endl;
+  pcout << "  Assembling the nonlinear term" << std::endl;
 
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q = quadrature->size();
@@ -160,6 +159,8 @@ void NavierStokes<dim>::assemble_time_dependent() {
     system_matrix.compress(VectorOperation::add);
   }
 
+  pcout << "  Assembling the right-hand side" << std::endl;
+
   // Assemble the right-hand side.
   {
     Vector<double> cell_rhs(dofs_per_cell);
@@ -199,23 +200,25 @@ void NavierStokes<dim>::assemble_time_dependent() {
     velocity_mass.vmult_add(system_rhs, solution_owned);
 
     system_rhs.compress(VectorOperation::add);
+  }
 
-    // Dirichlet boundary conditions.
-    {
-      std::map<types::global_dof_index, double> boundary_values;
+  pcout << "  Applying Dirichlet (BC)" << std::endl;
 
-      ComponentMask mask;
-      if constexpr (dim == 2) {
-        mask = ComponentMask({true, true, false});
-      } else {
-        mask = ComponentMask({true, true, true, false});
-      }
+  // Dirichlet boundary conditions.
+  {
+    std::map<types::global_dof_index, double> boundary_values;
 
-      VectorTools::interpolate_boundary_values(
-          dof_handler, dirichlet_boundary_functions, boundary_values, mask);
-
-      MatrixTools::apply_boundary_values(boundary_values, system_matrix,
-                                         solution, system_rhs, false);
+    ComponentMask mask;
+    if constexpr (dim == 2) {
+      mask = ComponentMask({true, true, false});
+    } else {
+      mask = ComponentMask({true, true, true, false});
     }
+
+    VectorTools::interpolate_boundary_values(
+        dof_handler, dirichlet_boundary_functions, boundary_values, mask);
+
+    MatrixTools::apply_boundary_values(boundary_values, system_matrix, solution,
+                                       system_rhs, false);
   }
 }

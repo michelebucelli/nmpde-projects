@@ -86,17 +86,18 @@ EthierSteinman::EthierSteinman(const std::string &mesh_file_name_,
                                const double &nu_)
     : NavierStokes(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
                    deltat_),
-      exact_velocity(nu_),
-      exact_pressure(nu_) {
+      exact_solution(nu_) {
   ro = 1.0;
   nu = nu_;
 
+  initial_conditions = std::make_shared<ExactSolution>(nu);
+
   for (unsigned int i = 0; i < 6U; i++) {
-    dirichlet_boundary_functions[i] = &exact_velocity;
+    dirichlet_boundary_functions[i] = &exact_solution.exact_velocity;
   }
 }
 
-double EthierSteinman::ExactVelocity::value(
+double EthierSteinman::ExactSolution::ExactVelocity::value(
     const Point<dim> &p, const unsigned int component) const {
   double result = -a * std::exp(-nu * b * b * get_time());
   if (component == 0) {
@@ -113,15 +114,15 @@ double EthierSteinman::ExactVelocity::value(
   }
 }
 
-void EthierSteinman::ExactVelocity::vector_value(const Point<dim> &p,
-                                                 Vector<double> &values) const {
+void EthierSteinman::ExactSolution::ExactVelocity::vector_value(
+    const Point<dim> &p, Vector<double> &values) const {
   for (unsigned int i = 0; i < dim; i++) {
     values[i] = value(p, i);
   }
   values[dim] = 0.0;
 }
 
-double EthierSteinman::ExactPressure::value(
+double EthierSteinman::ExactSolution::ExactPressure::value(
     const Point<dim> &p, const unsigned int /*component*/) const {
   return -a * a / 2.0 * std::exp(-2 * nu * b * b * get_time()) *
          (2.0 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) *
@@ -134,10 +135,28 @@ double EthierSteinman::ExactPressure::value(
           std::exp(2.0 * a * p[2]));
 }
 
-void EthierSteinman::ExactPressure::vector_value(const Point<dim> &p,
-                                                 Vector<double> &values) const {
+void EthierSteinman::ExactSolution::ExactPressure::vector_value(
+    const Point<dim> &p, Vector<double> &values) const {
   values[dim] = value(p);
   for (unsigned int i = 0; i < dim; i++) {
     values[i] = 0.0;
+  }
+}
+
+double EthierSteinman::ExactSolution::value(
+    const Point<dim> &p, const unsigned int component) const {
+  if (component < dim) {
+    return exact_velocity.value(p, component);
+  } else if (component == dim) {
+    return exact_pressure.value(p);
+  } else {
+    return 0.0;
+  }
+}
+
+void EthierSteinman::ExactSolution::vector_value(const Point<dim> &p,
+                                                 Vector<double> &values) const {
+  for (unsigned int i = 0; i < dim + 1; i++) {
+    values[i] = value(p, i);
   }
 }

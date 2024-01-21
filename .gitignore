@@ -41,3 +41,4 @@ build
 
 # Mesh files
 *.vtk
+*.msh

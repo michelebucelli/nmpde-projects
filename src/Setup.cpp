@@ -137,12 +137,13 @@ void NavierStokes<dim>::setup() {
     // Do the same for the velocity mass term.
     for (unsigned int c = 0; c < dim + 1; ++c) {
       for (unsigned int d = 0; d < dim + 1; ++d) {
-        if (c == dim || d == dim)  // terms with no pressure
-          coupling[c][d] = DoFTools::always;
-        else  // terms with pressure
+        if (c == dim || d == dim)  // terms with pressure
           coupling[c][d] = DoFTools::none;
+        else  // terms with no pressure
+          coupling[c][d] = DoFTools::always;
       }
     }
+
     TrilinosWrappers::BlockSparsityPattern velocity_mass_sparsity(
         block_owned_dofs, MPI_COMM_WORLD);
     DoFTools::make_sparsity_pattern(dof_handler, coupling,

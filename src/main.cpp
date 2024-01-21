@@ -4,14 +4,15 @@
 int main(int argc, char *argv[]) {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-  const std::string mesh_file_name = "../mesh/mesh-square-h0.100000.msh";
+  const std::string mesh_file_name = "../mesh/cube.msh";
   constexpr unsigned int degree_velocity = 2;
   constexpr unsigned int degree_pressure = 1;
   constexpr double T = 10;
   constexpr double deltat = 0.1;
+  constexpr double nu = 1.0;
 
-  Cylinder2D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                     deltat);
+  EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure, T,
+                         deltat, nu);
 
   problem.setup();
   problem.solve();

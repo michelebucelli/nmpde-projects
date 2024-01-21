@@ -10,6 +10,8 @@ template class NavierStokes<3U>;
 
 template <unsigned int dim>
 void NavierStokes<dim>::solve_time_step() {
+  pcout << "  Solving the linear system" << std::endl;
+
   SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
@@ -32,12 +34,12 @@ void NavierStokes<dim>::solve() {
   {
     pcout << "Applying the initial condition" << std::endl;
 
+    initial_conditions->set_time(0.0);
     VectorTools::interpolate(dof_handler, *initial_conditions, solution_owned);
     solution = solution_owned;
 
     // Output the initial solution.
     output(0);
-    pcout << "-----------------------------------------------" << std::endl;
   }
 
   unsigned int time_step = 0;
@@ -49,7 +51,7 @@ void NavierStokes<dim>::solve() {
     ++time_step;
 
     pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
-          << time << ":" << std::flush;
+          << time << ": " << std::endl;
 
     assemble_time_dependent();
     solve_time_step();

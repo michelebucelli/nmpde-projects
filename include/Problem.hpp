@@ -117,47 +117,67 @@ class EthierSteinman : public NavierStokes<3U> {
                  const unsigned int &degree_pressure_, const double &T_,
                  const double &deltat_, const double &nu_);
 
-  // Class for the exact velocity.
-  // This returns a vector with 4 components, of which the last one is empty.
-  class ExactVelocity : public Function<dim> {
+  // Class for the exact solution, containing both velocity and pressure.
+  class ExactSolution : public Function<dim> {
    public:
     // Constructor.
-    ExactVelocity(double nu_) : Function<dim>(dim + 1), nu(nu_) {}
+    ExactSolution(double nu_) : Function<dim>(dim + 1), nu(nu_), exact_velocity(nu_), exact_pressure(nu_) {}
     // Evaluation.
     virtual double value(const Point<dim> &p,
-                         const unsigned int component = 0) const override;
+                         const unsigned int component) const override;
     virtual void vector_value(const Point<dim> &p,
                               Vector<double> &values) const override;
 
-   private:
-    const double nu;
-  };
+    // Class for the exact velocity.
+    // This returns a vector with 4 components, of which the last one is empty.
+    class ExactVelocity : public Function<dim> {
+     public:
+      // Constructor.
+      ExactVelocity(double nu_) : Function<dim>(dim + 1), nu(nu_) {}
+      // Evaluation.
+      virtual double value(const Point<dim> &p,
+                           const unsigned int component = 0) const override;
+      virtual void vector_value(const Point<dim> &p,
+                                Vector<double> &values) const override;
 
-  // Class for the exact pressure.
-  // This returns a vector with 4 components, of which the first three are
-  // empty.
-  class ExactPressure : public Function<dim> {
+     private:
+      const double nu;
+    };
+
+    // Class for the exact pressure.
+    // This returns a vector with 4 components, of which the first three are
+    // empty.
+    class ExactPressure : public Function<dim> {
+     public:
+      // Constructor.
+      ExactPressure(double nu_) : Function<dim>(dim + 1), nu(nu_) {}
+      // Evaluation.
+      virtual double value(const Point<dim> &p,
+                           const unsigned int /*component*/ = 0) const override;
+      virtual void vector_value(const Point<dim> &p,
+                                Vector<double> &values) const override;
+
+     private:
+      const double nu;
+    };
+
+   private:
+    // Diffusion coefficient.
+    const double nu;
+
    public:
-    // Constructor.
-    ExactPressure(double nu_) : Function<dim>(dim + 1), nu(nu_) {}
-    // Evaluation.
-    virtual double value(const Point<dim> &p,
-                         const unsigned int /*component*/ = 0) const override;
-    virtual void vector_value(const Point<dim> &p,
-                              Vector<double> &values) const override;
-
-   private:
-    const double nu;
+    // Exact velocity.
+    ExactVelocity exact_velocity;
+    // Exact pressure.
+    ExactPressure exact_pressure;
   };
 
  private:
   // Parameters of the problem.
   static constexpr double a = M_PI / 4.0;
   static constexpr double b = M_PI / 2.0;
-  // Exact velocity.
-  ExactVelocity exact_velocity;
-  // Exact pressure.
-  ExactPressure exact_pressure;
+  // Exact solution.
+  ExactSolution exact_solution;
 };
 
 #endif
