@@ -50,3 +50,12 @@ Line Loop(12) = {3, 4, 5, 6};
 // carved out of the domain.
 Plane Surface(14) = {12, 11};
 Physical Surface(1) = {14};
+
+// This code should hopefully add tags to the four lines that make up the 
+// domain, and the circle.
+Physical Line(1) = {3};
+Physical Line(2) = {4};
+Physical Line(3) = {5};
+Physical Line(4) = {6};
+
+Physical Line(5) = {1, 2};
