@@ -136,6 +136,9 @@ class NavierStokes {
   // Velocity mass matrix (M/deltat).
   TrilinosWrappers::BlockSparseMatrix velocity_mass;
 
+  // Pressure mass matrix (M_p).
+  TrilinosWrappers::BlockSparseMatrix pressure_mass;
+
   // Constant part of the matrix (M/deltat + A B^T; -B 0).
   TrilinosWrappers::BlockSparseMatrix constant_matrix;
 

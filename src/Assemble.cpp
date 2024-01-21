@@ -23,12 +23,14 @@ void NavierStokes<dim>::assemble_constant() {
                               update_quadrature_points | update_JxW_values);
 
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-  FullMatrix<double> mass_cell_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> velocity_mass_cell_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> pressure_mass_cell_matrix(dofs_per_cell, dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
   constant_matrix = 0.0;
   velocity_mass = 0.0;
+  pressure_mass = 0.0;
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
@@ -39,7 +41,7 @@ void NavierStokes<dim>::assemble_constant() {
     fe_values.reinit(cell);
 
     cell_matrix = 0.0;
-    mass_cell_matrix = 0.0;
+    velocity_mass_cell_matrix = 0.0;
 
     for (unsigned int q = 0; q < n_q; ++q) {
       for (unsigned int i = 0; i < dofs_per_cell; ++i) {
@@ -57,7 +59,7 @@ void NavierStokes<dim>::assemble_constant() {
                              fe_values[velocity].value(i, q)) *
               fe_values.JxW(q) / deltat;
           cell_matrix(i, j) += mass_value;
-          mass_cell_matrix(i, j) += mass_value;
+          velocity_mass_cell_matrix(i, j) += mass_value;
 
           // Pressure term in the momentum equation (B^T).
           cell_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
@@ -68,6 +70,11 @@ void NavierStokes<dim>::assemble_constant() {
           cell_matrix(i, j) += fe_values[velocity].divergence(j, q) *
                                fe_values[pressure].value(i, q) *
                                fe_values.JxW(q);
+
+          // Pressure mass term.
+          pressure_mass_cell_matrix(i, j) += fe_values[pressure].value(j, q) *
+                                             fe_values[pressure].value(i, q) *
+                                             fe_values.JxW(q);
         }
       }
     }
@@ -75,11 +82,13 @@ void NavierStokes<dim>::assemble_constant() {
     cell->get_dof_indices(dof_indices);
 
     constant_matrix.add(dof_indices, cell_matrix);
-    velocity_mass.add(dof_indices, mass_cell_matrix);
+    velocity_mass.add(dof_indices, velocity_mass_cell_matrix);
+    pressure_mass.add(dof_indices, pressure_mass_cell_matrix);
   }
 
   constant_matrix.compress(VectorOperation::add);
   velocity_mass.compress(VectorOperation::add);
+  pressure_mass.compress(VectorOperation::add);
 }
 
 template <unsigned int dim>

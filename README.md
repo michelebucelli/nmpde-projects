@@ -1,7 +1,6 @@
 ### Current issues
 - Missing exact solution gradient in Ethier Steinman problem
-- Lack of converge to an acceptable precision due to missing preconditioner
-- Large L2 error in Ethier Steinman problem (possibly caused by low precision in solver)
+- Large L2 error in Ethier Steinman problem
 - Missing 3D cylinder mesh files
 - 3D Flow past a cylinder was not tested (waiting for mesh files)
 - Boundary tags for 3D flow past a cylinder are placeholders (waiting for mesh files)
