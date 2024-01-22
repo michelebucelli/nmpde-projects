@@ -80,3 +80,7 @@ Physical Surface("LEFT", 5) = {39};
 Physical Surface("TOP", 6) = {35};
 
 Physical Surface("OBSTACLE", 7) = {43, 47, 51, 55};
+
+// By "bottom", I mean the face with the lowest z coordinate. By "left", I
+// mean the face with the lowest x coordinate. By "front", I mean the face
+// with the lowest y coordinate.
