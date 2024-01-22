@@ -112,16 +112,16 @@ EthierSteinman::EthierSteinman(const std::string &mesh_file_name_,
 
 double EthierSteinman::ExactSolution::ExactVelocity::value(
     const Point<dim> &p, const unsigned int component) const {
-  double result = -a * std::exp(-nu * b * b * get_time());
+  const double result = -a * std::exp(-nu * b * b * get_time());
   if (component == 0) {
-    return result * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) +
-           std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]);
+    return result * (std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) +
+                     std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]));
   } else if (component == 1) {
-    return result * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) +
-           std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]);
+    return result * (std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) +
+                     std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]));
   } else if (component == 2) {
-    return result * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) +
-           std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]);
+    return result * (std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) +
+                     std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]));
   } else {
     return 0.0;
   }

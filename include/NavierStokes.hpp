@@ -142,7 +142,7 @@ class NavierStokes {
   // Constant part of the matrix (M/deltat + A B^T; -B 0).
   TrilinosWrappers::BlockSparseMatrix constant_matrix;
 
-  // System matrix (constant_matrix + [C 0; 0 0])
+  // System matrix (constant_matrix + [C 0; 0 0]).
   TrilinosWrappers::BlockSparseMatrix system_matrix;
 
   // Right-hand side vector in the linear system at the current time step.

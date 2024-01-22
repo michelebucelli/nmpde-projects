@@ -1,6 +1,7 @@
 ### Current issues
-- Error in initial solution interpolation
-- Missing ad hoc preconditioners
+- Missing Neumann (BC) in Ethier Steinman problem
+- SIMPLE preconditioner not working (runtime error)
+- Missing many ad hoc preconditioners
 - 2D and 3D flow past a cylinder do not converge (missing preconditioner)
 - Missing computation of the lift and drag coefficients
 - Check if serial computations (e.g. initialization of the triangulation) or dense matrices (e.g. in assembly) cause problems for performance/memory usage, remove them is necessary
