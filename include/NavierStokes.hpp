@@ -82,9 +82,9 @@ class NavierStokes {
   std::shared_ptr<Function<dim>> initial_conditions;
 
   // Boundary conditions.
-  std::map<types::boundary_id, const Function<dim> *>
+  std::map<types::boundary_id, Function<dim> *>
       dirichlet_boundary_functions;
-  std::map<types::boundary_id, double> neumann_boundary_functions;
+  std::map<types::boundary_id, Function<dim> *> neumann_boundary_functions;
 
   // Discretization. ///////////////////////////////////////////////////////////
 

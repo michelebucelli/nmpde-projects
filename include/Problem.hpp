@@ -46,17 +46,15 @@ class Cylinder2D : public NavierStokes<2U> {
  private:
   // Reference velocity.
   constexpr static double U_m = 1.5;
-  // Pressure for Neumann BC.
-  constexpr static double p_out = 10.0;
   // Cyclinder diameter [m].
   constexpr static double D = 0.1;
   // Inlet side length [m].
   constexpr static double H = 0.41;
 
   // Inlet velocity.
-  const InletVelocity inlet_velocity;
+  InletVelocity inlet_velocity;
   // Zero function.
-  const Functions::ZeroFunction<dim> zero_function;
+  Functions::ZeroFunction<dim> zero_function;
 };
 
 class Cylinder3D : public NavierStokes<3U> {
@@ -94,17 +92,15 @@ class Cylinder3D : public NavierStokes<3U> {
  private:
   // Reference velocity.
   constexpr static double U_m = 2.25;
-  // Pressure for Neumann BC.
-  constexpr static double p_out = 10.0;
   // Cyclinder diameter [m].
   constexpr static double D = 0.1;
   // Inlet side length [m].
   constexpr static double H = 0.41;
 
   // Inlet velocity.
-  const InletVelocity inlet_velocity;
+  InletVelocity inlet_velocity;
   // Zero function.
-  const Functions::ZeroFunction<dim> zero_function;
+  Functions::ZeroFunction<dim> zero_function;
 };
 
 class EthierSteinman : public NavierStokes<3U> {
@@ -148,7 +144,8 @@ class EthierSteinman : public NavierStokes<3U> {
       virtual Tensor<1, dim> gradient(
           const Point<dim> &p, const unsigned int component = 0) const override;
       virtual void vector_gradient(
-          const Point<dim> &p, std::vector<Tensor<1, dim>> &values) const override;
+          const Point<dim> &p,
+          std::vector<Tensor<1, dim>> &values) const override;
 
      private:
       const double nu;
@@ -177,9 +174,28 @@ class EthierSteinman : public NavierStokes<3U> {
 
    public:
     // Exact velocity.
-    ExactVelocity exact_velocity;
+    mutable ExactVelocity exact_velocity;
     // Exact pressure.
-    ExactPressure exact_pressure;
+    mutable ExactPressure exact_pressure;
+  };
+
+  class NeumannFunction : public Function<dim> {
+   public:
+    // Constructor.
+    NeumannFunction(double nu_)
+        : Function<dim>(dim + 1), nu(nu_), exact_solution(nu_) {}
+    // Evaluation.
+    virtual double value(const Point<dim> &p,
+                         const unsigned int component = 0) const override;
+    virtual void vector_value(const Point<dim> &p,
+                              Vector<double> &values) const override;
+
+   private:
+    const double nu;
+
+   public:
+    // Exact solution.
+    mutable ExactSolution exact_solution;
   };
 
   // Apply the initial conditions and print the L2 error.
@@ -197,6 +213,8 @@ class EthierSteinman : public NavierStokes<3U> {
   static constexpr double b = M_PI / 2.0;
   // Exact solution.
   ExactSolution exact_solution;
+  // Neumann function on y=-1.
+  NeumannFunction neumann_function;
 };
 
 #endif

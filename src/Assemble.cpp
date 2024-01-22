@@ -104,7 +104,7 @@ void NavierStokes<dim>::assemble_time_dependent() {
                               update_JxW_values | update_gradients);
   FEFaceValues<dim> fe_face_values(
       *fe, *quadrature_face,
-      update_values | update_normal_vectors | update_JxW_values);
+      update_values | update_quadrature_points | update_JxW_values);
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
@@ -196,11 +196,23 @@ void NavierStokes<dim>::assemble_time_dependent() {
               neumann_boundary_functions.count(cell->face(f)->boundary_id())) {
             fe_face_values.reinit(cell, f);
 
+            // Set the correct time for the Neumann function.
+            Function<dim> *neumann_function =
+                neumann_boundary_functions[cell->face(f)->boundary_id()];
+            neumann_function->set_time((time_step + 1U) * deltat);
+
             for (unsigned int q = 0; q < n_q_face; ++q) {
+              // Get the local value of the Neumann function.
+              Vector<double> neumann_loc(dim + 1);
+              neumann_function->vector_value(fe_face_values.quadrature_point(q),
+                                             neumann_loc);
+              Tensor<1, dim> neumann_loc_tensor;
+              for (unsigned int d = 0; d < dim; ++d)
+                neumann_loc_tensor[d] = neumann_loc[d];
+
               for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                cell_rhs(i) -=
-                    neumann_boundary_functions[cell->face(f)->boundary_id()] *
-                    scalar_product(fe_face_values.normal_vector(q),
+                cell_rhs(i) +=
+                    scalar_product(neumann_loc_tensor,
                                    fe_face_values[velocity].value(i, q)) *
                     fe_face_values.JxW(q);
               }
@@ -232,8 +244,21 @@ void NavierStokes<dim>::assemble_time_dependent() {
       mask = ComponentMask({true, true, true, false});
     }
 
+    std::map<types::boundary_id, const Function<dim> *>
+        const_dirichlet_boundary_functions;
+
+    // Set the correct time for the Dirichlet functions and create a constant
+    // copy of the map (needed because interpolate_boundary_values requires a
+    // map with constant values).
+    for (auto iter = dirichlet_boundary_functions.begin();
+         iter != dirichlet_boundary_functions.end(); ++iter) {
+      iter->second->set_time(time_step * deltat);
+      const_dirichlet_boundary_functions[iter->first] =
+          const_cast<const Function<dim> *>(iter->second);
+    }
+
     VectorTools::interpolate_boundary_values(
-        dof_handler, dirichlet_boundary_functions, boundary_values, mask);
+        dof_handler, const_dirichlet_boundary_functions, boundary_values, mask);
 
     MatrixTools::apply_boundary_values(boundary_values, system_matrix, solution,
                                        system_rhs, false);

@@ -1,5 +1,6 @@
 ### Current issues
-- Missing Neumann (BC) in Ethier Steinman problem
+- Comments need improvement
+- Non negligible L2 error for Ethier Steinman problem
 - SIMPLE preconditioner not working (runtime error)
 - Missing many ad hoc preconditioners
 - 2D and 3D flow past a cylinder do not converge (missing preconditioner)
