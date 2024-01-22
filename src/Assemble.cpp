@@ -114,7 +114,8 @@ void NavierStokes<dim>::assemble_time_dependent() {
     FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
 
     std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
-    std::vector<Tensor<2, dim>> old_solution_gradients(n_q);
+    std::vector<Tensor<1, dim>> old_solution_values(n_q);
+    // std::vector<Tensor<2, dim>> old_solution_gradients(n_q);
 
     // Copy the contant term.
     system_matrix.copy_from(constant_matrix);
@@ -127,12 +128,13 @@ void NavierStokes<dim>::assemble_time_dependent() {
 
       fe_values.reinit(cell);
 
-      // Calculate the gradient of the previous solution.
+      // Calculate the value and gradient of the previous solution.
       // Source:
       // https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
       // https://www.dealii.org/current/doxygen/deal.II/classFEValuesViews_1_1Vector.html#ace19727c285e8035282a6f3f66ce7f18
-      fe_values[velocity].get_function_gradients(solution,
-                                                 old_solution_gradients);
+      fe_values[velocity].get_function_values(solution, old_solution_values);
+      // fe_values[velocity].get_function_gradients(solution,
+      // old_solution_gradients);
 
       cell_matrix = 0.0;
 
@@ -140,8 +142,9 @@ void NavierStokes<dim>::assemble_time_dependent() {
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
           for (unsigned int j = 0; j < dofs_per_cell; ++j) {
             // Calculate (u . nabla) u.
-            Tensor<2, dim> local_old_solution_gradient =
-                old_solution_gradients[q];
+            Tensor<1, dim> local_old_solution_value = old_solution_values[q];
+            // Tensor<2, dim> local_old_solution_gradient =
+            // old_solution_gradients[q];
             Tensor<1, dim> nonlinear_term;
 
             for (unsigned int k = 0; k < dim; k++) {
@@ -151,8 +154,8 @@ void NavierStokes<dim>::assemble_time_dependent() {
                 // first: component of the vector valued function
                 // second: derivative direction
                 // local_old_solution_gradient[0][1] = du^n_x / dy
-                nonlinear_term[k] += fe_values[velocity].value(j, q)[l] *
-                                     local_old_solution_gradient[k][l];
+                nonlinear_term[k] += local_old_solution_value[l] *
+                                     fe_values[velocity].gradient(j, q)[k][l];
               }
             }
 

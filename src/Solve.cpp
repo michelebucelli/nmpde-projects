@@ -12,8 +12,19 @@ template <unsigned int dim>
 void NavierStokes<dim>::apply_initial_conditions() {
   pcout << "Applying the initial conditions" << std::endl;
 
-  initial_conditions->set_time(time_step * deltat);
-  VectorTools::interpolate(dof_handler, *initial_conditions, solution_owned);
+  // Source: https://www.dealii.org/current/doxygen/deal.II/step_23.html
+  // AffineConstraints<double> constraints;
+  // constraints.close();
+
+  ComponentMask mask;
+  if constexpr (dim == 2) {
+    mask = ComponentMask({true, true, false});
+  } else {
+    mask = ComponentMask({true, true, true, false});
+  }
+
+  VectorTools::interpolate(dof_handler, *initial_conditions, solution_owned,
+                           mask);
   solution = solution_owned;
 }
 

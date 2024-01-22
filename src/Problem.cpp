@@ -76,13 +76,15 @@ Cylinder3D::Cylinder3D(const std::string &mesh_file_name_,
 
   initial_conditions = std::make_shared<Functions::ZeroFunction<dim>>(dim + 1);
 
-  dirichlet_boundary_functions[4] = &inlet_velocity;
+  dirichlet_boundary_functions[5] = &inlet_velocity;
 
-  neumann_boundary_functions[2] = p_out;
+  neumann_boundary_functions[3] = p_out;
 
   dirichlet_boundary_functions[1] = &zero_function;
-  dirichlet_boundary_functions[3] = &zero_function;
-  dirichlet_boundary_functions[5] = &zero_function;
+  dirichlet_boundary_functions[2] = &zero_function;
+  dirichlet_boundary_functions[4] = &zero_function;
+  dirichlet_boundary_functions[6] = &zero_function;
+  dirichlet_boundary_functions[7] = &zero_function;
 }
 
 EthierSteinman::EthierSteinman(const std::string &mesh_file_name_,
@@ -96,7 +98,12 @@ EthierSteinman::EthierSteinman(const std::string &mesh_file_name_,
   ro = 1.0;
   nu = nu_;
 
-  initial_conditions = std::make_shared<ExactSolution>(nu);
+  std::shared_ptr<ExactSolution> temporary_initial_conditions =
+      std::make_shared<ExactSolution>(nu);
+  temporary_initial_conditions->set_time(0.0);
+  temporary_initial_conditions->exact_velocity.set_time(0.0);
+  temporary_initial_conditions->exact_pressure.set_time(0.0);
+  initial_conditions = temporary_initial_conditions;
 
   for (unsigned int i = 1U; i <= 6U; i++) {
     dirichlet_boundary_functions[i] = &exact_solution.exact_velocity;
@@ -126,6 +133,55 @@ void EthierSteinman::ExactSolution::ExactVelocity::vector_value(
     values[i] = value(p, i);
   }
   values[dim] = 0.0;
+}
+
+Tensor<1, EthierSteinman::dim>
+EthierSteinman::ExactSolution::ExactVelocity::gradient(
+    const Point<dim> &p, const unsigned int component) const {
+  Tensor<1, dim> result;
+
+  for (unsigned int i = 0; i < dim; i++) {
+    result[i] = -a * std::exp(-nu * b * b * get_time());
+  }
+
+  if (component == 0) {
+    result[0] *= (a * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) -
+                  a * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]));
+    result[1] *= (a * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) -
+                  b * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]));
+    result[2] *= (b * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) +
+                  a * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]));
+  } else if (component == 1) {
+    result[0] *= (b * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) +
+                  a * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]));
+    result[1] *= (a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) -
+                  a * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]));
+    result[2] *= (a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) -
+                  b * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]));
+  } else if (component == 2) {
+    result[0] *= (a * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) -
+                  b * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]));
+    result[0] *= (b * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) +
+                  a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]));
+    result[0] *= (a * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) -
+                  a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]));
+  } else {
+    for (unsigned int i = 0; i < dim; i++) {
+      result[i] = 0.0;
+    }
+  }
+
+  return result;
+}
+
+void EthierSteinman::ExactSolution::ExactVelocity::vector_gradient(
+    const Point<dim> &p, std::vector<Tensor<1, dim>> &values) const {
+  for (unsigned int i = 0; i < dim; i++) {
+    values[i] = value(p, i);
+  }
+  for (unsigned int i = 0; i < dim; i++) {
+    values[dim][i] = 0.0;
+  }
 }
 
 double EthierSteinman::ExactSolution::ExactPressure::value(
@@ -178,6 +234,8 @@ double EthierSteinman::compute_error(const VectorTools::NormType &norm_type) {
 
   // Set the time for the exact solution.
   exact_solution.set_time(time_step * deltat);
+  exact_solution.exact_velocity.set_time(time_step * deltat);
+  exact_solution.exact_pressure.set_time(time_step * deltat);
 
   // First we compute the norm on each element, and store it in a vector.
   Vector<double> error_per_cell(mesh.n_active_cells());
@@ -194,7 +252,7 @@ double EthierSteinman::compute_error(const VectorTools::NormType &norm_type) {
 
 void EthierSteinman::apply_initial_conditions() {
   NavierStokes<dim>::apply_initial_conditions();
-  pcout << "L2 error: " << compute_error(VectorTools::L2_norm) << std::endl;
+  // pcout << "L2 error: " << compute_error(VectorTools::L2_norm) << std::endl;
 }
 
 void EthierSteinman::solve_time_step() {

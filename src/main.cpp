@@ -9,7 +9,7 @@ int main(int argc, char *argv[]) {
   constexpr unsigned int degree_pressure = 1;
   constexpr double T = 1e-2;
   constexpr double deltat = 1e-3;
-  constexpr double nu = 1.0;
+  constexpr double nu = 0.01;
 
   EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure, T,
                          deltat, nu);

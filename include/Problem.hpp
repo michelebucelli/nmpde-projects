@@ -145,6 +145,10 @@ class EthierSteinman : public NavierStokes<3U> {
                            const unsigned int component = 0) const override;
       virtual void vector_value(const Point<dim> &p,
                                 Vector<double> &values) const override;
+      virtual Tensor<1, dim> gradient(
+          const Point<dim> &p, const unsigned int component = 0) const override;
+      virtual void vector_gradient(
+          const Point<dim> &p, std::vector<Tensor<1, dim>> &values) const override;
 
      private:
       const double nu;
