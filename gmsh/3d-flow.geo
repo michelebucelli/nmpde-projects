@@ -64,5 +64,19 @@ Plane Surface(14) = {12, 11};
 // This is the extrusion of the domain. We're extruding the domain by H
 // units in the z direction, then we're assigning the extruded domain to
 // physical volume 1, so that it can be used in the simulation.
-out[] = Extrude {0, 0, H} { Surface{14}; };
-Physical Volume(1) = {out[0]};
+Extrude {0, 0, H} {
+  Surface{14};
+}
+
+Physical Volume(1) = {1};
+
+// If you're wondering how I got these numbers, I used gmsh's built-in
+// viewer to see the tags of the surfaces.
+Physical Surface("BACK", 1) = {14};
+Physical Surface("FRONT", 2) = {56};
+Physical Surface("BOTTOM", 3) = {27};
+Physical Surface("RIGHT", 4) = {31};
+Physical Surface("TOP", 5) = {35};
+Physical Surface("LEFT", 6) = {39};
+
+Physical Surface("OBSTACLE", 7) = {43, 47, 51, 55};
