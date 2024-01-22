@@ -1,25 +1,28 @@
 // These are the parameters for the mesh. In particular, we're setting the
-// width and height of the domain.
-domain_width = 2.2;
+// width and height of the domain's base.
+domain_width = 0.45 + 0.1 + 1.95;
 domain_height = 0.15 + 0.1 + 0.16;
 
 // These are the parameters for the circle. In particular, we're setting the
 // radius of the circle, and the x and y coordinates of the center of the
 // circle.
 circle_radius = 0.1 / 2;
-circle_x = 0.15 + circle_radius;
+circle_x = 0.45 + circle_radius;
 circle_y = 0.15 + circle_radius;
 
-// We define the height of the domain above the circle.
-H = 0.4;
+// We define the height of the domain: this is how much we're going to
+// extrude the domain by.
+H = 0.41;
 
 // This is the characteristic length of the mesh. It's used to control the
 // size of the mesh elements. The smaller the characteristic length, the
 // smaller the mesh elements.
-characteristic_length = 1 / 40;
+characteristic_length = 1 / 30;
 
-// This time, I'm defining the circle points. Below, I'll define the
-// center of the circle, and then the points on the circle.
+// This time, I'm defining the circle points in a different way. I'm
+// defining the points at the center of the circle, and then I'm defining
+// the points at the top, right, bottom, and left of the circle. This is
+// because I want define the circle using four arcs instead of two arcs.
 Point(1) = {circle_x, circle_y, 0, characteristic_length};
 
 Point(2) = {circle_x, circle_y + circle_radius, 0, characteristic_length};
@@ -43,13 +46,13 @@ Circle(2) = {3, 1, 4};
 Circle(3) = {4, 1, 5};
 Circle(4) = {5, 1, 2};
 
-// The following lines define the lines that make up the domain.
+// The following lines define the edges that make up the domain.
 Line(5) = {6, 7};
 Line(6) = {7, 8};
 Line(7) = {8, 9};
 Line(8) = {9, 6};
 
-// The two arcs that make up the circle are combined into a single loop.
+// The four arcs that make up the circle are combined into a single loop.
 // As well as the lines that make up the domain.
 Line Loop(11) = {1, 2, 3, 4};
 Line Loop(12) = {5, 6, 7, 8};
@@ -58,5 +61,8 @@ Line Loop(12) = {5, 6, 7, 8};
 // carved out of the domain.
 Plane Surface(14) = {12, 11};
 
+// This is the extrusion of the domain. We're extruding the domain by H
+// units in the z direction, then we're assigning the extruded domain to
+// physical volume 1, so that it can be used in the simulation.
 out[] = Extrude {0, 0, H} { Surface{14}; };
 Physical Volume(1) = {out[0]};
