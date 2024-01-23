@@ -47,6 +47,9 @@ void PreconditionSIMPLE::initialize(
   precondition_jacobi.vmult(Dinv_vector, tmp.block(0));
 
   negB_matrix->mmult(negS_matrix, *Bt_matrix, Dinv_vector);
+
+  preconditioner_F.initialize(*F_matrix);
+  preconditioner_S.initialize(negS_matrix);
 }
 
 void PreconditionSIMPLE::vmult(
@@ -55,6 +58,7 @@ void PreconditionSIMPLE::vmult(
   tmp.reinit(src);
   // Step 1: solve [F 0; B -S]sol1 = src.
   // Step 1.1: solve F*sol1_u = src_u.
+  tmp.block(0) = dst.block(0);
   SolverControl solver_control_F(1000, 1e-2 * src.block(0).l2_norm());
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_F(solver_control_F);
   solver_gmres_F.solve(*F_matrix, tmp.block(0), src.block(0), preconditioner_F);

@@ -71,10 +71,10 @@ void NavierStokes<dim>::assemble_constant() {
                                fe_values[pressure].value(i, q) *
                                fe_values.JxW(q);
 
-          // Pressure mass term.
+          // Pressure mass term (for preconditioning).
           pressure_mass_cell_matrix(i, j) += fe_values[pressure].value(j, q) *
-                                             fe_values[pressure].value(i, q) *
-                                             fe_values.JxW(q);
+                                             fe_values[pressure].value(i, q) /
+                                             nu * fe_values.JxW(q);
         }
       }
     }
@@ -132,21 +132,22 @@ void NavierStokes<dim>::assemble_time_dependent() {
       // Source:
       // https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
       // https://www.dealii.org/current/doxygen/deal.II/classFEValuesViews_1_1Vector.html#ace19727c285e8035282a6f3f66ce7f18
-      fe_values[velocity].get_function_values(solution, old_solution_values);
+      fe_values[velocity].get_function_values(solution_owned,
+                                              old_solution_values);
       // fe_values[velocity].get_function_gradients(solution,
       // old_solution_gradients);
 
       cell_matrix = 0.0;
 
       for (unsigned int q = 0; q < n_q; ++q) {
+        Tensor<1, dim> local_old_solution_value = old_solution_values[q];
+        // Tensor<2, dim> local_old_solution_gradient =
+        // old_solution_gradients[q];
+        Tensor<1, dim> nonlinear_term;
+
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
           for (unsigned int j = 0; j < dofs_per_cell; ++j) {
             // Calculate (u . nabla) u.
-            Tensor<1, dim> local_old_solution_value = old_solution_values[q];
-            // Tensor<2, dim> local_old_solution_gradient =
-            // old_solution_gradients[q];
-            Tensor<1, dim> nonlinear_term;
-
             for (unsigned int k = 0; k < dim; k++) {
               nonlinear_term[k] = 0.0;
               for (unsigned int l = 0; l < dim; l++) {
@@ -201,12 +202,13 @@ void NavierStokes<dim>::assemble_time_dependent() {
                 neumann_boundary_functions[cell->face(f)->boundary_id()];
             neumann_function->set_time((time_step + 1U) * deltat);
 
+            Vector<double> neumann_loc(dim + 1);
+            Tensor<1, dim> neumann_loc_tensor;
+
             for (unsigned int q = 0; q < n_q_face; ++q) {
               // Get the local value of the Neumann function.
-              Vector<double> neumann_loc(dim + 1);
               neumann_function->vector_value(fe_face_values.quadrature_point(q),
                                              neumann_loc);
-              Tensor<1, dim> neumann_loc_tensor;
               for (unsigned int d = 0; d < dim; ++d)
                 neumann_loc_tensor[d] = neumann_loc[d];
 
@@ -226,7 +228,8 @@ void NavierStokes<dim>::assemble_time_dependent() {
     }
 
     // Add the term that comes from the old solution.
-    velocity_mass.vmult_add(system_rhs, solution_owned);
+    velocity_mass.block(0, 0).vmult_add(system_rhs.block(0),
+                                        solution_owned.block(0));
 
     system_rhs.compress(VectorOperation::add);
   }

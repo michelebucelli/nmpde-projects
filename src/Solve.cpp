@@ -12,10 +12,6 @@ template <unsigned int dim>
 void NavierStokes<dim>::apply_initial_conditions() {
   pcout << "Applying the initial conditions" << std::endl;
 
-  // Source: https://www.dealii.org/current/doxygen/deal.II/step_23.html
-  // AffineConstraints<double> constraints;
-  // constraints.close();
-
   ComponentMask mask;
   if constexpr (dim == 2) {
     mask = ComponentMask({true, true, false});
@@ -43,7 +39,7 @@ void NavierStokes<dim>::solve_time_step() {
   PreconditionSIMPLE precondition;
   constexpr double alpha = 1.0;
   precondition.initialize(system_matrix.block(0, 0), system_matrix.block(1,
-  0), system_matrix.block(0, 1), solution, alpha);
+  0), system_matrix.block(0, 1), solution_owned, alpha);
   */
 
   pcout << "  Solving the system" << std::endl;

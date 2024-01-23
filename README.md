@@ -1,7 +1,7 @@
 ### Current issues
 - Comments need improvement
 - Non negligible L2 error for Ethier Steinman problem
-- SIMPLE preconditioner not working (runtime error)
+- SIMPLE preconditioner is extremely slow, learn why (might be intended)
 - Missing many ad hoc preconditioners
 - 2D and 3D flow past a cylinder do not converge (missing preconditioner)
 - Missing computation of the lift and drag coefficients

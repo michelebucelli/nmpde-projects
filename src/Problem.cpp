@@ -165,9 +165,9 @@ EthierSteinman::ExactSolution::ExactVelocity::gradient(
   } else if (component == 2) {
     result[0] *= (a * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) -
                   b * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]));
-    result[0] *= (b * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) +
+    result[1] *= (b * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) +
                   a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]));
-    result[0] *= (a * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) -
+    result[2] *= (a * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) -
                   a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]));
   } else {
     for (unsigned int i = 0; i < dim; i++) {
@@ -235,19 +235,18 @@ double EthierSteinman::NeumannFunction::value(
     const Point<dim> &p, const unsigned int component) const {
   exact_solution.set_time(get_time());
 
-  std::vector<Tensor<1, dim>> velocity_gradient;
-  for (unsigned int i = 0; i < dim; i++) {
-    velocity_gradient.emplace_back(
-        exact_solution.exact_velocity.gradient(p, i));
-  }
-
   if (component == 0) {
-    return -nu * velocity_gradient[component][1];
+    Tensor<1, dim> velocity_gradient =
+        exact_solution.exact_velocity.gradient(p, component);
+    return -nu * velocity_gradient[1];
   } else if (component == 1) {
-    return -nu * velocity_gradient[component][1] +
-           exact_solution.exact_pressure.value(p);
+    Tensor<1, dim> velocity_gradient =
+        exact_solution.exact_velocity.gradient(p, component);
+    return -nu * velocity_gradient[1] + exact_solution.exact_pressure.value(p);
   } else if (component == 2) {
-    return -nu * velocity_gradient[component][1];
+    Tensor<1, dim> velocity_gradient =
+        exact_solution.exact_velocity.gradient(p, component);
+    return -nu * velocity_gradient[1];
   } else {
     return 0.0;
   }

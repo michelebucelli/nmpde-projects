@@ -82,8 +82,7 @@ class NavierStokes {
   std::shared_ptr<Function<dim>> initial_conditions;
 
   // Boundary conditions.
-  std::map<types::boundary_id, Function<dim> *>
-      dirichlet_boundary_functions;
+  std::map<types::boundary_id, Function<dim> *> dirichlet_boundary_functions;
   std::map<types::boundary_id, Function<dim> *> neumann_boundary_functions;
 
   // Discretization. ///////////////////////////////////////////////////////////
@@ -133,10 +132,10 @@ class NavierStokes {
   // DoFs relevant to current process in the velocity and pressure blocks.
   std::vector<IndexSet> block_relevant_dofs;
 
-  // Velocity mass matrix (M/deltat).
+  // Velocity mass matrix divided by deltat (M/deltat).
   TrilinosWrappers::BlockSparseMatrix velocity_mass;
 
-  // Pressure mass matrix (M_p).
+  // Pressure mass matrix divided by nu (M_p).
   TrilinosWrappers::BlockSparseMatrix pressure_mass;
 
   // Constant part of the matrix (M/deltat + A B^T; -B 0).
