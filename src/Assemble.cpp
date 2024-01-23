@@ -119,6 +119,10 @@ void NavierStokes<dim>::assemble_time_dependent() {
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
 
+  // Declare variables to store drag and lift forces
+  double drag_force = 0.0;
+  double lift_force = 0.0;
+
   // Assemble the nonlinear term.
   {
     FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
@@ -174,6 +178,22 @@ void NavierStokes<dim>::assemble_time_dependent() {
                 scalar_product(nonlinear_term,
                                fe_values[velocity].value(i, q)) *
                 fe_values.JxW(q);
+
+            double velocity_abs =
+                sqrt(pow(fe_values[velocity].value(j, q)[1], 2) +
+                     pow(fe_values[velocity].value(j, q)[0], 2));
+
+            drag_force +=
+                (nu * fe_values[velocity].gradient(i, q)[1][0] * velocity_abs -
+                 fe_values[pressure].value(i, q) *
+                     fe_values[velocity].value(j, q)[0]) *
+                fe_values.JxW(q);
+
+            lift_force += -(
+                (nu * fe_values[velocity].gradient(i, q)[1][0] * velocity_abs +
+                 fe_values[pressure].value(i, q) *
+                     fe_values[velocity].value(j, q)[1]) *
+                fe_values.JxW(q));
           }
         }
       }
@@ -181,6 +201,14 @@ void NavierStokes<dim>::assemble_time_dependent() {
       cell->get_dof_indices(dof_indices);
 
       system_matrix.add(dof_indices, cell_matrix);
+
+      // Sum the drag and lift forces across all processes
+      drag_force = Utilities::MPI::sum(drag_force, MPI_COMM_WORLD);
+      lift_force = Utilities::MPI::sum(lift_force, MPI_COMM_WORLD);
+
+      // Print the drag and lift forces
+      pcout << "  Drag Force: " << drag_force << std::endl;
+      pcout << "  Lift Force: " << lift_force << std::endl;
     }
 
     system_matrix.compress(VectorOperation::add);
