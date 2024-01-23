@@ -176,7 +176,7 @@ EthierSteinman::ExactSolution::ExactVelocity::gradient(
 void EthierSteinman::ExactSolution::ExactVelocity::vector_gradient(
     const Point<dim> &p, std::vector<Tensor<1, dim>> &values) const {
   for (unsigned int i = 0; i < dim; i++) {
-    values[i] = value(p, i);
+    values[i] = gradient(p, i);
   }
 }
 
