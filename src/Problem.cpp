@@ -156,7 +156,7 @@ EthierSteinman::ExactSolution::ExactVelocity::gradient(
     result[1] *= (a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) -
                   a * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]));
     result[2] *= (a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) -
-                  b * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]));
+                  b * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]));
   } else if (component == 2) {
     result[0] *= (a * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) -
                   b * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]));
