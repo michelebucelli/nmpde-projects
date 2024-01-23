@@ -17,6 +17,7 @@ void NavierStokes<dim>::output() const {
           dim, DataComponentInterpretation::component_is_part_of_vector);
   data_component_interpretation.push_back(
       DataComponentInterpretation::component_is_scalar);
+
   std::vector<std::string> names;
   if constexpr (dim == 2) {
     names = {"velocity", "velocity", "pressure"};

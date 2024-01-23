@@ -20,6 +20,7 @@ void NavierStokes<dim>::setup() {
   {
     pcout << "Initializing the mesh" << std::endl;
 
+    // Create a serial mesh and then copy it into the parallel one.
     Triangulation<dim> mesh_serial;
 
     GridIn<dim> grid_in;

@@ -124,6 +124,7 @@ class EthierSteinman : public NavierStokes<3U> {
           nu(nu_),
           exact_velocity(nu_),
           exact_pressure(nu_) {}
+
     // Evaluation.
     virtual double value(const Point<dim> &p,
                          const unsigned int component) const override;
@@ -131,18 +132,17 @@ class EthierSteinman : public NavierStokes<3U> {
                               Vector<double> &values) const override;
 
     // Class for the exact velocity.
-    // This returns a vector with 4 components, of which the last one is empty.
     class ExactVelocity : public Function<dim> {
      public:
       // Constructor.
-      ExactVelocity(double nu_) : Function<dim>(dim + 1), nu(nu_) {}
+      ExactVelocity(double nu_) : Function<dim>(dim), nu(nu_) {}
       // Evaluation.
       virtual double value(const Point<dim> &p,
-                           const unsigned int component = 0) const override;
+                           const unsigned int component) const override;
       virtual void vector_value(const Point<dim> &p,
                                 Vector<double> &values) const override;
       virtual Tensor<1, dim> gradient(
-          const Point<dim> &p, const unsigned int component = 0) const override;
+          const Point<dim> &p, const unsigned int component) const override;
       virtual void vector_gradient(
           const Point<dim> &p,
           std::vector<Tensor<1, dim>> &values) const override;
@@ -157,7 +157,7 @@ class EthierSteinman : public NavierStokes<3U> {
     class ExactPressure : public Function<dim> {
      public:
       // Constructor.
-      ExactPressure(double nu_) : Function<dim>(dim + 1), nu(nu_) {}
+      ExactPressure(double nu_) : Function<dim>(1), nu(nu_) {}
       // Evaluation.
       virtual double value(const Point<dim> &p,
                            const unsigned int /*component*/ = 0) const override;
@@ -173,9 +173,9 @@ class EthierSteinman : public NavierStokes<3U> {
     const double nu;
 
    public:
-    // Exact velocity.
+    // Exact velocity, mutable to set the time.
     mutable ExactVelocity exact_velocity;
-    // Exact pressure.
+    // Exact pressure, mutable to set the time.
     mutable ExactPressure exact_pressure;
   };
 
@@ -186,7 +186,7 @@ class EthierSteinman : public NavierStokes<3U> {
         : Function<dim>(dim + 1), nu(nu_), exact_solution(nu_) {}
     // Evaluation.
     virtual double value(const Point<dim> &p,
-                         const unsigned int component = 0) const override;
+                         const unsigned int component) const override;
     virtual void vector_value(const Point<dim> &p,
                               Vector<double> &values) const override;
 
@@ -194,18 +194,20 @@ class EthierSteinman : public NavierStokes<3U> {
     const double nu;
 
    public:
-    // Exact solution.
+    // Exact solution, mutable to set the time.
     mutable ExactSolution exact_solution;
   };
 
-  // Apply the initial conditions and print the L2 error.
+  // Apply the initial conditions and print the error.
   void apply_initial_conditions() override;
 
-  // Solve the problem for one time step and print the L2 error.
+  // Solve the problem for one time step and print the error.
   void solve_time_step() override;
 
-  // Compute the error.
-  double compute_error(const VectorTools::NormType &norm_type);
+  // Compute the error (if block=0, the velocity error is computed, if block=1,
+  // the pressure one is).
+  double compute_error(const VectorTools::NormType &norm_type,
+                       unsigned int block);
 
  private:
   // Parameters of the problem.

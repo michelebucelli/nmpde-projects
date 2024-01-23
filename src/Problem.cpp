@@ -99,12 +99,8 @@ EthierSteinman::EthierSteinman(const std::string &mesh_file_name_,
   ro = 1.0;
   nu = nu_;
 
-  std::shared_ptr<ExactSolution> temporary_initial_conditions =
-      std::make_shared<ExactSolution>(nu);
-  temporary_initial_conditions->set_time(0.0);
-  temporary_initial_conditions->exact_velocity.set_time(0.0);
-  temporary_initial_conditions->exact_pressure.set_time(0.0);
-  initial_conditions = temporary_initial_conditions;
+  initial_conditions = std::make_shared<ExactSolution>(nu);
+  initial_conditions->set_time(0.0);
 
   dirichlet_boundary_functions[1U] = &exact_solution.exact_velocity;
   for (unsigned int i = 3U; i <= 6U; i++) {
@@ -136,7 +132,6 @@ void EthierSteinman::ExactSolution::ExactVelocity::vector_value(
   for (unsigned int i = 0; i < dim; i++) {
     values[i] = value(p, i);
   }
-  values[dim] = 0.0;
 }
 
 Tensor<1, EthierSteinman::dim>
@@ -183,9 +178,6 @@ void EthierSteinman::ExactSolution::ExactVelocity::vector_gradient(
   for (unsigned int i = 0; i < dim; i++) {
     values[i] = value(p, i);
   }
-  for (unsigned int i = 0; i < dim; i++) {
-    values[dim][i] = 0.0;
-  }
 }
 
 double EthierSteinman::ExactSolution::ExactPressure::value(
@@ -203,16 +195,15 @@ double EthierSteinman::ExactSolution::ExactPressure::value(
 
 void EthierSteinman::ExactSolution::ExactPressure::vector_value(
     const Point<dim> &p, Vector<double> &values) const {
-  values[dim] = value(p);
-  for (unsigned int i = 0; i < dim; i++) {
-    values[i] = 0.0;
-  }
+  values[0] = value(p);
 }
 
 double EthierSteinman::ExactSolution::value(
     const Point<dim> &p, const unsigned int component) const {
+  // Set the time for the exact velocity and pressure.
   exact_velocity.set_time(get_time());
   exact_pressure.set_time(get_time());
+
   if (component < dim) {
     return exact_velocity.value(p, component);
   } else if (component == dim) {
@@ -224,8 +215,10 @@ double EthierSteinman::ExactSolution::value(
 
 void EthierSteinman::ExactSolution::vector_value(const Point<dim> &p,
                                                  Vector<double> &values) const {
+  // Set the time for the exact velocity and pressure.
   exact_velocity.set_time(get_time());
   exact_pressure.set_time(get_time());
+
   for (unsigned int i = 0; i < dim + 1; i++) {
     values[i] = value(p, i);
   }
@@ -233,8 +226,10 @@ void EthierSteinman::ExactSolution::vector_value(const Point<dim> &p,
 
 double EthierSteinman::NeumannFunction::value(
     const Point<dim> &p, const unsigned int component) const {
+  // Set the time for the exact solution.
   exact_solution.set_time(get_time());
 
+  // This result was obtained by setting the normal vector to -j.
   if (component == 0) {
     Tensor<1, dim> velocity_gradient =
         exact_solution.exact_velocity.gradient(p, component);
@@ -260,23 +255,35 @@ void EthierSteinman::NeumannFunction::vector_value(
   values[dim] = 0.0;
 }
 
-double EthierSteinman::compute_error(const VectorTools::NormType &norm_type) {
+double EthierSteinman::compute_error(const VectorTools::NormType &norm_type,
+                                     unsigned int block) {
   FE_SimplexP<dim> fe_mapping(1);
   MappingFE mapping(fe_mapping);
-
-  // The error is an integral, and we approximate that integral using a
-  // quadrature formula. To make sure we are accurate enough, we use a
-  // quadrature formula with one node more than what we used in assembly.
-  const QGaussSimplex<dim> quadrature_error(degree_velocity + 2);
 
   // Set the time for the exact solution.
   exact_solution.set_time(time_step * deltat);
 
   // First we compute the norm on each element, and store it in a vector.
   Vector<double> error_per_cell(mesh.n_active_cells());
-  VectorTools::integrate_difference(mapping, dof_handler, solution,
-                                    exact_solution, error_per_cell,
-                                    quadrature_error, norm_type);
+
+  if (block == 0) {
+    // The error is an integral, and we approximate that integral using a
+    // quadrature formula. To make sure we are accurate enough, we use a
+    // quadrature formula with one node more than what we used in assembly.
+    const QGaussSimplex<dim> quadrature_error(degree_velocity + 2);
+
+    VectorTools::integrate_difference(
+        mapping, dof_handler, solution.block(0), exact_solution.exact_velocity,
+        error_per_cell, quadrature_error, norm_type);
+  } else if (block == 1) {
+    const QGaussSimplex<dim> quadrature_error(degree_pressure + 2);
+
+    VectorTools::integrate_difference(
+        mapping, dof_handler, solution.block(1), exact_solution.exact_pressure,
+        error_per_cell, quadrature_error, norm_type);
+  } else {
+    pcout << "Error! Wrong block specified!" << std::endl;
+  }
 
   // Then, we add out all the cells.
   const double error =
@@ -287,10 +294,18 @@ double EthierSteinman::compute_error(const VectorTools::NormType &norm_type) {
 
 void EthierSteinman::apply_initial_conditions() {
   NavierStokes<dim>::apply_initial_conditions();
-  // pcout << "L2 error: " << compute_error(VectorTools::L2_norm) << std::endl;
+  pcout << "L2 error on the velocity: "
+        << compute_error(VectorTools::L2_norm, 0U) << std::endl;
+  pcout << "H1 error on the velocity: "
+        << compute_error(VectorTools::H1_norm, 0U) << std::endl;
 }
 
 void EthierSteinman::solve_time_step() {
   NavierStokes<dim>::solve_time_step();
-  pcout << "L2 error: " << compute_error(VectorTools::L2_norm) << std::endl;
+  pcout << "L2 error on the velocity: "
+        << compute_error(VectorTools::L2_norm, 0U) << std::endl;
+  pcout << "H1 error on the velocity: "
+        << compute_error(VectorTools::H1_norm, 0U) << std::endl;
+  pcout << "L2 error on the pressure: "
+        << compute_error(VectorTools::L2_norm, 1U) << std::endl;
 }

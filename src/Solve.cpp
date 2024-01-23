@@ -12,6 +12,7 @@ template <unsigned int dim>
 void NavierStokes<dim>::apply_initial_conditions() {
   pcout << "Applying the initial conditions" << std::endl;
 
+  // Since only velocity has an initial condition, create a mask.
   ComponentMask mask;
   if constexpr (dim == 2) {
     mask = ComponentMask({true, true, false});

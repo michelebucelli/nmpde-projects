@@ -34,7 +34,7 @@ class NavierStokes {
         time_step(0),
         mesh(MPI_COMM_WORLD) {}
 
-  // Destructor.
+  // Virtual destructor.
   virtual ~NavierStokes() = default;
 
   // Initialization.
@@ -99,7 +99,7 @@ class NavierStokes {
   // Final time.
   const double T;
 
-  // Time step.
+  // Length of a time step [s].
   const double deltat;
 
   // Current time step.
@@ -135,13 +135,13 @@ class NavierStokes {
   // Velocity mass matrix divided by deltat (M/deltat).
   TrilinosWrappers::BlockSparseMatrix velocity_mass;
 
-  // Pressure mass matrix divided by nu (M_p).
+  // Pressure mass matrix divided by nu (M_p/nu).
   TrilinosWrappers::BlockSparseMatrix pressure_mass;
 
-  // Constant part of the matrix (M/deltat + A B^T; -B 0).
+  // Constant part of the system matrix (M/deltat + A  B^T; -B 0).
   TrilinosWrappers::BlockSparseMatrix constant_matrix;
 
-  // System matrix (constant_matrix + [C 0; 0 0]).
+  // System matrix [F  B^T; -B 0], where F = M/deltat + A + C.
   TrilinosWrappers::BlockSparseMatrix system_matrix;
 
   // Right-hand side vector in the linear system at the current time step.

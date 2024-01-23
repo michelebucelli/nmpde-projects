@@ -8,9 +8,8 @@
 
 using namespace dealii;
 
-// Block-diagonal preconditioner.
-class PreconditionBlockDiagonal  //[M/deltat + A B^T + C 0; 0 1/mu*M_p]
-{
+// Block-diagonal preconditioner [M/deltat + A + C  0; 0 1/nu*M_p].
+class PreconditionBlockDiagonal {
  public:
   // Initialize the preconditioner.
   void initialize(const TrilinosWrappers::SparseMatrix &velocity_stiffness_,
@@ -49,17 +48,17 @@ class PreconditionSIMPLE {
              const TrilinosWrappers::MPI::BlockVector &src) const;
 
  private:
-  // Damping parameter.
+  // Damping parameter (must be in (0,1]).
   double alpha;
   // Matrix F (top left block of the system matrix).
   const TrilinosWrappers::SparseMatrix *F_matrix;
-  // Matrix -B.
+  // Matrix -B (bottom left block of the system matrix).
   const TrilinosWrappers::SparseMatrix *negB_matrix;
-  // Matrix B^T.
+  // Matrix B^T (top right block of the system matrix).
   const TrilinosWrappers::SparseMatrix *Bt_matrix;
-  // Matrix S = B*D^-1*B^T.
+  // Matrix -S := -B*D^-1*B^T.
   TrilinosWrappers::SparseMatrix negS_matrix;
-  // Inverse diagonal of F.
+  // Matrix D^-1, inverse diagonal of F.
   TrilinosWrappers::MPI::Vector Dinv_vector;
   // Preconditioner used for the block multiplied by F.
   TrilinosWrappers::PreconditionILU preconditioner_F;
