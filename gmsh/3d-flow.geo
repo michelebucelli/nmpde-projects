@@ -16,8 +16,10 @@ H = 0.41;
 
 // This is the characteristic length of the mesh. It's used to control the
 // size of the mesh elements. The smaller the characteristic length, the
-// smaller the mesh elements.
-characteristic_length = 1 / 30;
+// smaller the mesh elements. We're setting to 1, because we want the mesh
+// elements to be controlled by the flag -clmax, which is set in the
+// command line. See the script generate_mesh.sh for more details.
+characteristic_length = 1;
 
 // This time, I'm defining the circle points in a different way. I'm
 // defining the points at the center of the circle, and then I'm defining

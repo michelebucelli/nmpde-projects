@@ -12,8 +12,10 @@ circle_y = 0.15 + circle_radius;
 
 // This is the characteristic length of the mesh. It's used to control the
 // size of the mesh elements. The smaller the characteristic length, the
-// smaller the mesh elements.
-characteristic_length = 1 / 80;
+// smaller the mesh elements. We're setting to 1, because we want the mesh
+// elements to be controlled by the flag -clmax, which is set in the
+// command line. See the script generate_mesh.sh for more details.
+characteristic_length = 1;
 
 // Oddly enough, to define a circle, gmsh requires you to list the center,
 // then a point on the circle, then another point on the circle. The
@@ -53,9 +55,10 @@ Physical Surface(1) = {14};
 
 // This code should hopefully add tags to the four lines that make up the 
 // domain, and the circle.
-Physical Line(1) = {3};
-Physical Line(2) = {4};
-Physical Line(3) = {5};
-Physical Line(4) = {6};
+Physical Line(1) = {3}; // (1) Bottom.
+Physical Line(2) = {4}; // (2) Right.
+Physical Line(3) = {5}; // (3) Top.
+Physical Line(4) = {6}; // (4) Left.
 
+// (5) Circle.
 Physical Line(5) = {1, 2};
