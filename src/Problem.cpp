@@ -49,7 +49,6 @@ double Cylinder2D::calc_lift() const {
 
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q = quadrature->size();
-  const unsigned int n_q_face = quadrature_face->size();
 
   FEValues<dim> fe_values(*fe, *quadrature,
                           update_values | update_quadrature_points |
@@ -104,7 +103,6 @@ double Cylinder2D::calc_drag() const {
 
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q = quadrature->size();
-  const unsigned int n_q_face = quadrature_face->size();
 
   FEValues<dim> fe_values(*fe, *quadrature,
                           update_values | update_quadrature_points |
