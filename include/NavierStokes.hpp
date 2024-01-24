@@ -72,10 +72,10 @@ class NavierStokes {
 
   // Problem. //////////////////////////////////////////////////////////////////
 
-  // Fluid density [kg/m^3].
+  // Fluid density.
   double ro;
 
-  // Kinematic viscosity [m^2/s].
+  // Kinematic viscosity.
   double nu;
 
   // Initial conditions.

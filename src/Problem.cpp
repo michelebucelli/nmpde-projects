@@ -52,8 +52,8 @@ Cylinder2D::Cylinder2D(const std::string &mesh_file_name_,
                    deltat_),
       inlet_velocity(U_m, H),
       zero_function(dim + 1) {
-  ro = 1.0;
-  nu = 1e-3;
+  ro = 1.0;   //[kg/m^3].
+  nu = 1e-3;  //[m^2/s].
 
   initial_conditions = std::make_shared<Functions::ZeroFunction<dim>>(dim + 1);
 
@@ -71,8 +71,8 @@ Cylinder3D::Cylinder3D(const std::string &mesh_file_name_,
                    deltat_),
       inlet_velocity(U_m, H),
       zero_function(dim + 1) {
-  ro = 1.0;
-  nu = 1e-3;
+  ro = 1.0;   //[kg/m^3].
+  nu = 1e-3;  //[m^2/s].
 
   initial_conditions = std::make_shared<Functions::ZeroFunction<dim>>(dim + 1);
 
@@ -96,8 +96,8 @@ EthierSteinman::EthierSteinman(const std::string &mesh_file_name_,
                    deltat_),
       exact_solution(nu_),
       neumann_function(nu_) {
-  ro = 1.0;
-  nu = nu_;
+  ro = 1.0;  //[g/cm^3].
+  nu = nu_;  //[cm^2/s].
 
   initial_conditions = std::make_shared<ExactSolution>(nu);
   initial_conditions->set_time(0.0);
@@ -230,7 +230,7 @@ double EthierSteinman::NeumannFunction::value(
   exact_solution.set_time(get_time());
 
   // This result was obtained by setting the normal vector to -j.
-  if (component == 0) {
+  if (component == 0 || component == 2) {
     Tensor<1, dim> velocity_gradient =
         exact_solution.exact_velocity.gradient(p, component);
     return -nu * velocity_gradient[1];
@@ -238,10 +238,6 @@ double EthierSteinman::NeumannFunction::value(
     Tensor<1, dim> velocity_gradient =
         exact_solution.exact_velocity.gradient(p, component);
     return -nu * velocity_gradient[1] + exact_solution.exact_pressure.value(p);
-  } else if (component == 2) {
-    Tensor<1, dim> velocity_gradient =
-        exact_solution.exact_velocity.gradient(p, component);
-    return -nu * velocity_gradient[1];
   } else {
     return 0.0;
   }
