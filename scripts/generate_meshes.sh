@@ -21,5 +21,5 @@ gmsh -3 -clmax 0.01 ../gmsh/3d-flow.geo -o ../mesh/3d-flow.0.01.msh
 
 # We're using the -clmax flag to specify the maximum element size,
 # as a simple way to control the mesh size. Inside the .geo files,
-# we specify the minimum element size as 1, which is pretty big,
+# we specify the standard element size as 1, which is pretty big,
 # so the -clmax flag is necessary to get a reasonable mesh size.
