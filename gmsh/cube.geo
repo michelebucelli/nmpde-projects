@@ -4,7 +4,7 @@
 // This value is used to define the characteristic length of the mesh elements.
 // The characteristic length is used to define the size of the mesh elements, so
 // if we want a finer mesh, we can decrease this value.
-characteristic_length = 0.25;
+characteristic_length = 1;
 
 // The cube is defined by four points, that will be extruded into a 3D shape.
 // The points are defined by their x, y, and z coordinates, and the characteristic length.
