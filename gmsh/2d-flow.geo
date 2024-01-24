@@ -12,8 +12,10 @@ circle_y = 0.15 + circle_radius;
 
 // This is the characteristic length of the mesh. It's used to control the
 // size of the mesh elements. The smaller the characteristic length, the
-// smaller the mesh elements.
-characteristic_length = 1 / 80;
+// smaller the mesh elements. We're setting to 1, because we want the mesh
+// elements to be controlled by the flag -clmax, which is set in the
+// command line. See the script generate_mesh.sh for more details.
+characteristic_length = 1;
 
 // Oddly enough, to define a circle, gmsh requires you to list the center,
 // then a point on the circle, then another point on the circle. The
