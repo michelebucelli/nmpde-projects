@@ -44,6 +44,116 @@ double Cylinder3D::get_reynolds_number() const {
          D / nu;
 }
 
+double Cylinder2D::calc_lift() const {
+  pcout << "  Calculating lift" << std::endl;
+
+  const unsigned int dofs_per_cell = fe->dofs_per_cell;
+  const unsigned int n_q = quadrature->size();
+  const unsigned int n_q_face = quadrature_face->size();
+
+  FEValues<dim> fe_values(*fe, *quadrature,
+                          update_values | update_quadrature_points |
+                              update_JxW_values | update_gradients);
+  FEFaceValues<dim> fe_face_values(
+      *fe, *quadrature_face,
+      update_values | update_quadrature_points | update_JxW_values);
+
+  FEValuesExtractors::Vector velocity(0);
+  FEValuesExtractors::Scalar pressure(dim);
+
+  // Declare variables to store lift forces
+  double lift_force = 0.0;
+
+  std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
+
+  // Declare a vector which will contain the values of the old solution at
+  // quadrature points.
+  std::vector<Tensor<1, dim>> old_solution_values(n_q);
+
+  for (const auto &cell : dof_handler.active_cell_iterators()) {
+    if (!cell->is_locally_owned()) continue;
+
+    fe_values.reinit(cell);
+
+    // Calculate the value of the previous solution at quadrature points.
+    // Source:
+    // https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
+    fe_values[velocity].get_function_values(solution_owned,
+                                            old_solution_values);
+
+    for (unsigned int q = 0; q < n_q; ++q) {
+      for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+        for (unsigned int j = 0; j < dofs_per_cell; ++j) {
+          lift_force += -((ro * nu * fe_values[velocity].gradient(i, q)[1][0] +
+                           fe_values[pressure].value(i, q) *
+                               fe_values[velocity].value(j, q)[1]) *
+                          fe_values.JxW(q));
+        }
+      }
+    }
+
+    // Sum the drag and lift forces across all processes
+    lift_force = Utilities::MPI::sum(lift_force, MPI_COMM_WORLD);
+  }
+
+  return lift_force;
+}
+
+double Cylinder2D::calc_drag() const {
+  pcout << "  Calculating drag" << std::endl;
+
+  const unsigned int dofs_per_cell = fe->dofs_per_cell;
+  const unsigned int n_q = quadrature->size();
+  const unsigned int n_q_face = quadrature_face->size();
+
+  FEValues<dim> fe_values(*fe, *quadrature,
+                          update_values | update_quadrature_points |
+                              update_JxW_values | update_gradients);
+  FEFaceValues<dim> fe_face_values(
+      *fe, *quadrature_face,
+      update_values | update_quadrature_points | update_JxW_values);
+
+  FEValuesExtractors::Vector velocity(0);
+  FEValuesExtractors::Scalar pressure(dim);
+
+  // Declare variables to store drag and lift forces
+  double drag_force = 0.0;
+
+  std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
+
+  // Declare a vector which will contain the values of the old solution at
+  // quadrature points.
+  std::vector<Tensor<1, dim>> old_solution_values(n_q);
+
+  for (const auto &cell : dof_handler.active_cell_iterators()) {
+    if (!cell->is_locally_owned()) continue;
+
+    fe_values.reinit(cell);
+
+    // Calculate the value of the previous solution at quadrature points.
+    // Source:
+    // https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
+    fe_values[velocity].get_function_values(solution_owned,
+                                            old_solution_values);
+
+    for (unsigned int q = 0; q < n_q; ++q) {
+      for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+        for (unsigned int j = 0; j < dofs_per_cell; ++j) {
+          drag_force += (ro * nu * fe_values[velocity].gradient(i, q)[1][0] -
+                         fe_values[pressure].value(i, q) *
+                             fe_values[velocity].value(j, q)[0]) *
+                        fe_values.JxW(q);
+        }
+      }
+    }
+
+    // Sum the drag and lift forces across all processes
+    drag_force = Utilities::MPI::sum(drag_force, MPI_COMM_WORLD);
+  }
+
+  return drag_force;
+}
+
 Cylinder2D::Cylinder2D(const std::string &mesh_file_name_,
                        const unsigned int &degree_velocity_,
                        const unsigned int &degree_pressure_, const double &T_,
