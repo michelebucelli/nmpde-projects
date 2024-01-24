@@ -1,6 +1,5 @@
 ### Current issues
 - Non negligible error for Ethier Steinman problem after the first step
-- 2D flow past a cylinder requires 0 GMRES iterations for convergence: learn why
 - Solving the linear system for F in the preconditioner can sometimes result in lack of convergence, find a better preconditioner for it
 - Missing many ad hoc preconditioners
 - Missing computation of the lift and drag coefficients

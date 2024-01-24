@@ -57,10 +57,13 @@ Cylinder2D::Cylinder2D(const std::string &mesh_file_name_,
 
   initial_conditions = std::make_shared<Functions::ZeroFunction<dim>>(dim + 1);
 
-  dirichlet_boundary_functions[0] = &inlet_velocity;
-  dirichlet_boundary_functions[1] = &zero_function;
+  dirichlet_boundary_functions[4] = &inlet_velocity;
 
   neumann_boundary_functions[2] = &zero_function;
+
+  dirichlet_boundary_functions[1] = &zero_function;
+  dirichlet_boundary_functions[3] = &zero_function;
+  dirichlet_boundary_functions[5] = &zero_function;
 }
 
 Cylinder3D::Cylinder3D(const std::string &mesh_file_name_,
