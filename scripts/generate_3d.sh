@@ -1,5 +1,5 @@
 # This is a bash script that generates just one mesh,
-# for the 2d stokes problem. Meshes are generated using
+# for the 3d stokes problem. Meshes are generated using
 # gmsh. The meshes are saved in the mesh folder.
 
 # This is the standard factor that we're using to begin
