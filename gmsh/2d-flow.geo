@@ -55,9 +55,10 @@ Physical Surface(1) = {14};
 
 // This code should hopefully add tags to the four lines that make up the 
 // domain, and the circle.
-Physical Line(1) = {3};
-Physical Line(2) = {4};
-Physical Line(3) = {5};
-Physical Line(4) = {6};
+Physical Line(1) = {3}; // (1) Bottom.
+Physical Line(2) = {4}; // (2) Right.
+Physical Line(3) = {5}; // (3) Top.
+Physical Line(4) = {6}; // (4) Left.
 
+// (5) Circle.
 Physical Line(5) = {1, 2};
