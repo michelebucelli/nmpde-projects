@@ -1,7 +1,9 @@
 ### Current issues
 - Non negligible error for Ethier Steinman problem after the first step
-- Solving the linear system for F in the preconditioner can sometimes result in lack of convergence, find a better preconditioner for it
-- Missing many ad hoc preconditioners
+- Building the aYoshida preconditioner is extremely slow
+- Missing PCD and aPCD preconditioners
+- Missing inner preconditioners
+- Preconditioner code could be improved in readability and possibly efficiency
 - Missing computation of the lift and drag coefficients
 - Check if serial computations (e.g. initialization of the triangulation) or dense matrices (e.g. in assembly) cause problems for performance/memory usage, remove them is necessary
 

@@ -34,9 +34,6 @@ void NavierStokes<dim>::solve_time_step() {
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
   pcout << "  Building the preconditioner" << std::endl;
-  // PreconditionBlockDiagonal precondition;
-  // precondition.initialize(system_matrix.block(0, 0), pressure_mass.block(1,
-  // 1));
 
   PreconditionaSIMPLE precondition;
   constexpr double alpha = 1.0;
