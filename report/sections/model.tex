@@ -1,3 +1,75 @@
-To mathematically define an incompressible viscous fluid, we use the Navier-Stokes equations.
+To mathematically model an incompressible viscous fluid, we use the Navier-Stokes equations.
 
-...
+\begin{equation}
+\frac{\partial}{\partial t} \vec{u} - \nu \Delta \vec{u} + \vec{u} \cdot \nabla \vec{u} + \nabla p = \vec{f} \text{ in } \Omega, t > 0 
+\end{equation}
+\begin{equation}
+\nabla \cdot \vec{u} = 0 \text{ in } \Omega, t > 0
+\end{equation}
+\begin{equation}
+\vec{u} = \vec{g}_D \text{ on } \Gamma_D, t > 0
+\end{equation}
+\begin{equation}
+\nu \frac{\partial \vec{u}}{\partial n} - p \vec{n} = \vec{g}_N \text{ on } \Gamma_N, t > 0
+\end{equation}
+\begin{equation}
+\vec{u} = \vec{u}_0 \text{ in } \Omega, t = 0
+\end{equation}
+
+Where $\vec{u}$ is the velocity vector, $p$ is the pressure, $\nu$ is the kinematic viscosity, $\vec{f}$ are the external forces, $\vec{g}_D$ is the Dirichlet boundary condition, $\vec{g}_N$ is the Neumann boundary condition, $\vec{n}$ is the outward unit normal vector, $\vec{u}_0$ is the initial velocity and $\Omega$ is the domain of the fluid.
+
+\subsection{Weak formulation}
+The weak formulation of the Navier-Stokes equations is obtained by multiplying the equations by test functions and integrating over the domain $\Omega$.
+To define the test functions, we introduce the following spaces:
+
+\begin{equation}
+    H^1_D(\Omega) = \{f \in H^1(\Omega) : f = 0 \text{ on } \Gamma_D\}
+\end{equation}
+\begin{equation}
+    V = [H^1_D(\Omega)]^3
+\end{equation}
+\begin{equation}
+    Q = L^2(\Omega)
+\end{equation}
+
+We may now multiply the equations by test functions ($\vec{v} \in V$ and $q \in Q$) and integrate over the domain $\Omega$, obtaining the following weak formulation:
+
+\begin{equation}
+\begin{aligned}
+    (\vec{u}, p) \in V \times Q : \quad & \\
+    &\int_{\Omega} \frac{\partial \vec{u}}{\partial t} \vec{v} \, d\Omega + \int_{\Omega} \nu \nabla \vec{u} \cdot \nabla \vec{v} \, d\Omega + \int_{\Omega} ((\vec{u} \cdot \nabla) \vec{u}) \cdot \vec{v} \, d\Omega - \int_{\Omega} p \nabla \cdot \vec{v} \, d\Omega \\
+    &= \int_{\Omega} \vec{f}_{\text{ext}} \cdot \vec{v} \, d\Omega + \int_{\partial \Omega} \vec{g}_N \cdot \vec{v} \, ds \quad \forall \vec{v} \in V
+\end{aligned}
+\end{equation}
+% Note that I haven't found a way to align the equations in the following block.
+% The alignment is very ugly, and I've tried many combinations of gather, align,
+% split, etc. If anyone finds a way to align the equations, please do so.
+    
+\begin{equation}
+    \int_{\Omega} q \nabla \cdot \vec{u} d \Omega = 0 \forall q \in Q
+\end{equation}
+
+\subsection{Discretization}
+We now discretize the weak formulation above using a semi-implicit time discretization and a finite element spatial discretization. The time derivative will be discretized using the finite difference method, therefore ($\vec{u}^{n+1} \cdot \nabla) \vec{u}^{n+1}$ and $\frac{\partial \vec{u}}{\partial t}$ will be discretized respectively as $(\vec{u}^n \cdot \nabla) \vec{u}^{n+1}$ and $\frac{\vec{u}^{n+1} - \vec{u}^n}{\Delta t}$, where $\Delta t$ is the time step.
+
+After discretizing in time, space discretization is performed using the finite element method. Defining the space of polynomial functions of degree $r$ as $P_r$, we can introduce the finite element space:
+
+\begin{equation}
+    X_h^r = \{\vec{v}_h \in C^0(\bar\Omega) : \vec{v}_h|_K \in P_r, \forall K \in \mathcal{T}_h\}
+\end{equation}
+
+Where $\mathcal{T}_h$ is a triangulation of the domain $\Omega$. The aforementioned spaces $V$ and $Q$ can now be used to define the discrete spaces $V_h = (X_h^2)^3 \cap V$ and $Q_h = X_h^1 \cap Q$.
+Given the exact solutions $\vec{u}$ and $p$ at time $t_n$, our goal is to find the approximate solutions $\vec{u}^n_h \in V_h$ and $p^n_h \in Q_h$ at time $t_n$, through the use of the finite element basis functions $\{\phi_i\}_{i=1}^{N_{\vec{u}}}$ and $\{\psi_j\}_{j=1}^{N_p}$, where $N_{\vec{u}}$ and $N_p$ are the number of degrees of freedom for the velocity and pressure respectively.
+
+\begin{equation}
+    \vec{u}^n_h = \sum_{i=1}^{N_{\vec{u}}} \vec{u}_i^n \phi_i(x) \quad \text{and} \quad p^n_h = \sum_{j=1}^{N_p} p_j^n \psi_j(x)
+\end{equation}
+
+This allows us to approximate the exact solutions $\vec{u}$ and $p$ as $\vec{u}^n_h$ and $p^n_h$ respectively.
+
+\begin{equation}
+    \frac{1}{\Delta t} \int_{\Omega_h} \vec{u}^{n+1}_h \phi_i d \Omega + \int_{\Omega_h} \nabla \vec{u}^{n+1}_h \cdot \nabla \phi_i d \Omega + \int_{\Omega_h} ((\vec{u}^n_h \cdot \nabla) \vec{u}^{n+1}_h) \cdot \phi_i d \Omega - \int_{\Omega_h} p^{n+1}_h \nabla \phi_i d \Omega = \int_{\Omega_h} \vec{f}_{\text{ext}} \cdot \phi_i d \Omega + \int_{\partial \Omega_h} \vec{g}_N(t_{n+1}) \cdot \phi_i d s + \frac{1}{\Delta t} \int_{\Omega_h} \vec{u}^n_h \phi_i d \Omega \quad \forall i = 1, \dots, N_{\vec{u}}
+\end{equation}
+\begin{equation}
+    \int_{\Omega_h} \psi_j \nabla \vec{u}^{n+1}_h d \Omega = 0 \quad \forall j = 1, \dots, N_p
+\end{equation}
