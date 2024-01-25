@@ -68,8 +68,42 @@ Given the exact solutions $\vec{u}$ and $p$ at time $t_n$, our goal is to find t
 This allows us to approximate the exact solutions $\vec{u}$ and $p$ as $\vec{u}^n_h$ and $p^n_h$ respectively.
 
 \begin{equation}
-    \frac{1}{\Delta t} \int_{\Omega_h} \vec{u}^{n+1}_h \phi_i d \Omega + \int_{\Omega_h} \nabla \vec{u}^{n+1}_h \cdot \nabla \phi_i d \Omega + \int_{\Omega_h} ((\vec{u}^n_h \cdot \nabla) \vec{u}^{n+1}_h) \cdot \phi_i d \Omega - \int_{\Omega_h} p^{n+1}_h \nabla \phi_i d \Omega = \int_{\Omega_h} \vec{f}_{\text{ext}} \cdot \phi_i d \Omega + \int_{\partial \Omega_h} \vec{g}_N(t_{n+1}) \cdot \phi_i d s + \frac{1}{\Delta t} \int_{\Omega_h} \vec{u}^n_h \phi_i d \Omega \quad \forall i = 1, \dots, N_{\vec{u}}
+\begin{aligned}
+    \frac{1}{\Delta t} \int_{\Omega_h} \vec{u}^{n+1}_h \phi_i d \Omega + \int_{\Omega_h} \nabla \vec{u}^{n+1}_h \cdot \nabla \phi_i d \Omega + & \\ & \int_{\Omega_h} ((\vec{u}^n_h \cdot \nabla) \vec{u}^{n+1}_h) \cdot \phi_i d \Omega - \int_{\Omega_h} p^{n+1}_h \nabla \phi_i d \Omega & \\ & = \int_{\Omega_h} \vec{f}_{\text{ext}} \cdot \phi_i d \Omega + \int_{\partial \Omega_h} \vec{g}_N(t_{n+1}) \cdot \phi_i d s + & \\ & \frac{1}{\Delta t} \int_{\Omega_h} \vec{u}^n_h \phi_i d \Omega \quad \forall i = 1, \dots, N_{\vec{u}}
+\end{aligned}
 \end{equation}
+% Same as above, I haven't found a way to align the equations in the following block.
+% Please help if you can.
+
 \begin{equation}
     \int_{\Omega_h} \psi_j \nabla \vec{u}^{n+1}_h d \Omega = 0 \quad \forall j = 1, \dots, N_p
 \end{equation}
+
+\subsection{Linearization}
+% I'm not sure if "linearization" is the correct term here.
+
+We can now assemble the linear system of equations that we need to solve to obtain the approximate solutions $\vec{u}^n_h$ and $p^n_h$.
+This problem can be written in the form $A \vec{x} = \vec{b}$, where $\vec{x}$ is the vector of unknowns, $\vec{b}$ is the right hand side vector and $A$ is the matrix of coefficients. $A$, $\vec{x}$ and $\vec{b}$ can be written as follows:
+
+\begin{matrix}
+    A = \begin{bmatrix}
+        F & B^T \\
+        -B & 0
+    \end{bmatrix} \quad
+    \vec{x} = \begin{bmatrix}
+        \vec{U}^{n+1}_h \\
+        \vec{P}^{n+1}_h
+    \end{bmatrix} \quad
+    \vec{b} = \begin{bmatrix}
+        \vec{G} \\
+        \vec{0}
+    \end{bmatrix}
+\end{matrix}
+
+Where $F$ is the matrix of coefficients for the velocity, $B$ is the matrix of coefficients for the pressure and $\vec{G}$ is a known vector. In particular, $F$ is defined as follows:
+
+\begin{equation}
+    F = \frac{1}{\Delta t} M + A + C(\vec{U}^n) \quad \text{and} \quad B = -B^T
+\end{equation}
+
+Where $M$ is the mass matrix, $A$ is the stiffness matrix and $C(\vec{U}^n)$ is the convection matrix. The vector $\vec{U}^{n+1}$ contains the velocity unknowns $u_1, \dots, u_{N_{\vec{u}}}$, while $\vec{P}^{n+1}$ contains the pressure unknowns $p_1, \dots, p_{N_p}$.
