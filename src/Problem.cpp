@@ -48,14 +48,11 @@ double Cylinder2D::calc_lift() const {
   pcout << "  Calculating lift" << std::endl;
 
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
-  const unsigned int n_q = quadrature->size();
+  const unsigned int n_q_face = quadrature_face->size();
 
-  FEValues<dim> fe_values(*fe, *quadrature,
-                          update_values | update_quadrature_points |
-                              update_JxW_values | update_gradients);
-  FEFaceValues<dim> fe_face_values(
-      *fe, *quadrature_face,
-      update_values | update_quadrature_points | update_JxW_values);
+  FEFaceValues<dim> fe_face_values(*fe, *quadrature_face,
+                                   update_values | update_quadrature_points |
+                                       update_JxW_values | update_gradients);
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
@@ -67,34 +64,41 @@ double Cylinder2D::calc_lift() const {
 
   // Declare a vector which will contain the values of the old solution at
   // quadrature points.
-  std::vector<Tensor<1, dim>> old_solution_values(n_q);
+  std::vector<Tensor<1, dim>> velocity_values(n_q_face);
+  std::vector<Tensor<2, dim>> velocity_gradients(n_q_face);
+  std::vector<double> pressure_values(n_q_face);
 
   for (const auto &cell : dof_handler.active_cell_iterators()) {
     if (!cell->is_locally_owned()) continue;
 
-    fe_values.reinit(cell);
+    for (unsigned int f = 0; f < cell->n_faces(); ++f) {
+      if (cell->face(f)->at_boundary() &&
+          cell->face(f)->boundary_id() == OBSTACLE_ID) {
+        fe_face_values.reinit(cell, f);
 
-    // Calculate the value of the previous solution at quadrature points.
-    // Source:
-    // https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
-    fe_values[velocity].get_function_values(solution_owned,
-                                            old_solution_values);
+        // Calculate the value of the previous solution at quadrature points.
+        // Source:
+        // https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
+        fe_face_values[velocity].get_function_values(solution_owned,
+                                                     velocity_values);
 
-    for (unsigned int q = 0; q < n_q; ++q) {
-      for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-        for (unsigned int j = 0; j < dofs_per_cell; ++j) {
-          lift_force += -((ro * nu * fe_values[velocity].gradient(i, q)[1][0] +
-                           fe_values[pressure].value(i, q) *
-                               fe_values[velocity].value(j, q)[1]) *
-                          fe_values.JxW(q));
+        fe_face_values[velocity].get_function_gradients(solution_owned,
+                                                        velocity_gradients);
+
+        fe_face_values[pressure].get_function_values(solution_owned,
+                                                     pressure_values);
+
+        for (unsigned int q = 0; q < n_q_face; ++q) {
+          lift_force += -((ro * nu * velocity_gradients[q][1][0] +
+                           pressure_values[q] * velocity_values[q][1]) *
+                          fe_face_values.JxW(q));
         }
       }
     }
-
-    // Sum the drag and lift forces across all processes
-    lift_force = Utilities::MPI::sum(lift_force, MPI_COMM_WORLD);
   }
+  // Sum the drag and lift forces across all processes
 
+  lift_force = Utilities::MPI::sum(lift_force, MPI_COMM_WORLD);
   return lift_force;
 }
 
@@ -376,7 +380,8 @@ double EthierSteinman::compute_error(const VectorTools::NormType &norm_type,
   if (block == 0) {
     // The error is an integral, and we approximate that integral using a
     // quadrature formula. To make sure we are accurate enough, we use a
-    // quadrature formula with one node more than what we used in assembly.
+    // quadrature formula with one node more than what we used in
+    // assembly.
     const QGaussSimplex<dim> quadrature_error(degree_velocity + 2);
 
     VectorTools::integrate_difference(
