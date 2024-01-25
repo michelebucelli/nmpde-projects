@@ -46,6 +46,7 @@ class Cylinder2D : public NavierStokes<2U> {
              const double &deltat_);
 
  private:
+  constexpr static int OBSTACLE_ID = 5;
   // Reference velocity.
   constexpr static double U_m = 1.5;
   // Cyclinder diameter [m].
