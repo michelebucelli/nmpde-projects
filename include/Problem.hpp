@@ -270,6 +270,8 @@ class Step : public NavierStokes<3U> {
   Functions::ZeroFunction<dim> zero_function;
   // Coefficient for inlet velocity.
   double alpha;
+  // Function for Neumann (BC).
+  NeumannFunction neumann_function;
 };
 
 #endif

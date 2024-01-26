@@ -111,7 +111,8 @@ void NavierStokes<dim>::assemble_time_dependent() {
 
   FEValues<dim> fe_values(*fe, *quadrature,
                           update_values | update_quadrature_points |
-                              update_JxW_values | update_gradients);
+                              update_normal_vectors | update_JxW_values |
+                              update_gradients);
   FEFaceValues<dim> fe_face_values(
       *fe, *quadrature_face,
       update_values | update_quadrature_points | update_JxW_values);
@@ -198,6 +199,8 @@ void NavierStokes<dim>::assemble_time_dependent() {
 
     for (const auto &cell : dof_handler.active_cell_iterators()) {
       if (!cell->is_locally_owned()) continue;
+
+      cell_rhs = 0.0;
 
       // Boundary integral for Neumann BCs.
       if (cell->at_boundary()) {
