@@ -71,10 +71,6 @@ int main(int argc, char* argv[]) {
     problem.setup();
     problem.solve();
 
-  } else if (problem_id == 4) {
-    constexpr double alpha = 1.0;
-    Step problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat,
-                 alpha);
     problem.setup();
     problem.solve();
 
@@ -82,6 +78,11 @@ int main(int argc, char* argv[]) {
     std::cerr << "Error: Problem ID must be 1, 2, 3 or 4." << std::endl;
     return 1;
   }
+}
+else {
+  std::cerr << "Error: Problem ID must be 1, 2, 3 or 4." << std::endl;
+  return 1;
+}
 
-  return 0;
+return 0;
 }
