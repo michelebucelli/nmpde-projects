@@ -14,7 +14,7 @@ fi
 
 # 3D mesh generation.
 gmsh -3 -clmax $factor ../gmsh/cube.geo            -o ../mesh/cube-$factor.msh
-gmsh -3 -clmax %factor ../gmsh/uncentered-cube.geo -o ../mesh/uncentered-cube-$factor.msh
+gmsh -3 -clmax $factor ../gmsh/uncentered-cube.geo -o ../mesh/uncentered-cube-$factor.msh
 
 # We're using the -clmax flag to specify the maximum element size,
 # as a simple way to control the mesh size. Inside the .geo files,
