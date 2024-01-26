@@ -44,7 +44,7 @@ double Cylinder3D::get_reynolds_number() const {
          D / nu;
 }
 
-double Cylinder2D::calc_lift() const {
+void Cylinder2D::calc_lift_drag() const {
   pcout << "  Calculating lift" << std::endl;
 
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
@@ -59,6 +59,7 @@ double Cylinder2D::calc_lift() const {
 
   // Declare variables to store lift forces
   double lift_force = 0.0;
+  double drag_force = 0.0;
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
@@ -92,14 +93,18 @@ double Cylinder2D::calc_lift() const {
           lift_force += -((ro * nu * velocity_gradients[q][1][0] +
                            pressure_values[q] * velocity_values[q][1]) *
                           fe_face_values.JxW(q));
+
+          drag_force += (ro * nu * velocity_gradients[q][1][0] -
+                         pressure_values[q] * velocity_values[q][0]) *
+                        fe_face_values.JxW(q);
         }
       }
     }
   }
   // Sum the drag and lift forces across all processes
 
-  lift_force = Utilities::MPI::sum(lift_force, MPI_COMM_WORLD);
-  return lift_force;
+  _lift = Utilities::MPI::sum(lift_force, MPI_COMM_WORLD);
+  _drag = Utilities::MPI::sum(drag_force, MPI_COMM_WORLD);
 }
 
 double Cylinder2D::calc_drag() const {
