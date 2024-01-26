@@ -29,7 +29,7 @@ template <unsigned int dim>
 void NavierStokes<dim>::solve_time_step() {
   pcout << "  Solving the linear system" << std::endl;
 
-  SolverControl solver_control(100000, 1e-6 * system_rhs.l2_norm());
+  SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 

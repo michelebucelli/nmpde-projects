@@ -61,9 +61,9 @@ class PreconditionSIMPLE {
   // Matrix -S := -B*D^-1*B^T.
   TrilinosWrappers::SparseMatrix negS_matrix;
   // Preconditioner used for the block multiplied by F.
-  TrilinosWrappers::PreconditionILU preconditioner_F;
+  TrilinosWrappers::PreconditionAMG preconditioner_F;
   // Preconditioner used for the block multiplied by S.
-  TrilinosWrappers::PreconditionILU preconditioner_S;
+  TrilinosWrappers::PreconditionAMG preconditioner_S;
   // Temporary vector.
   mutable TrilinosWrappers::MPI::BlockVector tmp;
 };
@@ -98,9 +98,9 @@ class PreconditionaSIMPLE {
   // Matrix -S := -B*D^-1*B^T.
   TrilinosWrappers::SparseMatrix negS_matrix;
   // Preconditioner used for the block multiplied by F.
-  TrilinosWrappers::PreconditionILU preconditioner_F;
+  TrilinosWrappers::PreconditionAMG preconditioner_F;
   // Preconditioner used for the block multiplied by S.
-  TrilinosWrappers::PreconditionILU preconditioner_S;
+  TrilinosWrappers::PreconditionAMG preconditioner_S;
   // Temporary vector.
   mutable TrilinosWrappers::MPI::BlockVector tmp;
 };
@@ -131,9 +131,9 @@ class PreconditionYoshida {
   // Matrix -S := -B*D^-1*B^T.
   TrilinosWrappers::SparseMatrix negS_matrix;
   // Preconditioner used for the block multiplied by F.
-  TrilinosWrappers::PreconditionILU preconditioner_F;
+  TrilinosWrappers::PreconditionAMG preconditioner_F;
   // Preconditioner used for the block multiplied by S.
-  TrilinosWrappers::PreconditionILU preconditioner_S;
+  TrilinosWrappers::PreconditionAMG preconditioner_S;
   // Temporary vectors.
   mutable TrilinosWrappers::MPI::BlockVector tmp;
   mutable TrilinosWrappers::MPI::Vector tmp_2;
@@ -166,9 +166,9 @@ class PreconditionaYoshida {
   // Matrix -S := -B*deltat*Ml^-1*B^T.
   TrilinosWrappers::SparseMatrix negS_matrix;
   // Preconditioner used for the block multiplied by F.
-  TrilinosWrappers::PreconditionILU preconditioner_F;
+  TrilinosWrappers::PreconditionAMG preconditioner_F;
   // Preconditioner used for the block multiplied by S.
-  TrilinosWrappers::PreconditionILU preconditioner_S;
+  TrilinosWrappers::PreconditionAMG preconditioner_S;
   // Temporary vector.
   mutable TrilinosWrappers::MPI::BlockVector tmp;
 };

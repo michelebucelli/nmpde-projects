@@ -46,11 +46,9 @@ void PreconditionSIMPLE::initialize(
 
   // Save the inverse diagonal of F.
   Dinv_vector.reinit(vec.block(0));
-  tmp.reinit(vec);
-  tmp.block(0).add(1.0);
-  TrilinosWrappers::PreconditionJacobi precondition_jacobi;
-  precondition_jacobi.initialize(*F_matrix);
-  precondition_jacobi.vmult(Dinv_vector, tmp.block(0));
+  for (unsigned int index : Dinv_vector.locally_owned_elements()) {
+    Dinv_vector[index] = 1.0 / F_matrix->diag_element(index);
+  }
 
   // Create the matrix -S.
   negB_matrix->mmult(negS_matrix, *Bt_matrix, Dinv_vector);
@@ -120,18 +118,13 @@ void PreconditionaSIMPLE::vmult(
     const TrilinosWrappers::MPI::BlockVector &src) const {
   tmp.reinit(src);
   // Step 1: multiply src by [F^-1 0; 0 I].
-  dst.block(0) = src.block(0);
-  SolverControl solver_control_F(10000, 1e-2 * src.block(0).l2_norm());
-  SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_F(solver_control_F);
-  solver_gmres_F.solve(*F_matrix, dst.block(0), src.block(0), preconditioner_F);
+  preconditioner_F.vmult(dst.block(0), src.block(0));
   dst.block(1) = src.block(1);
   // Step 2: multiply the result by [I 0; -B I].
   Bt_matrix->Tvmult_add(dst.block(1), dst.block(0));
   // Step 3: multiply the result by [I 0; 0 -S^-1].
   tmp.block(1) = dst.block(1);
-  SolverControl solver_control_S(10000, 1e-2 * tmp.block(1).l2_norm());
-  SolverCG<TrilinosWrappers::MPI::Vector> solver_cg_S(solver_control_S);
-  solver_cg_S.solve(negS_matrix, dst.block(1), tmp.block(1), preconditioner_S);
+  preconditioner_S.vmult(dst.block(1), tmp.block(1));
   // Step 4: multiply the result by [D 0; 0 I/alpha].
   dst.block(0).scale(D_vector);
   dst.block(1) /= alpha;
@@ -154,12 +147,9 @@ void PreconditionYoshida::initialize(
 
   // Save the inverse diagonal of M_dt.
   Dinv_vector.reinit(vec.block(0));
-  tmp.reinit(vec);
-  tmp_2.reinit(vec.block(0));
-  tmp.block(0).add(1.0);
-  TrilinosWrappers::PreconditionJacobi precondition_jacobi;
-  precondition_jacobi.initialize(M_dt_matrix_);
-  precondition_jacobi.vmult(Dinv_vector, tmp.block(0));
+  for (unsigned int index : Dinv_vector.locally_owned_elements()) {
+    Dinv_vector[index] = 1.0 / M_dt_matrix_.diag_element(index);
+  }
 
   // Create the matrix -S.
   negB_matrix->mmult(negS_matrix, *Bt_matrix, Dinv_vector);
@@ -207,7 +197,7 @@ void PreconditionaYoshida::initialize(
   negB_matrix = &negB_matrix_;
   Bt_matrix = &Bt_matrix_;
 
-  // Save the inverse diagonal of M_dt.
+  // Save the lumped inverse diagonal of M_dt.
   lumped_invM_dt_matrix.reinit(vec.block(0));
   tmp.reinit(vec);
   const std::pair<size_t, size_t> index_range = M_dt_matrix_.local_range();
@@ -235,26 +225,18 @@ void PreconditionaYoshida::vmult(
     const TrilinosWrappers::MPI::BlockVector &src) const {
   tmp.reinit(src);
   // Step 1: multiply src by [F^-1 0; 0 I].
-  dst.block(0) = src.block(0);
-  SolverControl solver_control_F(10000, 1e-2 * src.block(0).l2_norm());
-  SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_F(solver_control_F);
-  solver_gmres_F.solve(*F_matrix, dst.block(0), src.block(0), preconditioner_F);
+  preconditioner_F.vmult(dst.block(0), src.block(0));
   // Step 2: multiply the result by [I 0; -B I].
   dst.block(1) = src.block(1);
   Bt_matrix->Tvmult_add(dst.block(1), src.block(0));
   // Step 3: multiply the result by [I 0; 0 -S^-1].
   tmp.block(1) = dst.block(1);
-  SolverControl solver_control_S(10000, 1e-2 * tmp.block(1).l2_norm());
-  SolverCG<TrilinosWrappers::MPI::Vector> solver_cg_S(solver_control_S);
-  solver_cg_S.solve(negS_matrix, dst.block(1), tmp.block(1), preconditioner_S);
+  preconditioner_S.vmult(dst.block(1), tmp.block(1));
   // Step 4: multiply the result by [F 0; 0 I].
   F_matrix->vmult(tmp.block(0), dst.block(0));
   // Step 5: multiply the result by [I -B^T; 0 I].
   Bt_matrix->vmult_add(tmp.block(0), dst.block(1));
   // Step 6: multiply the result by [F^-1 0; 0 I].
   dst.block(0) = src.block(0);
-  SolverControl solver_control_F2(10000, 1e-2 * tmp.block(0).l2_norm());
-  SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_F2(solver_control_F2);
-  solver_gmres_F2.solve(*F_matrix, dst.block(0), tmp.block(0),
-                        preconditioner_F);
+  preconditioner_F.vmult(dst.block(0), tmp.block(0));
 }
