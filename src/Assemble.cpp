@@ -209,7 +209,7 @@ void NavierStokes<dim>::assemble_time_dependent() {
             // Set the correct time for the Neumann function.
             Function<dim> *neumann_function =
                 neumann_boundary_functions[cell->face(f)->boundary_id()];
-            neumann_function->set_time((time_step + 1U) * deltat);
+            neumann_function->set_time(time_step * deltat);
 
             // Declare vectors containing the local value of the Neumann
             // function.

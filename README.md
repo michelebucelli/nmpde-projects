@@ -1,7 +1,7 @@
 ### Current issues
 - Non negligible error for Ethier Steinman problem after the first step
-- Solving the linear system for F in the preconditioner can sometimes result in lack of convergence, find a better preconditioner for it
-- Missing many ad hoc preconditioners
+- Building the aYoshida preconditioner is extremely slow
+- Preconditioner code could be improved in readability and possibly efficiency
 - Missing computation of the lift and drag coefficients
 - Check if serial computations (e.g. initialization of the triangulation) or dense matrices (e.g. in assembly) cause problems for performance/memory usage, remove them is necessary
 
@@ -39,7 +39,7 @@ To generate meshes for the simulations, we use the [Gmsh](http://gmsh.info/) sof
     - 5: left
     - 6: top
     - 7: cylinder
-- **Generate a simple cube**: run `bash generate_cube.sh <fe_size>`, where `<fe_size>` is the size of the finite elements. If no argument is provided, the default value is 0.02. The cube has a side of 2, and its center is in the origin. The cube is tagged in the same way as the 3D problem, minus the cylinder.
-- **Generate a variety of meshes**: run `bash generate_all.sh <factor>`, where `<factor>` is a multiplicative factor for the size of the finite elements. For each problem type (two dimensional, three dimensional and simple cube), four meshes are generated with different levels of detail. The default value for `<factor>` is 0.1, which is multiplied by all the standard values for the generated meshes. This script is a fast way to get some meaningful meshes for testing.
+- **Generate two simple cubes**: run `bash generate_cubes.sh <fe_size>`, where `<fe_size>` is the size of the finite elements. If no argument is provided, the default value is 0.02. Two cubes are generated. The first will be centered on the origin, with a side size of 2. The second will have positive vertices, and one of the vertices will be at the origin. The side length will be 2 pi. The boundaries are the same as the 3D problem, minus the cylinder.
+- **Generate a variety of meshes**: run `bash generate_all.sh <factor>`, where `<factor>` is a multiplicative factor for the size of the finite elements. For each problem type (two dimensional, three dimensional and simple cubes), four meshes are generated with different levels of detail. The default value for `<factor>` is 0.1, which is multiplied by all the standard values for the generated meshes. This script is a fast way to get some meaningful meshes for testing.
 
 Please note that running `generate_all.sh` will preventively delete all the meshes with the word `flow` or `cube` in their name. This is to avoid accumulating too many meshes in the `mesh` folder, which would make it difficult to find the ones you need.

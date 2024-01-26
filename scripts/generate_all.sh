@@ -37,6 +37,12 @@ gmsh -3 -clmax $(echo "$factor * 0.5" | bc -l) ../gmsh/cube.geo -o ../mesh/cube-
 #gmsh -3 -clmax $(echo "$factor * 0.2" | bc -l) ../gmsh/cube.geo -o ../mesh/cube-factor-0.2.msh
 #gmsh -3 -clmax $(echo "$factor * 0.1" | bc -l) ../gmsh/cube.geo -o ../mesh/cube-factor-0.1.msh
 
+# Uncentered cube mesh.
+gmsh -3 -clmax $factor                         ../gmsh/uncentered-cube.geo -o ../mesh/uncentered-cube-factor-1.msh
+gmsh -3 -clmax $(echo "$factor * 0.5" | bc -l) ../gmsh/uncentered-cube.geo -o ../mesh/uncentered-cube-factor-0.5.msh
+#gmsh -3 -clmax $(echo "$factor * 0.2" | bc -l) ../gmsh/uncentered-cube.geo -o ../mesh/uncentered-cube-factor-0.2.msh
+#gmsh -3 -clmax $(echo "$factor * 0.1" | bc -l) ../gmsh/uncentered-cube.geo -o ../mesh/uncentered-cube-factor-0.1.msh
+
 # Feel free to uncomment the above two lines if you need a finer mesh for the cube.
 # Lines are commented out because the cube mesh is pretty big, and it takes a while
 # to generate the mesh.

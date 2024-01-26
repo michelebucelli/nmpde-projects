@@ -1,0 +1,5 @@
+The Navier-Stokes equations are a set of partial differential equations that describe the motion of viscous fluid substances. They are named after Claude-Louis Navier and George Gabriel Stokes, who independently developed the equations in the 19th century. The equations are used to model a wide range of fluid flow, from low-speed to high-speed compressible flows. They are also used to model turbulence, which is important in many engineering applications.
+
+This report will focus on the unsteady, incompressible Navier-Stokes equations in two and three dimensions. More specifically, we will consider the "flow past a cylinder" problem, which is a classic benchmark problem in computational fluid dynamics. The problem consists of a fluid flowing past a cylinder, which is placed in a channel.
+
+To mathematically model the problem, we use the weak formulation of the Navier-Stokes equations, followed by a semi-implicit time discretization and a finite element spatial discretization. The resulting system of equations is then solved as a linear system using deal.II. To generate the mesh we use Gmsh, which is an open-source mesh generator.
