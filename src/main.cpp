@@ -38,14 +38,13 @@ int main(int argc, char* argv[]) {
     }
   }
   // Check if all required parameters are provided
-  if (problem_id == 0 || deltat == 0.0 || mesh_file.empty()) {
+  if (problem_id == 0 || deltat == 0.0 || mesh_file_name.empty()) {
     std::cerr << "Error: All parameters (-p, -d, -m) must be provided."
               << std::endl;
     return 1;
   }
 
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
-
 
   constexpr unsigned int degree_velocity = 2;
   constexpr unsigned int degree_pressure = 1;
@@ -54,13 +53,13 @@ int main(int argc, char* argv[]) {
 
   if (problem_id == 1) {
     Cylinder2D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                       deltat, nu);
+                       deltat);
 
     problem.setup();
     problem.solve();
   } else if (problem_id == 2) {
     Cylinder3D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                       deltat, nu);
+                       deltat);
 
     problem.setup();
     problem.solve();
