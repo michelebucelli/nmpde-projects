@@ -44,6 +44,69 @@ double Cylinder3D::get_reynolds_number() const {
          D / nu;
 }
 
+void Cylinder2D::calc_lift_drag() {
+  pcout << "  Calculating lift" << std::endl;
+
+  const unsigned int dofs_per_cell = fe->dofs_per_cell;
+  const unsigned int n_q_face = quadrature_face->size();
+
+  FEFaceValues<dim> fe_face_values(*fe, *quadrature_face,
+                                   update_values | update_quadrature_points |
+                                       update_JxW_values | update_gradients);
+
+  FEValuesExtractors::Vector velocity(0);
+  FEValuesExtractors::Scalar pressure(dim);
+
+  // Declare variables to store lift forces
+  double lift_force = 0.0;
+  double drag_force = 0.0;
+
+  std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
+
+  // Declare a vector which will contain the values of the old solution at
+  // quadrature points.
+  std::vector<Tensor<1, dim>> velocity_values(n_q_face);
+  std::vector<Tensor<2, dim>> velocity_gradients(n_q_face);
+  std::vector<double> pressure_values(n_q_face);
+
+  for (const auto &cell : dof_handler.active_cell_iterators()) {
+    if (!cell->is_locally_owned()) continue;
+
+    for (unsigned int f = 0; f < cell->n_faces(); ++f) {
+      if (cell->face(f)->at_boundary() &&
+          cell->face(f)->boundary_id() == OBSTACLE_ID) {
+        fe_face_values.reinit(cell, f);
+
+        // Calculate the value of the previous solution at quadrature points.
+        // Source:
+        // https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
+        fe_face_values[velocity].get_function_values(solution_owned,
+                                                     velocity_values);
+
+        fe_face_values[velocity].get_function_gradients(solution_owned,
+                                                        velocity_gradients);
+
+        fe_face_values[pressure].get_function_values(solution_owned,
+                                                     pressure_values);
+
+        for (unsigned int q = 0; q < n_q_face; ++q) {
+          lift_force += -((ro * nu * velocity_gradients[q][1][0] +
+                           pressure_values[q] * velocity_values[q][1]) *
+                          fe_face_values.JxW(q));
+
+          drag_force += (ro * nu * velocity_gradients[q][1][0] -
+                         pressure_values[q] * velocity_values[q][0]) *
+                        fe_face_values.JxW(q);
+        }
+      }
+    }
+  }
+  // Sum the drag and lift forces across all processes
+
+  _lift = Utilities::MPI::sum(lift_force, MPI_COMM_WORLD);
+  _drag = Utilities::MPI::sum(drag_force, MPI_COMM_WORLD);
+}
+
 Cylinder2D::Cylinder2D(const std::string &mesh_file_name_,
                        const unsigned int &degree_velocity_,
                        const unsigned int &degree_pressure_, const double &T_,
@@ -268,7 +331,8 @@ double EthierSteinman::compute_error(const VectorTools::NormType &norm_type,
   if (block == 0) {
     // The error is an integral, and we approximate that integral using a
     // quadrature formula. To make sure we are accurate enough, we use a
-    // quadrature formula with one node more than what we used in assembly.
+    // quadrature formula with one node more than what we used in
+    // assembly.
     const QGaussSimplex<dim> quadrature_error(degree_velocity + 2);
 
     VectorTools::integrate_difference(

@@ -36,6 +36,9 @@ class Cylinder2D : public NavierStokes<2U> {
 
   // Reynolds number computation.
   double get_reynolds_number() const;
+  void calc_lift_drag();
+  double get_lift() const { return _lift; };
+  double get_drag() const { return _drag; };
 
   // Constructor.
   Cylinder2D(const std::string &mesh_file_name_,
@@ -44,12 +47,16 @@ class Cylinder2D : public NavierStokes<2U> {
              const double &deltat_);
 
  private:
+  constexpr static int OBSTACLE_ID = 5;
   // Reference velocity.
   constexpr static double U_m = 1.5;
   // Cyclinder diameter [m].
   constexpr static double D = 0.1;
   // Inlet side length [m].
   constexpr static double H = 0.41;
+
+  double _lift = 0.0;
+  double _drag = 0.0;
 
   // Inlet velocity.
   InletVelocity inlet_velocity;
@@ -258,10 +265,9 @@ class Step : public NavierStokes<3U> {
   };
 
   // Constructor.
-  Step(const std::string &mesh_file_name_,
-             const unsigned int &degree_velocity_,
-             const unsigned int &degree_pressure_, const double &T_,
-             const double &deltat_, const double &alpha_);
+  Step(const std::string &mesh_file_name_, const unsigned int &degree_velocity_,
+       const unsigned int &degree_pressure_, const double &T_,
+       const double &deltat_, const double &alpha_);
 
  private:
   // Inlet velocity.
