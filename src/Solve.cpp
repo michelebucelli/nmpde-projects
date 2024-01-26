@@ -71,7 +71,7 @@ void NavierStokes<dim>::solve() {
     solve_time_step();
     output();
 
-    time += deltat;
-    ++time_step;
+    time_step += 1;
+    time = time_step * deltat;
   }
 }

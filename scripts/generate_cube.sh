@@ -4,7 +4,7 @@
 
 # This is the standard factor that we're using to begin
 # with. We can change this to get different mesh sizes.
-factor=0.02
+factor=0.1
 
 # Use the first (optional) argument to change the factor.
 if [ $# -eq 1 ]
@@ -14,7 +14,6 @@ fi
 
 # 3D mesh generation.
 gmsh -3 -clmax $factor ../gmsh/cube.geo            -o ../mesh/cube-$factor.msh
-gmsh -3 -clmax $factor ../gmsh/uncentered-cube.geo -o ../mesh/uncentered-cube-$factor.msh
 
 # We're using the -clmax flag to specify the maximum element size,
 # as a simple way to control the mesh size. Inside the .geo files,
