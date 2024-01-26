@@ -78,11 +78,6 @@ int main(int argc, char* argv[]) {
     std::cerr << "Error: Problem ID must be 1, 2, 3 or 4." << std::endl;
     return 1;
   }
-}
-else {
-  std::cerr << "Error: Problem ID must be 1, 2, 3 or 4." << std::endl;
-  return 1;
-}
 
-return 0;
+  return 0;
 }
