@@ -46,6 +46,7 @@ int main(int argc, char* argv[]) {
 
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
+
   constexpr unsigned int degree_velocity = 2;
   constexpr unsigned int degree_pressure = 1;
   constexpr double T = 1e-2;
