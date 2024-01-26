@@ -1,5 +1,4 @@
 ### Current issues
-- L2 pressure error in Ethier Steinman problem is not decreasing using finer meshes
 - Building the aYoshida preconditioner is extremely slow
 - Preconditioner code could be improved in readability and possibly efficiency
 - Missing computation of the lift and drag coefficients

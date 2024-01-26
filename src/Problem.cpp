@@ -318,7 +318,7 @@ void EthierSteinman::NeumannFunction::vector_value(
 }
 
 double EthierSteinman::compute_error(const VectorTools::NormType &norm_type,
-                                     unsigned int block) {
+                                     bool velocity) {
   FE_SimplexP<dim> fe_mapping(1);
   MappingFE mapping(fe_mapping);
 
@@ -328,24 +328,25 @@ double EthierSteinman::compute_error(const VectorTools::NormType &norm_type,
   // First we compute the norm on each element, and store it in a vector.
   Vector<double> error_per_cell(mesh.n_active_cells());
 
-  if (block == 0) {
+  if (velocity) {
     // The error is an integral, and we approximate that integral using a
     // quadrature formula. To make sure we are accurate enough, we use a
     // quadrature formula with one node more than what we used in
     // assembly.
-    const QGaussSimplex<dim> quadrature_error(degree_velocity + 2);
+    QGaussSimplex<dim> quadrature_error(degree_velocity + 2);
+
+    // Source: https://www.dealii.org/current/doxygen/deal.II/step_20.html.
+    ComponentSelectFunction<dim> mask(std::make_pair(0, dim), dim + 1);
 
     VectorTools::integrate_difference(
-        mapping, dof_handler, solution.block(0), exact_solution.exact_velocity,
-        error_per_cell, quadrature_error, norm_type);
-  } else if (block == 1) {
-    const QGaussSimplex<dim> quadrature_error(degree_pressure + 2);
-
-    VectorTools::integrate_difference(
-        mapping, dof_handler, solution.block(1), exact_solution.exact_pressure,
-        error_per_cell, quadrature_error, norm_type);
+        mapping, dof_handler, solution, exact_solution.exact_velocity,
+        error_per_cell, quadrature_error, norm_type, &mask);
   } else {
-    pcout << "Error! Wrong block specified!" << std::endl;
+    QGaussSimplex<dim> quadrature_error(degree_pressure + 2);
+    ComponentSelectFunction<dim> mask(dim, dim + 1);
+    VectorTools::integrate_difference(mapping, dof_handler, solution,
+                                      exact_solution, error_per_cell,
+                                      quadrature_error, norm_type, &mask);
   }
 
   // Then, we add out all the cells.
@@ -358,19 +359,19 @@ double EthierSteinman::compute_error(const VectorTools::NormType &norm_type,
 void EthierSteinman::apply_initial_conditions() {
   NavierStokes<dim>::apply_initial_conditions();
   pcout << "L2 error on the velocity: "
-        << compute_error(VectorTools::L2_norm, 0U) << std::endl;
+        << compute_error(VectorTools::L2_norm, true) << std::endl;
   pcout << "H1 error on the velocity: "
-        << compute_error(VectorTools::H1_norm, 0U) << std::endl;
+        << compute_error(VectorTools::H1_norm, true) << std::endl;
 }
 
 void EthierSteinman::solve_time_step() {
   NavierStokes<dim>::solve_time_step();
   pcout << "L2 error on the velocity: "
-        << compute_error(VectorTools::L2_norm, 0U) << std::endl;
+        << compute_error(VectorTools::L2_norm, true) << std::endl;
   pcout << "H1 error on the velocity: "
-        << compute_error(VectorTools::H1_norm, 0U) << std::endl;
+        << compute_error(VectorTools::H1_norm, true) << std::endl;
   pcout << "L2 error on the pressure: "
-        << compute_error(VectorTools::L2_norm, 1U) << std::endl;
+        << compute_error(VectorTools::L2_norm, false) << std::endl;
 }
 
 Step::Step(const std::string &mesh_file_name_,

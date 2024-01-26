@@ -211,10 +211,10 @@ class EthierSteinman : public NavierStokes<3U> {
   // Solve the problem for one time step and print the error.
   void solve_time_step() override;
 
-  // Compute the error (if block=0, the velocity error is computed, if block=1,
-  // the pressure one is).
-  double compute_error(const VectorTools::NormType &norm_type,
-                       unsigned int block);
+  // Compute the error (if velocity is true, the error on the velocity is
+  // computed, otherwise the error on the pressure is, the pressure does not
+  // support the H1 norm).
+  double compute_error(const VectorTools::NormType &norm_type, bool velocity);
 
  private:
   // Parameters of the problem.
