@@ -36,7 +36,7 @@ class Cylinder2D : public NavierStokes<2U> {
 
   // Reynolds number computation.
   double get_reynolds_number() const;
-  void calc_lift_drag() const;
+  void calc_lift_drag();
 
   // Constructor.
   Cylinder2D(const std::string &mesh_file_name_,
