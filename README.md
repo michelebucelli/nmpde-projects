@@ -1,7 +1,8 @@
 ### Current issues
 - Building the aYoshida preconditioner is extremely slow
 - Preconditioner code could be improved in readability and possibly efficiency
-- Missing computation of the lift and drag coefficients
+- Lift and drag coefficients have not been checked
+- Computation of lift and drag coefficients uses a strong formulation
 - Check if serial computations (e.g. initialization of the triangulation) or dense matrices (e.g. in assembly) cause problems for performance/memory usage, remove them is necessary
 
 ### Compiling

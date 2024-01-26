@@ -5,7 +5,50 @@
 
 #include "NavierStokes.hpp"
 
-class Cylinder2D : public NavierStokes<2U> {
+template <unsigned int dim>
+class Cylinder : public NavierStokes<dim> {
+ public:
+  Cylinder(const std::string &mesh_file_name_,
+           const unsigned int &degree_velocity_,
+           const unsigned int &degree_pressure_, const double &T_,
+           const double &deltat_);
+
+  // Virtual destructor.
+  virtual ~Cylinder() = default;
+
+  // Update lift and drag forces.
+  void update_lift_drag();
+
+  // Compute and return the Reynolds number.
+  double get_reynolds_number() const;
+
+  // Return the lift coefficient.
+  double get_lift() const;
+
+  // Return the drag coefficient.
+  double get_drag() const;
+
+ protected:
+  // Function to get the mean velocity.
+  virtual double get_mean_velocity() const = 0;
+
+  // Boundary tag for the obstacle.
+  unsigned int obstacle_tag;
+  // Reference velocity [m/s].
+  double U_m;
+  // Cyclinder diameter [m].
+  const double D = 0.1;
+  // Inlet side length [m].
+  const double H = 0.41;
+  // Lift force [N].
+  double lift_force;
+  // Drag force [N].
+  double drag_force;
+  // Zero function.
+  Functions::ZeroFunction<dim> zero_function;
+};
+
+class Cylinder2D : public Cylinder<2U> {
  private:
   // Physical dimension.
   constexpr static unsigned int dim = 2;
@@ -34,12 +77,6 @@ class Cylinder2D : public NavierStokes<2U> {
     const double H;
   };
 
-  // Reynolds number computation.
-  double get_reynolds_number() const;
-  void calc_lift_drag();
-  double get_lift() const { return _lift; };
-  double get_drag() const { return _drag; };
-
   // Constructor.
   Cylinder2D(const std::string &mesh_file_name_,
              const unsigned int &degree_velocity_,
@@ -47,24 +84,14 @@ class Cylinder2D : public NavierStokes<2U> {
              const double &deltat_);
 
  private:
-  constexpr static int OBSTACLE_ID = 5;
-  // Reference velocity.
-  constexpr static double U_m = 1.5;
-  // Cyclinder diameter [m].
-  constexpr static double D = 0.1;
-  // Inlet side length [m].
-  constexpr static double H = 0.41;
+  // Function to get the mean velocity.
+  double get_mean_velocity() const override;
 
-  double _lift = 0.0;
-  double _drag = 0.0;
-
-  // Inlet velocity.
+  // Function for the inlet velocity.
   InletVelocity inlet_velocity;
-  // Zero function.
-  Functions::ZeroFunction<dim> zero_function;
 };
 
-class Cylinder3D : public NavierStokes<3U> {
+class Cylinder3D : public Cylinder<3U> {
  private:
   // Physical dimension.
   constexpr static unsigned int dim = 3;
@@ -87,9 +114,6 @@ class Cylinder3D : public NavierStokes<3U> {
     const double H;
   };
 
-  // Reynolds number computation.
-  double get_reynolds_number() const;
-
   // Constructor.
   Cylinder3D(const std::string &mesh_file_name_,
              const unsigned int &degree_velocity_,
@@ -97,17 +121,11 @@ class Cylinder3D : public NavierStokes<3U> {
              const double &deltat_);
 
  private:
-  // Reference velocity.
-  constexpr static double U_m = 2.25;
-  // Cyclinder diameter [m].
-  constexpr static double D = 0.1;
-  // Inlet side length [m].
-  constexpr static double H = 0.41;
+  // Function to get the mean velocity.
+  double get_mean_velocity() const override;
 
-  // Inlet velocity.
+  // Function for the inlet velocity.
   InletVelocity inlet_velocity;
-  // Zero function.
-  Functions::ZeroFunction<dim> zero_function;
 };
 
 class EthierSteinman : public NavierStokes<3U> {
