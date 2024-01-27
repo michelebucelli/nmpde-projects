@@ -18,9 +18,20 @@ $ cd build
 $ cmake ..
 $ make
 ```
+
+### Running
 The executable will be created into `build`, and can be executed through
 ```bash
 $ ./navier_stokes
+```
+or through
+```bash
+$ mpirun -n N navier_stokes
+```
+which will run the executable using MPI with `N` processes.
+The executable supports multiple command line arguments, of which some are mandatory. To get a description of each one, run
+```bash
+$ ./navier_stokes -h
 ```
 
 ### Mesh Generation
