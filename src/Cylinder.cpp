@@ -67,14 +67,41 @@ void Cylinder<dim>::update_lift_drag() {
             NavierStokes<dim>::solution_owned, pressure_values);
 
         for (unsigned int q = 0; q < n_q_face; ++q) {
-          local_lift_force += -((NavierStokes<dim>::ro * NavierStokes<dim>::nu *
-                                     velocity_gradients[q][1][0] +
-                                 pressure_values[q] * velocity_values[q][1]) *
-                                fe_face_values.JxW(q));
+          // Get normal and tangent vectors.
+          // In formula in flow past a cylinder paper, the normal vector is
+          // defined in the opposite direction to the one in the mesh.
+          Tensor<1, dim> normal = -fe_face_values.normal_vector(q);
+          Tensor<1, dim> tangent;
+          tangent[0] = normal[1];
+          tangent[1] = -normal[0];
+          for (unsigned int i = 2; i < dim; ++i) {
+            tangent[i] = 0.0;
+          }
+
+          // Get local pressure value and velocity gradient.
+          double pressure = pressure_values[q];
+          Tensor<2, dim> velocity_gradient = velocity_gradients[q];
+
+          // Calculate the gradient of the tangential velocity.
+          Tensor<1, dim> tangential_gradient;
+          for (unsigned int j = 0; j < dim; ++j) {
+            tangential_gradient[j] = 0.0;
+            for (unsigned int i = 0; i < dim; ++i) {
+              tangential_gradient[j] += tangent[i] * velocity_gradient[i][j];
+            }
+          }
+
+          // Calculate the normal derivative of the tangential velocity.
+          double der_velocity = scalar_product(tangential_gradient, normal);
 
           local_drag_force += (NavierStokes<dim>::ro * NavierStokes<dim>::nu *
-                                   velocity_gradients[q][1][0] -
-                               pressure_values[q] * velocity_values[q][0]) *
+                                   der_velocity * normal[1] -
+                               pressure * normal[0]) *
+                              fe_face_values.JxW(q);
+
+          local_lift_force -= (NavierStokes<dim>::ro * NavierStokes<dim>::nu *
+                                   der_velocity * normal[0] -
+                               pressure * normal[1]) *
                               fe_face_values.JxW(q);
         }
       }
