@@ -88,35 +88,10 @@ int main(int argc, char* argv[]) {
 
   constexpr unsigned int degree_velocity = 2;
   constexpr unsigned int degree_pressure = 1;
-  constexpr double T = 0.1;
+  double T = 0.1;
   constexpr unsigned int maxit = 10000;
   constexpr double tol = 1e-6;  // Relative tolerance.
   const SolverOptions solver_options(maxit, tol, ASIMPLE, 1.0);
-
-  if (convergence_check == true) {
-    pcout << "Convergence check is not implemented yet" << std::endl;
-
-    /* pcout << "Convergence check is being performed" << std::endl;
-    pcout << "===================================" << std::endl;
-    pcout << "Please note that the provided problem ID is ignored" << std::endl;
-    pcout << "and we're defaulting to problem 3 (Ethier-Steinman)" << std::endl;
-    pcout << "===================================" << std::endl;
-
-
-    // We're setting T to deltat so that only one time step is performed.
-    constexpr double nu = 0.01;
-    EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure,
-                           deltat, deltat, precondition, nu);
-
-    ... ?
-
-    pcout << "H1 error on the velocity: "
-          << problem.compute_error(VectorTools::H1_norm, true) << std::endl;
-    pcout << "L2 error on the pressure: "
-          << problem.compute_error(VectorTools::L2_norm, false) << std::endl; */
-
-    return 0;
-  }
 
   // Run the chosen problem.
   switch (problem_id) {
@@ -144,10 +119,29 @@ int main(int argc, char* argv[]) {
 
     case 3: {
       constexpr double nu = 0.01;
+      if (convergence_check) {
+        pcout << "Convergence check is not implemented yet" << std::endl;
+
+        pcout << "Convergence check is being performed" << std::endl;
+        pcout << "===================================" << std::endl;
+        pcout << "Please note that the provided problem ID is ignored"
+              << std::endl;
+        pcout << "and we're defaulting to problem 3 (Ethier-Steinman)"
+              << std::endl;
+        pcout << "===================================" << std::endl;
+        T = deltat;
+      }
+
       EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure,
                              T, deltat, solver_options, nu);
       problem.setup();
       problem.solve();
+      if (convergence_check) {
+        auto h1_err = problem.compute_error(VectorTools::H1_norm, true);
+        auto l2_err = problem.compute_error(VectorTools::L2_norm, false);
+        pcout << "H1 error on the velocity: " << h1_err << std::endl;
+        pcout << "L2 error on the pressure: " << l2_err << std::endl;
+      }
       break;
     }
 
