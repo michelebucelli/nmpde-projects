@@ -10,30 +10,33 @@
 int main(int argc, char* argv[]) {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-  int problem_id = 0;
-  int precondition_id = 0;
-  double deltat = 0.0;
-  double T = 0;
+  int problem_id = 3;
+  int precondition_id = 3;
+  double deltat = 0.01;
+  double T = 1.0;
   std::string mesh_file_name;
   preconditioner_id preconditioner = ASIMPLE;
 
   ConditionalOStream pcout(
       std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
 
-  // User flags are --problem-id -p, --deltat -t and --mesh-file -m.
-  // There's also an optional flag --help -h and --convergence-check -c.
+  // User flags are --problem-id -p, --deltat -t and --mesh-file -m, -help -h
+  // and --convergence-check -c.
+
+  // The only required flag is --mesh-file -m.
+
   std::string err_msg =
       "Usage: " + std::string(argv[0]) +
       " -problem-id <id> -deltat <deltat> -mesh-file <file> \n" +
       "  -P, --problem-id <id>      Problem ID (1, 2, 3 or 4)\n" +
-      "                             1: 2D cylinder\n"
+      "                             1: 2D cylinder (default)\n"
       "                             2: 3D cylinder\n"
       "                             3: Ethier-Steinman\n"
       "                             4: Step\n" +
       "  -p, --precondition-id <id> Problem ID (1, 2, 3, 4 or 5)\n" +
       "                             1: Block diagonal\n"
       "                             2: SIMPLE\n"
-      "                             3: aSIMPLE\n"
+      "                             3: aSIMPLE (default)\n"
       "                             4: Yoshida\n"
       "                             5: aYoshida\n" +
       "  -T, --end-time <T>         End of the resolution time range\n" +
@@ -103,8 +106,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Check if all required parameters are provided.
-  if (problem_id == 0 || precondition_id == 0 || T == 0.0 || deltat == 0.0 ||
-      mesh_file_name.empty()) {
+  if (mesh_file_name.empty()) {
     pcout << err_msg << std::endl;
     return 1;
   }
