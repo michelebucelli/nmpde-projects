@@ -8,9 +8,9 @@ Cylinder<dim>::Cylinder(const std::string &mesh_file_name_,
                         const unsigned int &degree_velocity_,
                         const unsigned int &degree_pressure_, const double &T_,
                         const double &deltat_,
-                        const PreconditionerType &preconditioner_type_)
+                        const SolverOptions &solver_options_)
     : NavierStokes<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
-                        deltat_, preconditioner_type_),
+                        deltat_, solver_options_),
       zero_function(dim + 1) {
   NavierStokes<dim>::ro = 1.0;
   NavierStokes<dim>::nu = 1e-3,
@@ -149,9 +149,9 @@ Cylinder2D::Cylinder2D(const std::string &mesh_file_name_,
                        const unsigned int &degree_velocity_,
                        const unsigned int &degree_pressure_, const double &T_,
                        const double &deltat_,
-                       const PreconditionerType &preconditioner_type_)
+                       const SolverOptions &solver_options_)
     : Cylinder<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
-                    deltat_, preconditioner_type_),
+                    deltat_, solver_options_),
       inlet_velocity(1.5, H) {
   U_m = 1.5;
   obstacle_tag = 5U;
@@ -169,9 +169,9 @@ Cylinder3D::Cylinder3D(const std::string &mesh_file_name_,
                        const unsigned int &degree_velocity_,
                        const unsigned int &degree_pressure_, const double &T_,
                        const double &deltat_,
-                       const PreconditionerType &preconditioner_type_)
+                       const SolverOptions &solver_options_)
     : Cylinder<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
-                    deltat_, preconditioner_type_),
+                    deltat_, solver_options_),
       inlet_velocity(2.25, H) {
   U_m = 2.25;
   obstacle_tag = 7U;

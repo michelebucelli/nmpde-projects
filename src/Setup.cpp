@@ -152,26 +152,30 @@ void NavierStokes<dim>::setup() {
     velocity_mass_sparsity.compress();
 
     // Do the same for the pressure mass term.
-    for (unsigned int c = 0; c < dim + 1; ++c) {
-      for (unsigned int d = 0; d < dim + 1; ++d) {
-        if (c == dim && d == dim)  // terms with only pressure
-          coupling[c][d] = DoFTools::always;
-        else  // terms with velocity
-          coupling[c][d] = DoFTools::none;
-      }
-    }
-
     TrilinosWrappers::BlockSparsityPattern pressure_mass_sparsity(
         block_owned_dofs, MPI_COMM_WORLD);
-    DoFTools::make_sparsity_pattern(dof_handler, coupling,
-                                    pressure_mass_sparsity);
-    pressure_mass_sparsity.compress();
+    if (solver_options.use_pressure_mass) {
+      for (unsigned int c = 0; c < dim + 1; ++c) {
+        for (unsigned int d = 0; d < dim + 1; ++d) {
+          if (c == dim && d == dim)  // terms with only pressure
+            coupling[c][d] = DoFTools::always;
+          else  // terms with velocity
+            coupling[c][d] = DoFTools::none;
+        }
+      }
+
+      DoFTools::make_sparsity_pattern(dof_handler, coupling,
+                                      pressure_mass_sparsity);
+      pressure_mass_sparsity.compress();
+    }
 
     pcout << "  Initializing the matrices" << std::endl;
     constant_matrix.reinit(sparsity);
     system_matrix.reinit(sparsity);
     velocity_mass.reinit(velocity_mass_sparsity);
-    pressure_mass.reinit(pressure_mass_sparsity);
+    if (solver_options.use_pressure_mass) {
+      pressure_mass.reinit(pressure_mass_sparsity);
+    }
 
     pcout << "  Initializing the system right-hand side" << std::endl;
     system_rhs.reinit(block_owned_dofs, MPI_COMM_WORLD);

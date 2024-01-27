@@ -25,7 +25,11 @@ void NavierStokes<dim>::assemble_constant() {
   // Create the matrices as full matrices.
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> velocity_mass_cell_matrix(dofs_per_cell, dofs_per_cell);
-  FullMatrix<double> pressure_mass_cell_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> pressure_mass_cell_matrix;
+  if (solver_options.use_pressure_mass) {
+    pressure_mass_cell_matrix =
+        FullMatrix<double>(dofs_per_cell, dofs_per_cell);
+  }
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
@@ -46,7 +50,9 @@ void NavierStokes<dim>::assemble_constant() {
     // Reset the cell matrices.
     cell_matrix = 0.0;
     velocity_mass_cell_matrix = 0.0;
-    pressure_mass_cell_matrix = 0.0;
+    if (solver_options.use_pressure_mass) {
+      pressure_mass_cell_matrix = 0.0;
+    }
 
     for (unsigned int q = 0; q < n_q; ++q) {
       for (unsigned int i = 0; i < dofs_per_cell; ++i) {
@@ -77,9 +83,11 @@ void NavierStokes<dim>::assemble_constant() {
                                fe_values.JxW(q);
 
           // Pressure mass term (M_p/nu) (for preconditioning).
-          pressure_mass_cell_matrix(i, j) += fe_values[pressure].value(j, q) *
-                                             fe_values[pressure].value(i, q) /
-                                             nu * fe_values.JxW(q);
+          if (solver_options.use_pressure_mass) {
+            pressure_mass_cell_matrix(i, j) += fe_values[pressure].value(j, q) *
+                                               fe_values[pressure].value(i, q) /
+                                               nu * fe_values.JxW(q);
+          }
         }
       }
     }
@@ -89,7 +97,9 @@ void NavierStokes<dim>::assemble_constant() {
     // Add the cell terms to the matrices.
     constant_matrix.add(dof_indices, cell_matrix);
     velocity_mass.add(dof_indices, velocity_mass_cell_matrix);
-    pressure_mass.add(dof_indices, pressure_mass_cell_matrix);
+    if (solver_options.use_pressure_mass) {
+      pressure_mass.add(dof_indices, pressure_mass_cell_matrix);
+    }
   }
 
   // Each process might have written to some rows it does not own (for instance,
@@ -98,7 +108,9 @@ void NavierStokes<dim>::assemble_constant() {
   // information: the compress method allows to do this.
   constant_matrix.compress(VectorOperation::add);
   velocity_mass.compress(VectorOperation::add);
-  pressure_mass.compress(VectorOperation::add);
+  if (solver_options.use_pressure_mass) {
+    pressure_mass.compress(VectorOperation::add);
+  }
 }
 
 template <unsigned int dim>

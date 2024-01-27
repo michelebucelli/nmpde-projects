@@ -1,5 +1,6 @@
 ### Current issues
-- Building the aYoshida preconditioner is extremely slow
+- Missing flow past a cylinder test cases with a time dependent inlet velocity
+- Move building the lumped mass matrix to the assemble method
 - Preconditioner code could be improved in readability and possibly efficiency
 - Lift and drag coefficients have not been checked
 - Computation of lift and drag coefficients uses a strong formulation

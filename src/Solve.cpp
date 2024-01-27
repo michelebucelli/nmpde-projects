@@ -27,21 +27,63 @@ void NavierStokes<dim>::apply_initial_conditions() {
 
 template <unsigned int dim>
 void NavierStokes<dim>::solve_time_step() {
-  pcout << "  Solving the linear system" << std::endl;
-
-  SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
-
-  SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
-
   pcout << "  Building the preconditioner" << std::endl;
 
-  PreconditionaSIMPLE precondition;
-  constexpr double alpha = 1.0;
-  precondition.initialize(system_matrix.block(0, 0), system_matrix.block(1, 0),
-                          system_matrix.block(0, 1), solution_owned, alpha);
+  // Choose the preconditioner and initialize it.
+  std::shared_ptr<BlockPrecondition> precondition;
+  switch (solver_options.id) {
+    case BLOCK_DIAGONAL: {
+      std::shared_ptr<PreconditionBlockDiagonal> actual_precondition =
+          std::make_shared<PreconditionBlockDiagonal>();
+      actual_precondition->initialize(system_matrix.block(0, 0),
+                                      pressure_mass.block(1, 1));
+      precondition = actual_precondition;
+      break;
+    }
+    case SIMPLE: {
+      std::shared_ptr<PreconditionSIMPLE> actual_precondition =
+          std::make_shared<PreconditionSIMPLE>();
+      actual_precondition->initialize(
+          system_matrix.block(0, 0), system_matrix.block(1, 0),
+          system_matrix.block(0, 1), solution_owned, solver_options.alpha);
+      precondition = actual_precondition;
+      break;
+    }
+    case ASIMPLE: {
+      std::shared_ptr<PreconditionaSIMPLE> actual_precondition =
+          std::make_shared<PreconditionaSIMPLE>();
+      actual_precondition->initialize(
+          system_matrix.block(0, 0), system_matrix.block(1, 0),
+          system_matrix.block(0, 1), solution_owned, solver_options.alpha);
+      precondition = actual_precondition;
+      break;
+    }
+    case YOSHIDA: {
+      std::shared_ptr<PreconditionYoshida> actual_precondition =
+          std::make_shared<PreconditionYoshida>();
+      actual_precondition->initialize(
+          system_matrix.block(0, 0), system_matrix.block(1, 0),
+          system_matrix.block(0, 1), velocity_mass.block(0, 0), solution_owned);
+      precondition = actual_precondition;
+      break;
+    }
+    case AYOSHIDA: {
+      std::shared_ptr<PreconditionaYoshida> actual_precondition =
+          std::make_shared<PreconditionaYoshida>();
+      actual_precondition->initialize(
+          system_matrix.block(0, 0), system_matrix.block(1, 0),
+          system_matrix.block(0, 1), velocity_mass.block(0, 0), solution_owned);
+      precondition = actual_precondition;
+      break;
+    }
+  }
 
-  pcout << "  Solving the system" << std::endl;
-  solver.solve(system_matrix, solution_owned, system_rhs, precondition);
+  // Solve the system.
+  pcout << "  Solving the linear system" << std::endl;
+
+  SolverControl solver_control(solver_options.maxiter, solver_options.tol * system_rhs.l2_norm());
+  SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
+  solver.solve(system_matrix, solution_owned, system_rhs, *precondition);
   pcout << "  " << solver_control.last_step() << " GMRES iterations"
         << std::endl;
 

@@ -1,8 +1,9 @@
 #ifndef ETHIER_STEINMAN_HPP
 #define ETHIER_STEINMAN_HPP
 
-#include "NavierStokes.hpp"
 #include <deal.II/numerics/vector_tools.h>
+
+#include "NavierStokes.hpp"
 
 class EthierSteinman : public NavierStokes<3U> {
  private:
@@ -14,7 +15,8 @@ class EthierSteinman : public NavierStokes<3U> {
   EthierSteinman(const std::string &mesh_file_name_,
                  const unsigned int &degree_velocity_,
                  const unsigned int &degree_pressure_, const double &T_,
-                 const double &deltat_, const PreconditionerType & preconditioner_type_, const double &nu_);
+                 const double &deltat_, const SolverOptions &solver_options_,
+                 const double &nu_);
 
   // Class for the exact solution, containing both velocity and pressure.
   class ExactSolution : public Function<dim> {

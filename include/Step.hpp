@@ -44,7 +44,7 @@ class Step : public NavierStokes<3U> {
   // Constructor.
   Step(const std::string &mesh_file_name_, const unsigned int &degree_velocity_,
        const unsigned int &degree_pressure_, const double &T_,
-       const double &deltat_, const PreconditionerType &preconditioner_type_,
+       const double &deltat_, const SolverOptions &solver_options_,
        const double &alpha_);
 
  private:

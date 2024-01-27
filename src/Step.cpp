@@ -4,9 +4,9 @@ Step::Step(const std::string &mesh_file_name_,
            const unsigned int &degree_velocity_,
            const unsigned int &degree_pressure_, const double &T_,
            const double &deltat_,
-           const PreconditionerType &preconditioner_type_, const double &alpha_)
+           const SolverOptions &solver_options_, const double &alpha_)
     : NavierStokes(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
-                   deltat_, preconditioner_type_),
+                   deltat_, solver_options_),
       inlet_velocity(alpha_),
       zero_function(dim + 1) {
   ro = 1.0;

@@ -53,13 +53,15 @@ int main(int argc, char* argv[]) {
   constexpr unsigned int degree_velocity = 2;
   constexpr unsigned int degree_pressure = 1;
   constexpr double T = 1e-2;
-  const PreconditionerType precondition(ASIMPLE, 1.0);
+  constexpr unsigned int maxit = 10000;
+  constexpr double tol = 1e-6;  // Relative tolerance.
+  const SolverOptions solver_options(maxit, tol, ASIMPLE, 1.0);
 
   // Run the chosen problem.
   switch (problem_id) {
     case 1: {
       Cylinder2D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                         deltat, precondition);
+                         deltat, solver_options);
       problem.setup();
       problem.solve();
       break;
@@ -67,7 +69,7 @@ int main(int argc, char* argv[]) {
 
     case 2: {
       Cylinder3D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                         deltat, precondition);
+                         deltat, solver_options);
       problem.setup();
       problem.solve();
       break;
@@ -76,7 +78,7 @@ int main(int argc, char* argv[]) {
     case 3: {
       constexpr double nu = 0.01;
       EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure,
-                             T, deltat, precondition, nu);
+                             T, deltat, solver_options, nu);
       problem.setup();
       problem.solve();
       break;
@@ -85,7 +87,7 @@ int main(int argc, char* argv[]) {
     case 4: {
       constexpr double alpha = 1.0;
       Step problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat,
-                   precondition, alpha);
+                   solver_options, alpha);
       problem.setup();
       problem.solve();
       break;

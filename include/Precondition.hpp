@@ -8,9 +8,19 @@
 
 using namespace dealii;
 
+// Abstract class implementing a preconditioner for the Navier-Stokes problem.
+class BlockPrecondition {
+  public:
+  // Virtual destructor.
+  virtual ~BlockPrecondition() = default;
+  // Application of the preconditioner.
+  virtual void vmult(TrilinosWrappers::MPI::BlockVector &dst,
+                     const TrilinosWrappers::MPI::BlockVector &src) const = 0;
+};
+
 // Block-diagonal preconditioner [M/deltat + A + C  0; 0 1/nu*M_p].
 // Adapted from the one proposed for the Stokes problem in laboratory 9.
-class PreconditionBlockDiagonal {
+class PreconditionBlockDiagonal : public BlockPrecondition {
  public:
   // Initialize the preconditioner.
   void initialize(const TrilinosWrappers::SparseMatrix &velocity_stiffness_,
@@ -18,7 +28,7 @@ class PreconditionBlockDiagonal {
 
   // Application of the preconditioner.
   void vmult(TrilinosWrappers::MPI::BlockVector &dst,
-             const TrilinosWrappers::MPI::BlockVector &src) const;
+             const TrilinosWrappers::MPI::BlockVector &src) const override;
 
  private:
   // Velocity stiffness matrix.
@@ -35,7 +45,7 @@ class PreconditionBlockDiagonal {
 };
 
 // SIMPLE preconditioner.
-class PreconditionSIMPLE {
+class PreconditionSIMPLE : public BlockPrecondition {
  public:
   // Initialize the preconditioner.
   void initialize(const TrilinosWrappers::SparseMatrix &F_matrix_,
@@ -46,7 +56,7 @@ class PreconditionSIMPLE {
 
   // Application of the preconditioner.
   void vmult(TrilinosWrappers::MPI::BlockVector &dst,
-             const TrilinosWrappers::MPI::BlockVector &src) const;
+             const TrilinosWrappers::MPI::BlockVector &src) const override;
 
  private:
   // Damping parameter (must be in (0,1]).
@@ -70,7 +80,7 @@ class PreconditionSIMPLE {
 };
 
 // aSIMPLE preconditioner.
-class PreconditionaSIMPLE {
+class PreconditionaSIMPLE : public BlockPrecondition {
  public:
   // Initialize the preconditioner.
   void initialize(const TrilinosWrappers::SparseMatrix &F_matrix_,
@@ -81,7 +91,7 @@ class PreconditionaSIMPLE {
 
   // Application of the preconditioner.
   void vmult(TrilinosWrappers::MPI::BlockVector &dst,
-             const TrilinosWrappers::MPI::BlockVector &src) const;
+             const TrilinosWrappers::MPI::BlockVector &src) const override;
 
  private:
   // Damping parameter (must be in (0,1]).
@@ -107,7 +117,7 @@ class PreconditionaSIMPLE {
 };
 
 // Yoshida preconditioner.
-class PreconditionYoshida {
+class PreconditionYoshida : public BlockPrecondition {
  public:
   // Initialize the preconditioner.
   void initialize(const TrilinosWrappers::SparseMatrix &F_matrix_,
@@ -118,7 +128,7 @@ class PreconditionYoshida {
 
   // Application of the preconditioner.
   void vmult(TrilinosWrappers::MPI::BlockVector &dst,
-             const TrilinosWrappers::MPI::BlockVector &src) const;
+             const TrilinosWrappers::MPI::BlockVector &src) const override;
 
  private:
   // Matrix F (top left block of the system matrix).
@@ -141,7 +151,7 @@ class PreconditionYoshida {
 };
 
 // Yoshida preconditioner.
-class PreconditionaYoshida {
+class PreconditionaYoshida : public BlockPrecondition {
  public:
   // Initialize the preconditioner.
   void initialize(const TrilinosWrappers::SparseMatrix &F_matrix_,
@@ -152,7 +162,7 @@ class PreconditionaYoshida {
 
   // Application of the preconditioner.
   void vmult(TrilinosWrappers::MPI::BlockVector &dst,
-             const TrilinosWrappers::MPI::BlockVector &src) const;
+             const TrilinosWrappers::MPI::BlockVector &src) const override;
 
  private:
   // Matrix F (top left block of the system matrix).
