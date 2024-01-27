@@ -20,11 +20,6 @@ int main(int argc, char* argv[]) {
   ConditionalOStream pcout(
       std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
 
-  // User flags are --problem-id -p, --deltat -t and --mesh-file -m, -help -h
-  // and --convergence-check -c.
-
-  // The only required flag is --mesh-file -m.
-
   std::string err_msg =
       "Usage: " + std::string(argv[0]) +
       " -problem-id <id> -deltat <deltat> -mesh-file <file> \n" +
@@ -39,12 +34,14 @@ int main(int argc, char* argv[]) {
       "                             3: aSIMPLE (default)\n"
       "                             4: Yoshida\n"
       "                             5: aYoshida\n" +
-      "  -T, --end-time <T>         End of the resolution time range\n" +
-      "  -t, --deltat <deltat>      Length of a time step\n" +
-      "  -m, --mesh-file <file>     Mesh file name\n" +
-      "  -h, --help                 Display this message\n" +
-      "  -c, --convergence-check    Check convergence (performs only one "
-      "step of the Ethier-Steinman problem)\n ";
+      "  -T, --end-time <T>                  End of the time range\n" +
+      "  -t, --deltat <deltat>               Length of a time step\n" +
+      "  -m, --mesh-file <file>              Mesh file name\n" +
+      "  -h, --help                          Display this message\n" +
+      "  -c, --convergence-check             Check convergence" +
+      "  -u, --inlet-velocity <U>            Inlet velocity" +
+      "  -k, --constant-inlet <bool>         True if inlet velocity is "
+      "constant";
 
   bool convergence_check = false;
   const char* const short_opts = "P:p:T:t:m:h:c";
@@ -56,6 +53,8 @@ int main(int argc, char* argv[]) {
       {"mesh-file", required_argument, nullptr, 'm'},
       {"help", no_argument, nullptr, 'h'},
       {"convergence-check", no_argument, nullptr, 'c'},
+      {"inlet-velocity", required_argument, nullptr, 'u'},
+      {"constant-inlet", required_argument, nullptr, 'k'},
       {nullptr, no_argument, nullptr, 0}};
 
   // Parse the command line arguments.
@@ -93,6 +92,14 @@ int main(int argc, char* argv[]) {
 
       case 'c':
         convergence_check = true;
+        break;
+
+      case 'u':
+        // ...
+        break;
+
+      case 'k':
+        // ...
         break;
 
       case '?':
