@@ -45,17 +45,17 @@ void PreconditionSIMPLE::initialize(
   alpha = alpha_;
 
   // Save the inverse diagonal of F.
-  Dinv_vector.reinit(vec.block(0));
-  for (unsigned int index : Dinv_vector.locally_owned_elements()) {
-    Dinv_vector[index] = 1.0 / F_matrix->diag_element(index);
+  negDinv_vector.reinit(vec.block(0));
+  for (unsigned int index : negDinv_vector.locally_owned_elements()) {
+    negDinv_vector[index] = -1.0 / F_matrix->diag_element(index);
   }
 
-  // Create the matrix -S.
-  negB_matrix->mmult(negS_matrix, *Bt_matrix, Dinv_vector);
+  // Create the matrix S.
+  negB_matrix->mmult(S_matrix, *Bt_matrix, negDinv_vector);
 
   // Initialize the preconditioners.
   preconditioner_F.initialize(*F_matrix);
-  preconditioner_S.initialize(negS_matrix);
+  preconditioner_S.initialize(S_matrix);
 }
 
 void PreconditionSIMPLE::vmult(
@@ -67,12 +67,12 @@ void PreconditionSIMPLE::vmult(
   SolverControl solver_control_F(10000, 1e-2 * src.block(0).l2_norm());
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_F(solver_control_F);
   solver_gmres_F.solve(*F_matrix, tmp.block(0), src.block(0), preconditioner_F);
-  // Step 1.2: solve -S*sol1_p = -B*sol1_u + src_p.
-  tmp.block(1) = src.block(1);
-  negB_matrix->vmult_add(tmp.block(1), tmp.block(0));
+  // Step 1.2: solve S*sol1_p = B*sol1_u - src_p.
+  Bt_matrix->Tvmult(tmp.block(1), tmp.block(0));
+  tmp.block(1) -= src.block(1);
   SolverControl solver_control_S(10000, 1e-2 * tmp.block(1).l2_norm());
-  SolverCG<TrilinosWrappers::MPI::Vector> solver_cg_S(solver_control_S);
-  solver_cg_S.solve(negS_matrix, dst.block(1), tmp.block(1), preconditioner_S);
+  SolverGMRES<TrilinosWrappers::MPI::Vector> solver_cg_S(solver_control_S);
+  solver_cg_S.solve(S_matrix, dst.block(1), tmp.block(1), preconditioner_S);
 
   // Step 2: solve [I D^-1*B^T; 0 alpha*I]dst = sol1.
   // Step 2.1: solve alpha*I*dst_p = sol1_p.
@@ -80,8 +80,8 @@ void PreconditionSIMPLE::vmult(
   // Step 2.2: solve dst_u = sol1_u - D^-1*B^T*dst_p.
   dst.block(0) = tmp.block(0);
   Bt_matrix->vmult(tmp.block(0), dst.block(1));
-  tmp.block(0).scale(Dinv_vector);
-  dst.block(0) -= tmp.block(0);
+  tmp.block(0).scale(negDinv_vector);
+  dst.block(0) += tmp.block(0);
 }
 
 void PreconditionaSIMPLE::initialize(
@@ -119,11 +119,9 @@ void PreconditionaSIMPLE::vmult(
   // Step 1: multiply src by [F^-1 0; 0 I], using the preconditioner instead of
   // F.
   preconditioner_F.vmult(dst.block(0), src.block(0));
-  dst.block(1) = src.block(1);
+  tmp.block(1) = src.block(1);
   // Step 2: multiply the result by [I 0; -B I].
-  // Using B^T and Tvumlt_add instead of B and vmult since there is no
-  // vmult_sub.
-  Bt_matrix->Tvmult_add(tmp.block(1), dst.block(0));
+  negB_matrix->vmult_add(tmp.block(1), dst.block(0));
   // Step 3: multiply the result by [I 0; 0 -S^-1], using the preconditioner
   // instead of S.
   preconditioner_S.vmult(dst.block(1), tmp.block(1));
@@ -131,7 +129,7 @@ void PreconditionaSIMPLE::vmult(
   dst.block(0).scale(D_vector);
   dst.block(1) /= alpha;
   // Step 5: multiply the result by [I -B^T; 0 I].
-  Bt_matrix->vmult_add(dst.block(0), dst.block(1));
+  negB_matrix->Tvmult_add(dst.block(0), dst.block(1));
   // Step 6: multiply the result by [D^-1 0; 0 I].
   dst.block(0).scale(Dinv_vector);
 }

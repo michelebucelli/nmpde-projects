@@ -208,18 +208,18 @@ double EthierSteinman::compute_error(const VectorTools::NormType &norm_type,
 
 void EthierSteinman::apply_initial_conditions() {
   NavierStokes<dim>::apply_initial_conditions();
-  pcout << "L2 error on the velocity: "
+  pcout << "  L2 error on the velocity: "
         << compute_error(VectorTools::L2_norm, true) << std::endl;
-  pcout << "H1 error on the velocity: "
+  pcout << "  H1 error on the velocity: "
         << compute_error(VectorTools::H1_norm, true) << std::endl;
 }
 
 void EthierSteinman::solve_time_step() {
   NavierStokes<dim>::solve_time_step();
-  pcout << "L2 error on the velocity: "
+  pcout << "  L2 error on the velocity: "
         << compute_error(VectorTools::L2_norm, true) << std::endl;
-  pcout << "H1 error on the velocity: "
+  pcout << "  H1 error on the velocity: "
         << compute_error(VectorTools::H1_norm, true) << std::endl;
-  pcout << "L2 error on the pressure: "
+  pcout << "  L2 error on the pressure: "
         << compute_error(VectorTools::L2_norm, false) << std::endl;
 }

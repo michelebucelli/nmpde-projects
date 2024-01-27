@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
   constexpr unsigned int degree_velocity = 2;
   constexpr unsigned int degree_pressure = 1;
   constexpr unsigned int maxit = 10000;
-  constexpr double tol = 1e-6;  // Relative tolerance.
+  constexpr double tol = 1e-8;  // Relative tolerance.
 
   // Get the correct preconditioner.
   switch (precondition_id) {
@@ -172,7 +172,8 @@ int main(int argc, char* argv[]) {
               << std::endl;
         pcout << "===================================" << std::endl;
 
-        std::vector<std::string> mesh_factors = {"0.8", "0.4", "0.2", "0.1"};
+        std::vector<std::string> mesh_factors = {"0.8", "0.4", "0.2", "0.1",
+                                                 "0.05"};
         // We're setting T to deltat so that only one time step is performed.
         constexpr double nu = 0.01;
 
@@ -205,12 +206,12 @@ int main(int argc, char* argv[]) {
           ConvergenceTable table;
 
           std::ofstream convergence_file("convergence.csv");
-          convergence_file << "h,eL2,eH1" << std::endl;
+          convergence_file << "h,p-L2,u-H1" << std::endl;
 
           for (size_t i = 0; i < mesh_factors.size(); i++) {
             table.add_value("h", h_values[i]);
-            table.add_value("L2", errors_L2[i]);
-            table.add_value("H1", errors_H1[i]);
+            table.add_value("p-L2", errors_L2[i]);
+            table.add_value("u-H1", errors_H1[i]);
 
             convergence_file << h_values[i] << "," << errors_L2[i] << ","
                              << errors_H1[i] << std::endl;
@@ -219,8 +220,8 @@ int main(int argc, char* argv[]) {
           table.evaluate_all_convergence_rates(
               ConvergenceTable::reduction_rate_log2);
 
-          table.set_scientific("L2", true);
-          table.set_scientific("H1", true);
+          table.set_scientific("p-L2", true);
+          table.set_scientific("u-H1", true);
 
           table.write_text(std::cout);
         }

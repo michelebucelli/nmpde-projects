@@ -26,6 +26,8 @@ void NavierStokes<dim>::setup() {
     GridIn<dim> grid_in;
     grid_in.attach_triangulation(mesh_serial);
 
+    pcout << "  Reading from " << mesh_file_name << std::endl;
+
     std::ifstream grid_in_file(mesh_file_name);
     grid_in.read_msh(grid_in_file);
 

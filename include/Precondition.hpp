@@ -10,7 +10,7 @@ using namespace dealii;
 
 // Abstract class implementing a preconditioner for the Navier-Stokes problem.
 class BlockPrecondition {
-  public:
+ public:
   // Virtual destructor.
   virtual ~BlockPrecondition() = default;
   // Application of the preconditioner.
@@ -67,10 +67,10 @@ class PreconditionSIMPLE : public BlockPrecondition {
   const TrilinosWrappers::SparseMatrix *negB_matrix;
   // Matrix B^T (top right block of the system matrix).
   const TrilinosWrappers::SparseMatrix *Bt_matrix;
-  // Matrix D^-1, inverse diagonal of F.
-  TrilinosWrappers::MPI::Vector Dinv_vector;
-  // Matrix -S := -B*D^-1*B^T.
-  TrilinosWrappers::SparseMatrix negS_matrix;
+  // Matrix -D^-1, negative inverse diagonal of F.
+  TrilinosWrappers::MPI::Vector negDinv_vector;
+  // Matrix S := B*D^-1*B^T.
+  TrilinosWrappers::SparseMatrix S_matrix;
   // Preconditioner used for the block multiplied by F.
   TrilinosWrappers::PreconditionAMG preconditioner_F;
   // Preconditioner used for the block multiplied by S.
