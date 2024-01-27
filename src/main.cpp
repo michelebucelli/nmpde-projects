@@ -32,6 +32,7 @@ int main(int argc, char* argv[]) {
       "  -c, --convergence-check  Check convergence (performs only one "
       "step)\n ";
 
+  bool convergence_check = false;
   const char* const short_opts = "p:t:m:hc";
   const option long_opts[] = {{"problem-id", required_argument, nullptr, 'p'},
                               {"deltat", required_argument, nullptr, 't'},
@@ -66,8 +67,8 @@ int main(int argc, char* argv[]) {
         return 0;
 
       case 'c':
-        pcout << "Convergence check is not implemented yet." << std::endl;
-        return 0;
+        convergence_check = true;
+        break;
 
       case '?':
         std::cerr << err_msg << std::endl;
@@ -89,6 +90,31 @@ int main(int argc, char* argv[]) {
   constexpr unsigned int degree_pressure = 1;
   constexpr double T = 1e-2;
   const PreconditionerType precondition(ASIMPLE, 1.0);
+
+  if (convergence_check == true) {
+    pcout << "Convergence check is not implemented yet" << std::endl;
+
+    /* pcout << "Convergence check is being performed" << std::endl;
+    pcout << "===================================" << std::endl;
+    pcout << "Please note that the provided problem ID is ignored" << std::endl;
+    pcout << "and we're defaulting to problem 3 (Ethier-Steinman)" << std::endl;
+    pcout << "===================================" << std::endl;
+
+
+    // We're setting T to deltat so that only one time step is performed.
+    constexpr double nu = 0.01;
+    EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure,
+                           deltat, deltat, precondition, nu);
+
+    ... ?
+
+    pcout << "H1 error on the velocity: "
+          << problem.compute_error(VectorTools::H1_norm, true) << std::endl;
+    pcout << "L2 error on the pressure: "
+          << problem.compute_error(VectorTools::L2_norm, false) << std::endl; */
+
+    return 0;
+  }
 
   // Run the chosen problem.
   switch (problem_id) {
