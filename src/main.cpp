@@ -1,3 +1,4 @@
+#include <deal.II/base/convergence_table.h>
 #include <getopt.h>
 
 #include "Cylinder.hpp"
@@ -113,31 +114,6 @@ int main(int argc, char* argv[]) {
   constexpr unsigned int maxit = 10000;
   constexpr double tol = 1e-6;  // Relative tolerance.
 
-  if (convergence_check == true) {
-    pcout << "Convergence check is not implemented yet" << std::endl;
-
-    /* pcout << "Convergence check is being performed" << std::endl;
-    pcout << "===================================" << std::endl;
-    pcout << "Please note that the provided problem ID is ignored" << std::endl;
-    pcout << "and we're defaulting to problem 3 (Ethier-Steinman)" << std::endl;
-    pcout << "===================================" << std::endl;
-
-
-    // We're setting T to deltat so that only one time step is performed.
-    constexpr double nu = 0.01;
-    EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure,
-                           deltat, deltat, precondition, nu);
-
-    ... ?
-
-    pcout << "H1 error on the velocity: "
-          << problem.compute_error(VectorTools::H1_norm, true) << std::endl;
-    pcout << "L2 error on the pressure: "
-          << problem.compute_error(VectorTools::L2_norm, false) << std::endl; */
-
-    return 0;
-  }
-
   // Get the correct preconditioner.
   switch (precondition_id) {
     case 1:
@@ -187,11 +163,76 @@ int main(int argc, char* argv[]) {
     }
 
     case 3: {
-      constexpr double nu = 0.01;
-      EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure,
-                             T, deltat, solver_options, nu);
-      problem.setup();
-      problem.solve();
+      if (convergence_check) {
+        pcout << "Convergence check is being performed" << std::endl;
+        pcout << "===================================" << std::endl;
+        pcout << "Please note that the provided problem ID is ignored"
+              << std::endl;
+        pcout << "and we're defaulting to problem 3 (Ethier-Steinman)"
+              << std::endl;
+        pcout << "===================================" << std::endl;
+
+        std::vector<std::string> mesh_factors = {"0.8", "0.4", "0.2", "0.1"};
+        // We're setting T to deltat so that only one time step is performed.
+        constexpr double nu = 0.01;
+
+        std::vector<double> h_values;
+        std::vector<double> errors_L2;
+        std::vector<double> errors_H1;
+        for (auto& mesh_factor : mesh_factors) {
+          std::string mesh_full_name =
+              mesh_file_name + "-" + mesh_factor + ".msh";
+
+          EthierSteinman problem(mesh_full_name, degree_velocity,
+                                 degree_pressure, deltat, deltat,
+                                 solver_options, nu);
+
+          problem.setup();
+          problem.solve();
+
+          h_values.emplace_back(std::stod(mesh_factor));
+
+          errors_L2.emplace_back(
+              problem.compute_error(VectorTools::L2_norm, false));
+
+          errors_H1.emplace_back(
+              problem.compute_error(VectorTools::H1_norm, true));
+        }
+
+        const unsigned int mpi_rank =
+            Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
+        if (mpi_rank == 0) {
+          ConvergenceTable table;
+
+          std::ofstream convergence_file("convergence.csv");
+          convergence_file << "h,eL2,eH1" << std::endl;
+
+          for (size_t i = 0; i < mesh_factors.size(); i++) {
+            table.add_value("h", h_values[i]);
+            table.add_value("L2", errors_L2[i]);
+            table.add_value("H1", errors_H1[i]);
+
+            convergence_file << h_values[i] << "," << errors_L2[i] << ","
+                             << errors_H1[i] << std::endl;
+          }
+
+          table.evaluate_all_convergence_rates(
+              ConvergenceTable::reduction_rate_log2);
+
+          table.set_scientific("L2", true);
+          table.set_scientific("H1", true);
+
+          table.write_text(std::cout);
+        }
+      }
+
+      else {
+        constexpr double nu = 0.01;
+        EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure,
+                               T, deltat, solver_options, nu);
+        problem.setup();
+        problem.solve();
+      }
       break;
     }
 
