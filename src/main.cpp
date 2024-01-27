@@ -1,6 +1,9 @@
 #include <getopt.h>
 
-#include "Problem.hpp"
+#include "EthierSteinman.hpp"
+#include "Cylinder.hpp"
+#include "Step.hpp"
+
 // Main function.
 int main(int argc, char* argv[]) {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
