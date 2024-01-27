@@ -8,8 +8,6 @@ template class NavierStokes<3U>;
 
 template <unsigned int dim>
 void NavierStokes<dim>::output() const {
-  pcout << "===============================================" << std::endl;
-
   DataOut<dim> data_out;
 
   std::vector<DataComponentInterpretation::DataComponentInterpretation>
@@ -39,6 +37,6 @@ void NavierStokes<dim>::output() const {
   data_out.write_vtu_with_pvtu_record("../results/", "output", time_step,
                                       MPI_COMM_WORLD, 3);
 
-  pcout << "Output written to " << output_file_name << std::endl;
+  pcout << "  Output written to " << output_file_name << std::endl;
   pcout << "===============================================" << std::endl;
 }

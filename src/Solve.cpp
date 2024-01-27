@@ -10,7 +10,7 @@ template class NavierStokes<3U>;
 
 template <unsigned int dim>
 void NavierStokes<dim>::apply_initial_conditions() {
-  pcout << "Applying the initial conditions" << std::endl;
+  pcout << "  Applying the initial conditions" << std::endl;
 
   // Since only velocity has an initial condition, create a mask.
   ComponentMask mask;
@@ -81,7 +81,8 @@ void NavierStokes<dim>::solve_time_step() {
   // Solve the system.
   pcout << "  Solving the linear system" << std::endl;
 
-  SolverControl solver_control(solver_options.maxiter, solver_options.tol * system_rhs.l2_norm());
+  SolverControl solver_control(solver_options.maxiter,
+                               solver_options.tol * system_rhs.l2_norm());
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
   solver.solve(system_matrix, solution_owned, system_rhs, *precondition);
   pcout << "  " << solver_control.last_step() << " GMRES iterations"
@@ -98,6 +99,8 @@ void NavierStokes<dim>::solve() {
 
   // Calculate and output the initial solution.
   time_step = 0;
+  pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5) << 0
+        << ": " << std::endl;
   apply_initial_conditions();
   output();
 

@@ -20,15 +20,15 @@ Cylinder<dim>::Cylinder(const std::string &mesh_file_name_,
 
 template <unsigned int dim>
 void Cylinder<dim>::update_lift_drag() {
-  NavierStokes<dim>::pcout << "  Calculating lift and drag forces" << std::endl;
+  NavierStokes<dim>::pcout << "Calculating lift and drag forces" << std::endl;
 
   const unsigned int dofs_per_cell = NavierStokes<dim>::fe->dofs_per_cell;
   const unsigned int n_q_face = NavierStokes<dim>::quadrature_face->size();
 
-  FEFaceValues<dim> fe_face_values(*NavierStokes<dim>::fe,
-                                   *NavierStokes<dim>::quadrature_face,
-                                   update_values | update_quadrature_points |
-                                       update_JxW_values | update_gradients);
+  FEFaceValues<dim> fe_face_values(
+      *NavierStokes<dim>::fe, *NavierStokes<dim>::quadrature_face,
+      update_values | update_quadrature_points | update_JxW_values |
+          update_gradients | update_normal_vectors);
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
@@ -84,6 +84,12 @@ void Cylinder<dim>::update_lift_drag() {
   // Sum the drag and lift forces across all processes.
   lift_force = Utilities::MPI::sum(local_lift_force, MPI_COMM_WORLD);
   drag_force = Utilities::MPI::sum(local_drag_force, MPI_COMM_WORLD);
+
+  // Print the results.
+  NavierStokes<dim>::pcout << "  Lift coefficient: " << get_lift() << std::endl;
+  NavierStokes<dim>::pcout << "  Drag coefficient: " << get_drag() << std::endl;
+  NavierStokes<dim>::pcout << "==============================================="
+                           << std::endl;
 }
 
 template <unsigned int dim>
@@ -93,16 +99,16 @@ double Cylinder<dim>::get_reynolds_number() const {
 
 template <unsigned int dim>
 double Cylinder<dim>::get_drag() const {
+  const double mean_velocity = get_mean_velocity();
   return 2.0 * drag_force /
-         (NavierStokes<dim>::ro * get_mean_velocity() * get_mean_velocity() *
-          D);
+         (NavierStokes<dim>::ro * mean_velocity * mean_velocity * D);
 }
 
 template <unsigned int dim>
 double Cylinder<dim>::get_lift() const {
+  const double mean_velocity = get_mean_velocity();
   return 2.0 * lift_force /
-         (NavierStokes<dim>::ro * get_mean_velocity() * get_mean_velocity() *
-          D);
+         (NavierStokes<dim>::ro * mean_velocity * mean_velocity * D);
 }
 
 double Cylinder2D::InletVelocity::value(const Point<dim> &p,

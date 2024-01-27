@@ -12,8 +12,7 @@ template class NavierStokes<3U>;
 
 template <unsigned int dim>
 void NavierStokes<dim>::assemble_constant() {
-  pcout << "===============================================" << std::endl;
-  pcout << "Assembling the constant terms of the system" << std::endl;
+  pcout << "  Assembling the constant terms of the system" << std::endl;
 
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q = quadrature->size();
