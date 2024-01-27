@@ -24,10 +24,10 @@ class Cylinder : public NavierStokes<dim> {
  protected:
   // Constructor.
   Cylinder(const std::string &mesh_file_name_,
-          const unsigned int &degree_velocity_,
-          const unsigned int &degree_pressure_, const double &T_,
-          const double &deltat_,
-          const SolverOptions &solver_options_);
+           const unsigned int &degree_velocity_,
+           const unsigned int &degree_pressure_, const double &T_,
+           const double &deltat_, const double &U_m_,
+           const SolverOptions &solver_options_);
 
   // Function to get the mean velocity.
   virtual double get_mean_velocity() const = 0;
@@ -35,7 +35,7 @@ class Cylinder : public NavierStokes<dim> {
   // Boundary tag for the obstacle.
   unsigned int obstacle_tag;
   // Reference velocity [m/s].
-  double U_m;
+  const double U_m;
   // Cyclinder diameter [m].
   const double D = 0.1;
   // Inlet side length [m].
@@ -63,25 +63,43 @@ class Cylinder2D : public Cylinder<2U> {
   // being incompatible with the finite element space.
   class InletVelocity : public Function<dim> {
    public:
+    virtual ~InletVelocity() = default;
     InletVelocity(double U_m_, double H_)
         : Function<dim>(dim + 1), U_m(U_m_), H(H_) {}
-
     virtual double value(const Point<dim> &p,
-                         const unsigned int component = 0) const override;
-
+                         const unsigned int component = 0) const override = 0;
     virtual void vector_value(const Point<dim> &p,
                               Vector<double> &values) const override;
 
-   private:
+   protected:
     const double U_m;
     const double H;
+  };
+
+  // Class for the inlet velocity in tests 2D-1 and 2D-2.
+  class TimeIndependentInletVelocity : public InletVelocity {
+   public:
+    TimeIndependentInletVelocity(double U_m_, double H_)
+        : InletVelocity(U_m_, H_) {}
+    double value(const Point<dim> &p,
+                 const unsigned int component = 0) const override;
+  };
+
+  // Class for the inlet velocity in test 2D-3.
+  class TimeDependentInletVelocity : public InletVelocity {
+   public:
+    TimeDependentInletVelocity(double U_m_, double H_)
+        : InletVelocity(U_m_, H_) {}
+    double value(const Point<dim> &p,
+                 const unsigned int component = 0) const override;
   };
 
   // Constructor.
   Cylinder2D(const std::string &mesh_file_name_,
              const unsigned int &degree_velocity_,
              const unsigned int &degree_pressure_, const double &T_,
-             const double &deltat_,
+             const double &deltat_, const double &U_m_,
+             const bool &time_dep_inlet,
              const SolverOptions &solver_options_);
 
  private:
@@ -89,7 +107,7 @@ class Cylinder2D : public Cylinder<2U> {
   double get_mean_velocity() const override;
 
   // Function for the inlet velocity.
-  InletVelocity inlet_velocity;
+  std::shared_ptr<InletVelocity> inlet_velocity;
 };
 
 class Cylinder3D : public Cylinder<3U> {
@@ -101,25 +119,43 @@ class Cylinder3D : public Cylinder<3U> {
   // Function for inlet velocity in the 3D flow past a cyclinder test case.
   class InletVelocity : public Function<dim> {
    public:
+    virtual ~InletVelocity() = default;
     InletVelocity(double U_m_, double H_)
         : Function<dim>(dim + 1), U_m(U_m_), H(H_) {}
-
     virtual double value(const Point<dim> &p,
-                         const unsigned int component = 0) const override;
-
+                         const unsigned int component = 0) const override = 0;
     virtual void vector_value(const Point<dim> &p,
                               Vector<double> &values) const override;
 
-   private:
+   protected:
     const double U_m;
     const double H;
+  };
+
+  // Class for the inlet velocity in tests 3D-1 and 3D-2.
+  class TimeIndependentInletVelocity : public InletVelocity {
+   public:
+    TimeIndependentInletVelocity(double U_m_, double H_)
+        : InletVelocity(U_m_, H_) {}
+    double value(const Point<dim> &p,
+                 const unsigned int component = 0) const override;
+  };
+
+  // Class for the inlet velocity in test 3D-3.
+  class TimeDependentInletVelocity : public InletVelocity {
+   public:
+    TimeDependentInletVelocity(double U_m_, double H_)
+        : InletVelocity(U_m_, H_) {}
+    double value(const Point<dim> &p,
+                 const unsigned int component = 0) const override;
   };
 
   // Constructor.
   Cylinder3D(const std::string &mesh_file_name_,
              const unsigned int &degree_velocity_,
              const unsigned int &degree_pressure_, const double &T_,
-             const double &deltat_,
+             const double &deltat_, const double &U_m_,
+             const bool &time_dep_inlet,
              const SolverOptions &solver_options_);
 
  private:
@@ -127,7 +163,7 @@ class Cylinder3D : public Cylinder<3U> {
   double get_mean_velocity() const override;
 
   // Function for the inlet velocity.
-  InletVelocity inlet_velocity;
+  std::shared_ptr<InletVelocity> inlet_velocity;
 };
 
 #endif

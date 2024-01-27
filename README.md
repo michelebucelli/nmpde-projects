@@ -1,8 +1,7 @@
 ### Current issues
-- Missing flow past a cylinder test cases with a time dependent inlet velocity
 - Move building the lumped mass matrix to the assemble method
 - Preconditioner code could be improved in readability and possibly efficiency
-- Lift and drag coefficient computation is wrong, it should use the normal vectors to the obstacle.
+- Computation of lift and drag coefficients is wrong: it's usually correct but is in the order of 10^30 for the 2D-3 test at t=8, while pressure and velocity seem correct
 - Computation of lift and drag coefficients uses a strong formulation
 - Check if serial computations (e.g. initialization of the triangulation) or dense matrices (e.g. in assembly) cause problems for performance/memory usage, remove them is necessary
 

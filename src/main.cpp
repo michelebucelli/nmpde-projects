@@ -165,8 +165,9 @@ int main(int argc, char* argv[]) {
   // Run the chosen problem.
   switch (problem_id) {
     case 1: {
+      constexpr double U_m = 1.5;
       Cylinder2D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                         deltat, solver_options);
+                         deltat, U_m, false, solver_options);
       problem.setup();
       problem.solve();
 
@@ -175,14 +176,13 @@ int main(int argc, char* argv[]) {
     }
 
     case 2: {
+      constexpr double U_m = 2.25;
       Cylinder3D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                         deltat, solver_options);
+                         deltat, U_m, false, solver_options);
       problem.setup();
       problem.solve();
 
       problem.update_lift_drag();
-      pcout << "Lift coefficient: " << problem.get_lift() << std::endl;
-      pcout << "Drag coefficient: " << problem.get_drag() << std::endl;
       break;
     }
 
