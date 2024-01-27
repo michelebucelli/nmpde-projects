@@ -1,7 +1,7 @@
 #include <getopt.h>
 
-#include "EthierSteinman.hpp"
 #include "Cylinder.hpp"
+#include "EthierSteinman.hpp"
 #include "Step.hpp"
 
 // Main function.
@@ -53,33 +53,47 @@ int main(int argc, char* argv[]) {
   constexpr unsigned int degree_velocity = 2;
   constexpr unsigned int degree_pressure = 1;
   constexpr double T = 1e-2;
+  const PreconditionerType precondition(ASIMPLE, 1.0);
 
   // Run the chosen problem.
-  if (problem_id == 1) {
-    Cylinder2D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                       deltat);
-    problem.setup();
-    problem.solve();
+  switch (problem_id) {
+    case 1: {
+      Cylinder2D problem(mesh_file_name, degree_velocity, degree_pressure, T,
+                         deltat, precondition);
+      problem.setup();
+      problem.solve();
+      break;
+    }
 
-  } else if (problem_id == 2) {
-    Cylinder3D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                       deltat);
-    problem.setup();
-    problem.solve();
+    case 2: {
+      Cylinder3D problem(mesh_file_name, degree_velocity, degree_pressure, T,
+                         deltat, precondition);
+      problem.setup();
+      problem.solve();
+      break;
+    }
 
-  } else if (problem_id == 3) {
-    constexpr double nu = 0.01;
-    EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                           deltat, nu);
-    problem.setup();
-    problem.solve();
+    case 3: {
+      constexpr double nu = 0.01;
+      EthierSteinman problem(mesh_file_name, degree_velocity, degree_pressure,
+                             T, deltat, precondition, nu);
+      problem.setup();
+      problem.solve();
+      break;
+    }
 
-    problem.setup();
-    problem.solve();
+    case 4: {
+      constexpr double alpha = 1.0;
+      Step problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat,
+                   precondition, alpha);
+      problem.setup();
+      problem.solve();
+      break;
+    }
 
-  } else {
-    std::cerr << "Error: Problem ID must be 1, 2, 3 or 4." << std::endl;
-    return 1;
+    default:
+      std::cerr << "Error: Problem ID must be 1, 2, 3 or 4." << std::endl;
+      return 1;
   }
 
   return 0;

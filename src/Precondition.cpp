@@ -64,7 +64,6 @@ void PreconditionSIMPLE::vmult(
   tmp.reinit(src);
   // Step 1: solve [F 0; B -S]sol1 = src.
   // Step 1.1: solve F*sol1_u = src_u.
-  tmp.block(0) = dst.block(0);
   SolverControl solver_control_F(10000, 1e-2 * src.block(0).l2_norm());
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_F(solver_control_F);
   solver_gmres_F.solve(*F_matrix, tmp.block(0), src.block(0), preconditioner_F);
@@ -80,8 +79,8 @@ void PreconditionSIMPLE::vmult(
   dst.block(1) /= alpha;
   // Step 2.2: solve dst_u = sol1_u - D^-1*B^T*dst_p.
   dst.block(0) = tmp.block(0);
-  tmp.block(0).scale(Dinv_vector);
   Bt_matrix->vmult(tmp.block(0), dst.block(1));
+  tmp.block(0).scale(Dinv_vector);
   dst.block(0) -= tmp.block(0);
 }
 
@@ -117,13 +116,16 @@ void PreconditionaSIMPLE::vmult(
     TrilinosWrappers::MPI::BlockVector &dst,
     const TrilinosWrappers::MPI::BlockVector &src) const {
   tmp.reinit(src);
-  // Step 1: multiply src by [F^-1 0; 0 I].
+  // Step 1: multiply src by [F^-1 0; 0 I], using the preconditioner instead of
+  // F.
   preconditioner_F.vmult(dst.block(0), src.block(0));
   dst.block(1) = src.block(1);
   // Step 2: multiply the result by [I 0; -B I].
-  Bt_matrix->Tvmult_add(dst.block(1), dst.block(0));
-  // Step 3: multiply the result by [I 0; 0 -S^-1].
-  tmp.block(1) = dst.block(1);
+  // Using B^T and Tvumlt_add instead of B and vmult since there is no
+  // vmult_sub.
+  Bt_matrix->Tvmult_add(tmp.block(1), dst.block(0));
+  // Step 3: multiply the result by [I 0; 0 -S^-1], using the preconditioner
+  // instead of S.
   preconditioner_S.vmult(dst.block(1), tmp.block(1));
   // Step 4: multiply the result by [D 0; 0 I/alpha].
   dst.block(0).scale(D_vector);
@@ -224,19 +226,21 @@ void PreconditionaYoshida::vmult(
     TrilinosWrappers::MPI::BlockVector &dst,
     const TrilinosWrappers::MPI::BlockVector &src) const {
   tmp.reinit(src);
-  // Step 1: multiply src by [F^-1 0; 0 I].
+  // Step 1: multiply src by [F^-1 0; 0 I], using the preconditioner instead of
+  // F.
   preconditioner_F.vmult(dst.block(0), src.block(0));
   // Step 2: multiply the result by [I 0; -B I].
+  // Using B^T and Tvumlt_add instead of B and vmult since there is no
+  // vmult_sub.
   dst.block(1) = src.block(1);
-  Bt_matrix->Tvmult_add(dst.block(1), src.block(0));
-  // Step 3: multiply the result by [I 0; 0 -S^-1].
-  tmp.block(1) = dst.block(1);
+  Bt_matrix->Tvmult_add(tmp.block(1), src.block(0));
+  // Step 3: multiply the result by [I 0; 0 -S^-1], using the preconditioner
+  // instead of S.
   preconditioner_S.vmult(dst.block(1), tmp.block(1));
   // Step 4: multiply the result by [F 0; 0 I].
   F_matrix->vmult(tmp.block(0), dst.block(0));
   // Step 5: multiply the result by [I -B^T; 0 I].
   Bt_matrix->vmult_add(tmp.block(0), dst.block(1));
   // Step 6: multiply the result by [F^-1 0; 0 I].
-  dst.block(0) = src.block(0);
   preconditioner_F.vmult(dst.block(0), tmp.block(0));
 }

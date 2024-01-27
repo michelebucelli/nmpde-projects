@@ -9,6 +9,7 @@
 using namespace dealii;
 
 // Block-diagonal preconditioner [M/deltat + A + C  0; 0 1/nu*M_p].
+// Adapted from the one proposed for the Stokes problem in laboratory 9.
 class PreconditionBlockDiagonal {
  public:
   // Initialize the preconditioner.
@@ -33,7 +34,7 @@ class PreconditionBlockDiagonal {
   TrilinosWrappers::PreconditionILU preconditioner_pressure;
 };
 
-// SIMPLE preconditioner
+// SIMPLE preconditioner.
 class PreconditionSIMPLE {
  public:
   // Initialize the preconditioner.
@@ -68,7 +69,7 @@ class PreconditionSIMPLE {
   mutable TrilinosWrappers::MPI::BlockVector tmp;
 };
 
-// aSIMPLE preconditioner
+// aSIMPLE preconditioner.
 class PreconditionaSIMPLE {
  public:
   // Initialize the preconditioner.
@@ -105,7 +106,7 @@ class PreconditionaSIMPLE {
   mutable TrilinosWrappers::MPI::BlockVector tmp;
 };
 
-// Yoshida preconditioner
+// Yoshida preconditioner.
 class PreconditionYoshida {
  public:
   // Initialize the preconditioner.
@@ -139,7 +140,7 @@ class PreconditionYoshida {
   mutable TrilinosWrappers::MPI::Vector tmp_2;
 };
 
-// Yoshida preconditioner
+// Yoshida preconditioner.
 class PreconditionaYoshida {
  public:
   // Initialize the preconditioner.

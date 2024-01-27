@@ -12,6 +12,8 @@
 #include <deal.II/lac/trilinos_block_sparse_matrix.h>
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 
+#include "PreconditionerType.hpp"
+
 using namespace dealii;
 
 // Class implementing a solver for the Navier Stokes problem.
@@ -22,7 +24,7 @@ class NavierStokes {
   NavierStokes(const std::string &mesh_file_name_,
                const unsigned int &degree_velocity_,
                const unsigned int &degree_pressure_, const double &T_,
-               const double &deltat_)
+               const double &deltat_, const PreconditionerType & preconditioner_type_)
       : mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD)),
         mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)),
         pcout(std::cout, mpi_rank == 0),
@@ -32,7 +34,8 @@ class NavierStokes {
         T(T_),
         deltat(deltat_),
         time_step(0),
-        mesh(MPI_COMM_WORLD) {}
+        mesh(MPI_COMM_WORLD),
+        preconditioner_type(preconditioner_type_) {}
 
   // Virtual destructor.
   virtual ~NavierStokes() = default;
@@ -152,6 +155,9 @@ class NavierStokes {
 
   // System solution (including ghost elements).
   TrilinosWrappers::MPI::BlockVector solution;
+
+  // Preconditioner type.
+  const PreconditionerType preconditioner_type;
 };
 
 #endif

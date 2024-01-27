@@ -9,7 +9,8 @@ class Cylinder : public NavierStokes<dim> {
   Cylinder(const std::string &mesh_file_name_,
            const unsigned int &degree_velocity_,
            const unsigned int &degree_pressure_, const double &T_,
-           const double &deltat_);
+           const double &deltat_,
+           const PreconditionerType &preconditioner_type_);
 
   // Virtual destructor.
   virtual ~Cylinder() = default;
@@ -79,7 +80,8 @@ class Cylinder2D : public Cylinder<2U> {
   Cylinder2D(const std::string &mesh_file_name_,
              const unsigned int &degree_velocity_,
              const unsigned int &degree_pressure_, const double &T_,
-             const double &deltat_);
+             const double &deltat_,
+             const PreconditionerType &preconditioner_type_);
 
  private:
   // Function to get the mean velocity.
@@ -116,7 +118,8 @@ class Cylinder3D : public Cylinder<3U> {
   Cylinder3D(const std::string &mesh_file_name_,
              const unsigned int &degree_velocity_,
              const unsigned int &degree_pressure_, const double &T_,
-             const double &deltat_);
+             const double &deltat_,
+             const PreconditionerType &preconditioner_type_);
 
  private:
   // Function to get the mean velocity.

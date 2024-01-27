@@ -7,9 +7,10 @@ template <unsigned int dim>
 Cylinder<dim>::Cylinder(const std::string &mesh_file_name_,
                         const unsigned int &degree_velocity_,
                         const unsigned int &degree_pressure_, const double &T_,
-                        const double &deltat_)
+                        const double &deltat_,
+                        const PreconditionerType &preconditioner_type_)
     : NavierStokes<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
-                        deltat_),
+                        deltat_, preconditioner_type_),
       zero_function(dim + 1) {
   NavierStokes<dim>::ro = 1.0;
   NavierStokes<dim>::nu = 1e-3,
@@ -147,9 +148,10 @@ double Cylinder3D::get_mean_velocity() const {
 Cylinder2D::Cylinder2D(const std::string &mesh_file_name_,
                        const unsigned int &degree_velocity_,
                        const unsigned int &degree_pressure_, const double &T_,
-                       const double &deltat_)
+                       const double &deltat_,
+                       const PreconditionerType &preconditioner_type_)
     : Cylinder<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
-                    deltat_),
+                    deltat_, preconditioner_type_),
       inlet_velocity(1.5, H) {
   U_m = 1.5;
   obstacle_tag = 5U;
@@ -166,9 +168,10 @@ Cylinder2D::Cylinder2D(const std::string &mesh_file_name_,
 Cylinder3D::Cylinder3D(const std::string &mesh_file_name_,
                        const unsigned int &degree_velocity_,
                        const unsigned int &degree_pressure_, const double &T_,
-                       const double &deltat_)
+                       const double &deltat_,
+                       const PreconditionerType &preconditioner_type_)
     : Cylinder<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
-                    deltat_),
+                    deltat_, preconditioner_type_),
       inlet_velocity(2.25, H) {
   U_m = 2.25;
   obstacle_tag = 7U;
