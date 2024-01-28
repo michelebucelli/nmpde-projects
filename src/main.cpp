@@ -183,11 +183,6 @@ int main(int argc, char* argv[]) {
       if (convergence_check) {
         pcout << "Convergence check is being performed" << std::endl;
         pcout << "===============================================" << std::endl;
-        pcout << "Please note that the provided problem ID is ignored"
-              << std::endl;
-        pcout << "and we're defaulting to problem 3 (Ethier-Steinman)"
-              << std::endl;
-        pcout << "===============================================" << std::endl;
 
         std::vector<std::string> mesh_factors = {"0.8", "0.4", "0.2", "0.1",
                                                  "0.05"};
