@@ -10,12 +10,16 @@
 int main(int argc, char* argv[]) {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
+  // Default arguments.
   int problem_id = 3;
   int precondition_id = 3;
   double deltat = 0.01;
   double T = 1.0;
+  double U_m = 0.0;
+  bool varying_inlet = true;
   std::string mesh_file_name;
   preconditioner_id preconditioner = ASIMPLE;
+  bool convergence_check = false;
 
   ConditionalOStream pcout(
       std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
@@ -23,28 +27,27 @@ int main(int argc, char* argv[]) {
   std::string err_msg =
       "Usage: " + std::string(argv[0]) +
       " -problem-id <id> -deltat <deltat> -mesh-file <file> \n" +
-      "  -P, --problem-id <id>      Problem ID (1, 2, 3 or 4)\n" +
-      "                             1: 2D cylinder (default)\n"
-      "                             2: 3D cylinder\n"
-      "                             3: Ethier-Steinman\n"
-      "                             4: Step\n" +
-      "  -p, --precondition-id <id> Problem ID (1, 2, 3, 4 or 5)\n" +
-      "                             1: Block diagonal\n"
-      "                             2: SIMPLE\n"
-      "                             3: aSIMPLE (default)\n"
-      "                             4: Yoshida\n"
-      "                             5: aYoshida\n" +
-      "  -T, --end-time <T>                  End of the time range\n" +
-      "  -t, --deltat <deltat>               Length of a time step\n" +
-      "  -m, --mesh-file <file>              Mesh file name\n" +
-      "  -h, --help                          Display this message\n" +
-      "  -c, --convergence-check             Check convergence" +
-      "  -u, --inlet-velocity <U>            Inlet velocity" +
-      "  -k, --constant-inlet <bool>         True if inlet velocity is "
-      "constant";
+      "  -P, --problem-id <id>       Problem ID (1, 2, 3 or 4)\n" +
+      "                              1: 2D cylinder (default)\n"
+      "                              2: 3D cylinder\n"
+      "                              3: Ethier-Steinman\n"
+      "                              4: Step\n" +
+      "  -p, --precondition-id <id>  Preconditioner ID (1, 2, 3, 4)\n" +
+      "                              1: Block diagonal\n"
+      "                              2: SIMPLE\n"
+      "                              3: aSIMPLE (default)\n"
+      "                              4: Yoshida\n" +
+      "  -T, --end-time <T>          End of the time range\n" +
+      "  -t, --deltat <deltat>       Length of a time step\n" +
+      "  -m, --mesh-file <file>      Mesh file name\n" +
+      "  -h, --help                  Display this message\n" +
+      "  -c, --convergence-check     Check convergence\n" +
+      "  -u, --inlet-velocity <U>    Reference inlet velocity for flow past a "
+      "cylinder [m/s]\n" +
+      "  -v, --varying-inlet         Use a non-constant inlet velocity in flow "
+      "past a cylinder\n";
 
-  bool convergence_check = false;
-  const char* const short_opts = "P:p:T:t:m:h:c";
+  const char* const short_opts = "P:p:T:t:m:h:c:u:v";
   const option long_opts[] = {
       {"problem-id", required_argument, nullptr, 'P'},
       {"precondition-id", required_argument, nullptr, 'p'},
@@ -54,7 +57,7 @@ int main(int argc, char* argv[]) {
       {"help", no_argument, nullptr, 'h'},
       {"convergence-check", no_argument, nullptr, 'c'},
       {"inlet-velocity", required_argument, nullptr, 'u'},
-      {"constant-inlet", required_argument, nullptr, 'k'},
+      {"varying-inlet", no_argument, nullptr, 'v'},
       {nullptr, no_argument, nullptr, 0}};
 
   // Parse the command line arguments.
@@ -95,11 +98,11 @@ int main(int argc, char* argv[]) {
         break;
 
       case 'u':
-        // ...
+        U_m = std::stod(optarg);
         break;
 
       case 'k':
-        // ...
+        varying_inlet = true;
         break;
 
       case '?':
@@ -118,10 +121,15 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  // Parameters with no command line option assigned.
   constexpr unsigned int degree_velocity = 2;
   constexpr unsigned int degree_pressure = 1;
   constexpr unsigned int maxit = 10000;
-  constexpr double tol = 1e-8;  // Relative tolerance.
+  constexpr unsigned int maxit_inner = 10000;
+  constexpr double tol = 1e-6;
+  constexpr double tol_inner = 1e-2;
+  constexpr double alpha = 1.0;
+  constexpr bool use_inner_solver = true;
 
   // Get the correct preconditioner.
   switch (precondition_id) {
@@ -137,22 +145,22 @@ int main(int argc, char* argv[]) {
     case 4:
       preconditioner = YOSHIDA;
       break;
-    case 5:
-      preconditioner = AYOSHIDA;
-      break;
     default:
       pcout << err_msg << std::endl;
       return 1;
   }
 
-  const SolverOptions solver_options(maxit, tol, preconditioner, 1.0);
+  // Set the solver options.
+  const SolverOptions solver_options(preconditioner, maxit, tol,
+                                     use_inner_solver, maxit_inner, tol_inner,
+                                     alpha);
 
   // Run the chosen problem.
   switch (problem_id) {
     case 1: {
-      constexpr double U_m = 1.5;
+      if (U_m == 0.0) U_m = 1.5;
       Cylinder2D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                         deltat, U_m, false, solver_options);
+                         deltat, U_m, varying_inlet, solver_options);
       problem.setup();
       problem.solve();
 
@@ -161,9 +169,9 @@ int main(int argc, char* argv[]) {
     }
 
     case 2: {
-      constexpr double U_m = 2.25;
+      if (U_m == 0.0) U_m = 2.25;
       Cylinder3D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                         deltat, U_m, false, solver_options);
+                         deltat, U_m, varying_inlet, solver_options);
       problem.setup();
       problem.solve();
 
@@ -174,12 +182,12 @@ int main(int argc, char* argv[]) {
     case 3: {
       if (convergence_check) {
         pcout << "Convergence check is being performed" << std::endl;
-        pcout << "===================================" << std::endl;
+        pcout << "===============================================" << std::endl;
         pcout << "Please note that the provided problem ID is ignored"
               << std::endl;
         pcout << "and we're defaulting to problem 3 (Ethier-Steinman)"
               << std::endl;
-        pcout << "===================================" << std::endl;
+        pcout << "===============================================" << std::endl;
 
         std::vector<std::string> mesh_factors = {"0.8", "0.4", "0.2", "0.1",
                                                  "0.05"};
@@ -247,9 +255,9 @@ int main(int argc, char* argv[]) {
     }
 
     case 4: {
-      constexpr double alpha = 1.0;
+      constexpr double alpha_step = 1.0;
       Step problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat,
-                   solver_options, alpha);
+                   solver_options, alpha_step);
       problem.setup();
       problem.solve();
       break;

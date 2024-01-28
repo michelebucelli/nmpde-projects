@@ -34,8 +34,9 @@ void NavierStokes<dim>::solve_time_step() {
     case BLOCK_DIAGONAL: {
       std::shared_ptr<PreconditionBlockDiagonal> actual_precondition =
           std::make_shared<PreconditionBlockDiagonal>();
-      actual_precondition->initialize(system_matrix.block(0, 0),
-                                      pressure_mass.block(1, 1));
+      actual_precondition->initialize(
+          system_matrix.block(0, 0), pressure_mass.block(1, 1),
+          solver_options.maxiter_inner, solver_options.tol_inner);
       precondition = actual_precondition;
       break;
     }
@@ -44,7 +45,8 @@ void NavierStokes<dim>::solve_time_step() {
           std::make_shared<PreconditionSIMPLE>();
       actual_precondition->initialize(
           system_matrix.block(0, 0), system_matrix.block(1, 0),
-          system_matrix.block(0, 1), solution_owned, solver_options.alpha);
+          system_matrix.block(0, 1), solution_owned, solver_options.alpha,
+          solver_options.maxiter_inner, solver_options.tol_inner);
       precondition = actual_precondition;
       break;
     }
@@ -53,7 +55,9 @@ void NavierStokes<dim>::solve_time_step() {
           std::make_shared<PreconditionaSIMPLE>();
       actual_precondition->initialize(
           system_matrix.block(0, 0), system_matrix.block(1, 0),
-          system_matrix.block(0, 1), solution_owned, solver_options.alpha);
+          system_matrix.block(0, 1), solution_owned, solver_options.alpha,
+          solver_options.use_inner_solver, solver_options.maxiter_inner,
+          solver_options.tol_inner);
       precondition = actual_precondition;
       break;
     }
@@ -62,16 +66,8 @@ void NavierStokes<dim>::solve_time_step() {
           std::make_shared<PreconditionYoshida>();
       actual_precondition->initialize(
           system_matrix.block(0, 0), system_matrix.block(1, 0),
-          system_matrix.block(0, 1), velocity_mass.block(0, 0), solution_owned);
-      precondition = actual_precondition;
-      break;
-    }
-    case AYOSHIDA: {
-      std::shared_ptr<PreconditionaYoshida> actual_precondition =
-          std::make_shared<PreconditionaYoshida>();
-      actual_precondition->initialize(
-          system_matrix.block(0, 0), system_matrix.block(1, 0),
-          system_matrix.block(0, 1), velocity_mass.block(0, 0), solution_owned);
+          system_matrix.block(0, 1), velocity_mass.block(0, 0), solution_owned,
+          solver_options.maxiter_inner, solver_options.tol_inner);
       precondition = actual_precondition;
       break;
     }

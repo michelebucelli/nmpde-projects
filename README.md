@@ -1,9 +1,6 @@
 ### Current issues
-- Move building the lumped mass matrix to the assemble method
-- Preconditioner code exibits weird behaviour for every preconditioner, fix it
 - Computation of lift and drag coefficients is wrong: it's usually correct but is in the order of 10^30 for the 2D-3 test at t=8, while pressure and velocity seem correct
 - Computation of lift and drag coefficients uses a strong formulation
-- Check if serial computations (e.g. initialization of the triangulation) or dense matrices (e.g. in assembly) cause problems for performance/memory usage, remove them is necessary
 
 ### Compiling
 To build the executable, make sure you have loaded the needed modules with
