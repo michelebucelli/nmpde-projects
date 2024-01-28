@@ -12,6 +12,13 @@ class Cylinder : public NavierStokes<dim> {
   // Update lift and drag forces.
   void update_lift_drag();
 
+  // Apply initial conditions and set the header for the lift and drag file.
+  void apply_initial_conditions() override;
+
+  // Solve the problem for one time step and store the lift and drag
+  // coefficients.
+  void solve_time_step() override;
+
   // Compute and return the Reynolds number.
   double get_reynolds_number() const;
 
@@ -99,8 +106,7 @@ class Cylinder2D : public Cylinder<2U> {
              const unsigned int &degree_velocity_,
              const unsigned int &degree_pressure_, const double &T_,
              const double &deltat_, const double &U_m_,
-             const bool &time_dep_inlet,
-             const SolverOptions &solver_options_);
+             const bool &time_dep_inlet, const SolverOptions &solver_options_);
 
  private:
   // Function to get the mean velocity.
@@ -155,8 +161,7 @@ class Cylinder3D : public Cylinder<3U> {
              const unsigned int &degree_velocity_,
              const unsigned int &degree_pressure_, const double &T_,
              const double &deltat_, const double &U_m_,
-             const bool &time_dep_inlet,
-             const SolverOptions &solver_options_);
+             const bool &time_dep_inlet, const SolverOptions &solver_options_);
 
  private:
   // Function to get the mean velocity.
