@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
       "  -v, --varying-inlet         Use a non-constant inlet velocity in flow "
       "past a cylinder\n";
 
-  const char* const short_opts = "P:p:T:t:m:hcu:v:";
+  const char* const short_opts = "P:p:T:t:m:hcu:v";
   const option long_opts[] = {
       {"problem-id", required_argument, nullptr, 'P'},
       {"precondition-id", required_argument, nullptr, 'p'},
