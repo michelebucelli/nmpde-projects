@@ -48,7 +48,7 @@ The executable supports multiple command line arguments, of which some are manda
 - **`-u, --inlet-velocity`**: specifies the velocity of the inflow.
 - **`-k, --constant-inlet`**: this is a boolean flag. If provided, the inflow velocity will be constant in time.
 
-Note that the only strictly necessary argument is --mesh-file. If no other argument is provided, the program will run with the default values for the other arguments.
+Note that the only strictly necessary argument is `--mesh-file`. If no other argument is provided, the program will run with the default values for the other arguments.
 
 ### Mesh Generation
 To generate meshes for the simulations, we use the [Gmsh](http://gmsh.info/) software. The meshes are generated from the `.geo` files in the `gmsh` folder. To generate meshes, make sure you're in the `scripts` folder. All generated meshes will be saved in the `mesh` folder. To generate a mesh, run the following commands:
