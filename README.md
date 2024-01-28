@@ -21,17 +21,34 @@ $ make
 ### Running
 The executable will be created into `build`, and can be executed through
 ```bash
-$ ./navier_stokes
+$ ./navier_stokes <arguments>
 ```
 or through
 ```bash
-$ mpirun -n N navier_stokes
+$ mpirun -n <N> navier_stokes <arguments>
 ```
 which will run the executable using MPI with `N` processes.
-The executable supports multiple command line arguments, of which some are mandatory. To get a description of each one, run
-```bash
-$ ./navier_stokes -h
-```
+The executable supports multiple command line arguments, of which some are mandatory. Here is a list of all the arguments:
+- **`-P, --problem-id <id>`**: specifies the problem to solve. The possible values are:
+    - `1`: 2D problem with a circular hole. This is a flat plate with a circular hole in the left half of it. The inflow is on the left side.
+    - `2`: 3D problem with a cylindrical hole. This is a cuboid with a cylindrical hole in the left half of it. The inflow is on the left side.
+    - `3`: The Ethier-Stienman problem. This problem has a cube domain, and its exact solution is known. Therefore, we can use it to test the correctness of our implementation.
+    - `4`: This is the Step problem (very similar to one of the problems tackled in the laboratory sessions).
+- **`-p, --precondition-id <id>`**: specifies the preconditioner to use. The preconditioner is used to solve the linear system of equation that arises from the linearization step of the algorithm. The possible <id> values are:
+    - `1`: Block diagonal preconditioner.
+    - `2`: SIMPLE preconditioner.
+    - `3`: aSIMPLE preconditioner.
+    - `4`: Yoshida preconditioner. 
+    - `5`: aYoshida preconditioner.
+- **`-T, --end-time <T>`**: specifies the end time of the simulation, or the overall length of the simulation. The default value is 1.
+- **`-t, --delta-t <deltat>`**: specifies the time step of the simulation. The lower the value, the more accurate the simulation will be. The default value is 0.01.
+- **`-m --mesh-file <file>`**: specifies the mesh file to use. This argument is mandatory. Be careful to use the correct mesh file for the problem you're trying to solve, as the mesh files are specific to each problem.
+- **`-h --help`**: prints the help message and exits.
+- **`-c --convergence-check`**: enables the convergence check. If this argument is provided, the program will compute for each mesh factor h, the H1 norm for the velocity and the L2 norm for the pressure, and will print on screen. This is useful to check if the solution is converging with the expected rate, in order to verify the correctness of the implementation.
+- **`-u, --inlet-velocity`**: specifies the velocity of the inflow.
+- **`-k, --constant-inlet`**: this is a boolean flag. If provided, the inflow velocity will be constant in time.
+
+Note that the only strictly necessary argument is --mesh-file. If no other argument is provided, the program will run with the default values for the other arguments.
 
 ### Mesh Generation
 To generate meshes for the simulations, we use the [Gmsh](http://gmsh.info/) software. The meshes are generated from the `.geo` files in the `gmsh` folder. To generate meshes, make sure you're in the `scripts` folder. All generated meshes will be saved in the `mesh` folder. To generate a mesh, run the following commands:
