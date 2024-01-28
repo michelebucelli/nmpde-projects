@@ -1,5 +1,7 @@
 #include "Cylinder.hpp"
 
+#include <fstream>
+
 template class Cylinder<2U>;
 template class Cylinder<3U>;
 
@@ -137,6 +139,37 @@ double Cylinder<dim>::get_lift() const {
   const double mean_velocity = get_mean_velocity();
   return 2.0 * lift_force /
          (NavierStokes<dim>::ro * mean_velocity * mean_velocity * D);
+}
+
+template <unsigned int dim>
+void Cylinder<dim>::apply_initial_conditions() {
+  NavierStokes<dim>::apply_initial_conditions();
+
+  // Set the header for the lift and drag file.
+  if (NavierStokes<dim>::mpi_rank == 0) {
+    std::ofstream file;
+    file.open("../results/drag_lift.txt");
+    file << "time_step(delta_t=" << NavierStokes<dim>::deltat
+         << "s),drag_coefficient,lift_coefficient\n";
+    file.close();
+  }
+}
+
+template <unsigned int dim>
+void Cylinder<dim>::solve_time_step() {
+  NavierStokes<dim>::solve_time_step();
+
+  // Update lift and drag coefficients.
+  update_lift_drag();
+
+  // Write the results to a file.
+  if (NavierStokes<dim>::mpi_rank == 0) {
+    std::ofstream file;
+    file.open("../results/drag_lift.txt", std::ios::app);
+    file << NavierStokes<dim>::time_step << "," << get_drag() << ","
+         << get_lift() << "\n";
+    file.close();
+  }
 }
 
 double Cylinder2D::TimeIndependentInletVelocity::value(

@@ -11,14 +11,13 @@ int main(int argc, char* argv[]) {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
   // Default arguments.
-  int problem_id = 3;
-  int precondition_id = 3;
+  int problem_id = 1;
+  int precondition_id = 2;
   double deltat = 0.01;
   double T = 1.0;
   double U_m = 0.0;
-  bool varying_inlet = true;
+  bool varying_inlet = false;
   std::string mesh_file_name;
-  preconditioner_id preconditioner = ASIMPLE;
   bool convergence_check = false;
 
   ConditionalOStream pcout(
@@ -131,7 +130,8 @@ int main(int argc, char* argv[]) {
   constexpr double alpha = 1.0;
   constexpr bool use_inner_solver = true;
 
-  // Get the correct preconditioner.
+  // Get the correct preconditioner and set solver options.
+  preconditioner_id preconditioner = SIMPLE;
   switch (precondition_id) {
     case 1:
       preconditioner = BLOCK_DIAGONAL;
@@ -149,8 +149,6 @@ int main(int argc, char* argv[]) {
       pcout << err_msg << std::endl;
       return 1;
   }
-
-  // Set the solver options.
   const SolverOptions solver_options(preconditioner, maxit, tol,
                                      use_inner_solver, maxit_inner, tol_inner,
                                      alpha);
@@ -163,8 +161,6 @@ int main(int argc, char* argv[]) {
                          deltat, U_m, varying_inlet, solver_options);
       problem.setup();
       problem.solve();
-
-      problem.update_lift_drag();
       break;
     }
 
@@ -174,8 +170,6 @@ int main(int argc, char* argv[]) {
                          deltat, U_m, varying_inlet, solver_options);
       problem.setup();
       problem.solve();
-
-      problem.update_lift_drag();
       break;
     }
 
