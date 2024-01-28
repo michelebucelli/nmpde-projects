@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
       "  -v, --varying-inlet         Use a non-constant inlet velocity in flow "
       "past a cylinder\n";
 
-  const char* const short_opts = "P:p:T:t:m:h:c:u:v";
+  const char* const short_opts = "P:p:T:t:m:hcu:v:";
   const option long_opts[] = {
       {"problem-id", required_argument, nullptr, 'P'},
       {"precondition-id", required_argument, nullptr, 'p'},
@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) {
         U_m = std::stod(optarg);
         break;
 
-      case 'k':
+      case 'v':
         varying_inlet = true;
         break;
 
@@ -176,11 +176,6 @@ int main(int argc, char* argv[]) {
     case 3: {
       if (convergence_check) {
         pcout << "Convergence check is being performed" << std::endl;
-        pcout << "===============================================" << std::endl;
-        pcout << "Please note that the provided problem ID is ignored"
-              << std::endl;
-        pcout << "and we're defaulting to problem 3 (Ethier-Steinman)"
-              << std::endl;
         pcout << "===============================================" << std::endl;
 
         std::vector<std::string> mesh_factors = {"0.8", "0.4", "0.2", "0.1",
