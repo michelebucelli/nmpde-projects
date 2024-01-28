@@ -1,5 +1,4 @@
 ### Current issues
-- Computation of lift and drag coefficients is wrong: it's usually correct but is in the order of 10^30 for the 2D-3 test at t=8, while pressure and velocity seem correct
 - Computation of lift and drag coefficients uses a strong formulation
 
 ### Compiling
@@ -29,7 +28,7 @@ The executable supports multiple command line arguments, of which some are manda
 - **`-P, --problem-id <id>`**: specifies the problem to solve. The possible values are:
     - `1`: 2D problem with a circular hole. This is a flat plate with a circular hole in the left half of it. The inflow is on the left side.
     - `2`: 3D problem with a cylindrical hole. This is a cuboid with a cylindrical hole in the left half of it. The inflow is on the left side.
-    - `3`: The Ethier-Stienman problem. This problem has a cube domain, and its exact solution is known. Therefore, we can use it to test the correctness of our implementation.
+    - `3`: The Ethier-Steinman problem. This problem has a cube domain, and its exact solution is known. Therefore, we can use it to test the correctness of our implementation.
     - `4`: This is the Step problem (very similar to one of the problems tackled in the laboratory sessions).
 - **`-p, --precondition-id <id>`**: specifies the preconditioner to use. The preconditioner is used to solve the linear system of equation that arises from the linearization step of the algorithm. The possible <id> values are:
     - `1`: Block diagonal preconditioner.
@@ -38,14 +37,20 @@ The executable supports multiple command line arguments, of which some are manda
     - `4`: Yoshida preconditioner. 
     - `5`: aYoshida preconditioner.
 - **`-T, --end-time <T>`**: specifies the end time of the simulation, or the overall length of the simulation. The default value is 1.
-- **`-t, --delta-t <deltat>`**: specifies the time step of the simulation. The lower the value, the more accurate the simulation will be. The default value is 0.01.
-- **`-m --mesh-file <file>`**: specifies the mesh file to use. This argument is mandatory. Be careful to use the correct mesh file for the problem you're trying to solve, as the mesh files are specific to each problem.
+- **`-t, --delta-t <deltat>`**: specifies the time step of the simulation. The lower the value, the more accurate the simulation will be. The default value is 0.01. Some preconditioners have better convergence behaviour for lower values of this parameter, e.g. 1e-3 or 1e-4.
+- **`-m --mesh-file <file>`**: specifies the mesh file to use. This argument is mandatory. Be careful to use the correct mesh file for the problem you're trying to solve, as the mesh files are specific to each problem. Mesh file generators for the Step problem are not provided, as mesh files from the laboratory sessions can be used.
 - **`-h --help`**: prints the help message and exits.
-- **`-c --convergence-check`**: enables the convergence check. If this argument is provided, the program will compute for each mesh factor h, the H1 norm for the velocity and the L2 norm for the pressure, and will print on screen. This is useful to check if the solution is converging with the expected rate, in order to verify the correctness of the implementation.
-- **`-u, --inlet-velocity`**: specifies the velocity of the inflow.
-- **`-k, --constant-inlet`**: this is a boolean flag. If provided, the inflow velocity will be constant in time.
+- **`-c --convergence-check`**: enables the convergence check. If this argument is provided, the program will compute for each mesh factor h, the H1 norm for the velocity and the L2 norm for the pressure, and will print them on screen. This is useful to check if the solution is converging with the expected rate, to help verify corrected of the solution. If this option is enabled, the Ethier-Steinman problem is solved.
+- **`-u, --inlet-velocity`**: specifies the reference velocity of the inflow. This parameter is only relevant for the 2D and 3D flow past a cylinder problems.
+- **`-k, --constant-inlet`**: this is a boolean flag. If provided, the inflow velocity will be constant in time. This parameter is only relevant for the 2D and 3D flow past a cylinder problems.
 
 Note that the only strictly necessary argument is `--mesh-file`. If no other argument is provided, the program will run with the default values for the other arguments.
+
+### Results
+Execution results will be generated in the `results` folder.
+In particular:
+    - `output_*` files will contain the computed solutions to the problem.
+    - `lift_drag.csv` will contain the computed lift and drag coefficients. This file is only updated if the 2D or 3D flow past a cylinder problems are run.
 
 ### Mesh Generation
 To generate meshes for the simulations, we use the [Gmsh](http://gmsh.info/) software. The meshes are generated from the `.geo` files in the `gmsh` folder. To generate meshes, make sure you're in the `scripts` folder. All generated meshes will be saved in the `mesh` folder. To generate a mesh, run the following commands:

@@ -15,15 +15,15 @@ Cylinder<dim>::Cylinder(const std::string &mesh_file_name_,
                         deltat_, solver_options_),
       U_m(U_m_),
       zero_function(dim + 1) {
-  NavierStokes<dim>::ro = 1.0;
-  NavierStokes<dim>::nu = 1e-3,
+  NavierStokes<dim>::ro = 1.0;   //[kg/m^3].
+  NavierStokes<dim>::nu = 1e-3;  //[m^2/s].
   NavierStokes<dim>::initial_conditions =
       std::make_shared<Functions::ZeroFunction<dim>>(dim + 1);
 }
 
 template <unsigned int dim>
 void Cylinder<dim>::update_lift_drag() {
-  NavierStokes<dim>::pcout << "Calculating lift and drag forces" << std::endl;
+  NavierStokes<dim>::pcout << "  Calculating lift and drag forces" << std::endl;
 
   const unsigned int dofs_per_cell = NavierStokes<dim>::fe->dofs_per_cell;
   const unsigned int n_q_face = NavierStokes<dim>::quadrature_face->size();
@@ -82,7 +82,9 @@ void Cylinder<dim>::update_lift_drag() {
           }
 
           // Get local pressure value and velocity gradient.
-          double pressure = pressure_values[q];
+          // What we usually refer to as "pressure" is multiplied by ro, as it
+          // actually represents the pressure divided by the density.
+          double pressure = NavierStokes<dim>::ro * pressure_values[q];
           Tensor<2, dim> velocity_gradient = velocity_gradients[q];
 
           // Calculate the gradient of the tangential velocity.
@@ -118,8 +120,6 @@ void Cylinder<dim>::update_lift_drag() {
   // Print the results.
   NavierStokes<dim>::pcout << "  Lift coefficient: " << get_lift() << std::endl;
   NavierStokes<dim>::pcout << "  Drag coefficient: " << get_drag() << std::endl;
-  NavierStokes<dim>::pcout << "==============================================="
-                           << std::endl;
 }
 
 template <unsigned int dim>

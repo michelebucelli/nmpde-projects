@@ -1,6 +1,8 @@
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/numerics/vector_tools.h>
 
+#include <chrono>
+
 #include "NavierStokes.hpp"
 #include "Precondition.hpp"
 
@@ -26,7 +28,9 @@ void NavierStokes<dim>::apply_initial_conditions() {
 
 template <unsigned int dim>
 void NavierStokes<dim>::solve_time_step() {
-  pcout << "  Building the preconditioner" << std::endl;
+  auto t0 = std::chrono::high_resolution_clock::now();
+
+  pcout << "  Initializing the preconditioner" << std::endl;
 
   // Choose the preconditioner and initialize it.
   std::shared_ptr<BlockPrecondition> precondition;
@@ -84,6 +88,12 @@ void NavierStokes<dim>::solve_time_step() {
         << std::endl;
 
   solution = solution_owned;
+
+  // Print the execution time.
+  auto t1 = std::chrono::high_resolution_clock::now();
+  auto dt =
+      std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+  pcout << "  Total linear system resolution time: " << dt << "μs" << std::endl;
 }
 
 template <unsigned int dim>
