@@ -39,6 +39,8 @@ class Cylinder : public NavierStokes<dim> {
   // Function to get the mean velocity.
   virtual double get_mean_velocity() const = 0;
 
+  // Path to the drag and lift coefficient logging file.
+  const std::string lift_drag_output_file = "../results/lift_drag.csv";
   // Boundary tag for the obstacle.
   unsigned int obstacle_tag;
   // Reference velocity [m/s].

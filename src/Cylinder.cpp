@@ -148,9 +148,9 @@ void Cylinder<dim>::apply_initial_conditions() {
   // Set the header for the lift and drag file.
   if (NavierStokes<dim>::mpi_rank == 0) {
     std::ofstream file;
-    file.open("../results/drag_lift.txt");
+    file.open(lift_drag_output_file);
     file << "time_step(delta_t=" << NavierStokes<dim>::deltat
-         << "s),drag_coefficient,lift_coefficient\n";
+         << "s),lift_coefficient,drag_coefficient,reynolds_number\n";
     file.close();
   }
 }
@@ -165,9 +165,9 @@ void Cylinder<dim>::solve_time_step() {
   // Write the results to a file.
   if (NavierStokes<dim>::mpi_rank == 0) {
     std::ofstream file;
-    file.open("../results/drag_lift.txt", std::ios::app);
-    file << NavierStokes<dim>::time_step << "," << get_drag() << ","
-         << get_lift() << "\n";
+    file.open(lift_drag_output_file, std::ios::app);
+    file << NavierStokes<dim>::time_step << "," << get_lift() << ","
+         << get_drag() << "," << get_reynolds_number() << "\n";
     file.close();
   }
 }
