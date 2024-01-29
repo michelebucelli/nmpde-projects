@@ -98,20 +98,26 @@ public:
   };
 
   // Function for initial conditions.
+  // Function for initial conditions.
   class FunctionU0 : public Function<dim>
   {
   public:
     virtual double
-    value(const Point<dim> &p,
+    value(const Point<dim> & p,
           const unsigned int /*component*/ = 0) const override
     {
-      // return (std::cos(M_PI * p[0]) * std::cos(M_PI * p[1]) + 2) * std::exp(0);
-      if(p[0]<0.70 && p[0]>0.30 && p[1]<0.70 && p[1]>0.30 && p[2]<0.70 && p[2]>0.30){
+    //return 0.02*(50 -50 *(p[0]*p[0] + p[1]*p[1] + p[2]*p[2])/(0.01+p[0]*p[0] + p[1]*p[1] + p[2]*p[2]));
+     if(p[0]<65 && p[0 ]>55 && p[1]<85 && p[1]>75 && p[2]<45 && p[2]>35){
       return 0.9;
      }
-     return 0.0;
+    //    if(p[0]<0.55 && p[0 ]>0.45 && p[1]<0.55 && p[1]>0.45 && p[2]<0.55 && p[2]>0.45){
+    //   return 0.9;
+    //  }
+
+     return 0;
     }
   };
+  
 
   // Exact solution.
   class ExactSolution : public Function<dim>
