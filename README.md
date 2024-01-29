@@ -75,7 +75,7 @@ To generate meshes for the simulations, we use the [Gmsh](http://gmsh.info/) sof
 Please note that running `generate_all.sh` will preventively delete all the meshes with the word `flow` or `cube` in their name. This is to avoid accumulating too many meshes in the `mesh` folder, which would make it difficult to find the ones you need.
 
 ### Data Analysis
-The `scripts` folder contains a Python script to plot the lift and drag coefficients over time. To use it, make sure you have the `matplotlib` and `numpy` packages installed, and that you haven't loaded the mk modules. Then, run the following command:
+The `scripts` folder contains a Python script to plot the lift and drag coefficients over time. To use it, make sure you have the `matplotlib` and `numpy` packages installed, and that the mk modules are not loaded. Then, run the following command from the `scripts` folder:
 ```bash
 python3 plot_lift_drag.py
 ```
