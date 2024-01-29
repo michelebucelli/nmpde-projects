@@ -19,5 +19,5 @@ $ make
 ```
 The executable will be created into `build`, and can be executed through
 ```bash
-$ ./executable-name
+$ mpirun -np <number of cores > ./FK_solver
 ```
