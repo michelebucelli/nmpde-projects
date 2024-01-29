@@ -12,8 +12,11 @@ if [ $# -eq 1 ]
     factor=$1
 fi
 
+# Format the factor with two digits after the decimal point
+formatted_factor=$(printf "%.3f" $factor)
+
 # 3D mesh generation.
-gmsh -3 -clmax $factor ../gmsh/cube.geo            -o ../mesh/cube-$factor.msh
+gmsh -3 -clmax $factor ../gmsh/cube.geo            -o ../mesh/cube-$formatted_factor.msh
 
 # We're using the -clmax flag to specify the maximum element size,
 # as a simple way to control the mesh size. Inside the .geo files,
