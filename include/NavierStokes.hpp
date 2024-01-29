@@ -16,26 +16,33 @@
 
 using namespace dealii;
 
-// Class implementing a solver for the Navier Stokes problem.
+// This template class defines a solver for the Navier-Stokes problem. It is
+// templated on the dimension, which can be either 2 or 3. The reason for this
+// is that we need the dimension to be known at compile time.
 template <unsigned int dim>
 class NavierStokes {
  public:
   // Virtual destructor.
   virtual ~NavierStokes() = default;
 
-  // Initialization.
+  // The setup function is used to initialize the mesh, the finite element
+  // space, the DoF handler, the DoF indices, and the matrices and vectors
+  // for the linear system.
   void setup();
 
-  // Solve the problem.
+  // This calls the problem solution execution, which mainly consists of
+  // calculating the initial solution and then performing the time stepping
+  // until the final time is reached.
   void solve();
 
  protected:
-  // Methods. /////////////////////////////////////////////////////////////////////
+  // Methods. //////////////////////////////////////////////////////////////////
+
   // Constructor.
   NavierStokes(const std::string &mesh_file_name_,
                const unsigned int &degree_velocity_,
                const unsigned int &degree_pressure_, const double &T_,
-               const double &deltat_, const SolverOptions & solver_options_)
+               const double &deltat_, const SolverOptions &solver_options_)
       : mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD)),
         mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)),
         pcout(std::cout, mpi_rank == 0),
@@ -48,30 +55,38 @@ class NavierStokes {
         mesh(MPI_COMM_WORLD),
         solver_options(solver_options_) {}
 
-  // Assemble the constant part of the matrix.
+  // The matrix assembly is split into two parts: the constant part, which is
+  // assembled only once, and the time-dependent part, which is assembled at
+  // each time step. This is done to avoid assembling the constant part at each
+  // time step, which would be a waste of computational resources. The constant
+  // part is assembled in this function.
   void assemble_constant();
 
-  // Assemble the right-hand side and nonlinear term.
+  // The time dependent part of the matrix is assembled in this function, which
+  // is called at each time step.
   void assemble_time_dependent();
 
-  // Apply the initial condition.
+  // Apply the initial conditions to the system.
   virtual void apply_initial_conditions();
 
-  // Solve the problem for one time step.
+  // This function is used to solve the linear system for one single time step.
+  // In the `solve` function, this function is called in a loop until the final
+  // time is reached.
   virtual void solve_time_step();
 
-  // Output.
+  // This is a simple function to output the solution to the /results folder.
   void output() const;
 
   // MPI parallel. /////////////////////////////////////////////////////////////
 
-  // Number of MPI processes.
+  // We use MPI to parallelize the code. This is the number of MPI processes.
   const unsigned int mpi_size;
 
-  // This MPI process.
+  // This is the rank of the current MPI process.
   const unsigned int mpi_rank;
 
-  // Parallel output stream.
+  // In order not to print the same output multiple times, we use a conditional
+  // output stream, which prints only if the rank is 0.
   ConditionalOStream pcout;
 
   // Problem. //////////////////////////////////////////////////////////////////
@@ -100,10 +115,10 @@ class NavierStokes {
   // Polynomial degree used for pressure.
   const unsigned int degree_pressure;
 
-  // Final time.
+  // This is the overall length of the simulation [s].
   const double T;
 
-  // Length of a time step [s].
+  // Duration of a single time step [s].
   const double deltat;
 
   // Current time step.

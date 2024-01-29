@@ -29,19 +29,26 @@ struct SolverOptions {
   }
   // Type of preconditioner.
   const preconditioner_id id;
+  
   // Maximum number of iterations for the main linear solver.
   const unsigned int maxiter;
+  
   // Relative tolerance for the main linear solver.
   const double tol;
+  
   // Whether to use an inner solver (only relevant for aSIMPLE and aYoshida
   // preconditioners).
   const bool use_inner_solver;
+  
   // Maximum number of iterations for the inner linear solvers (if any).
   const unsigned int maxiter_inner;
+  
   // Relative tolerance for the inner linear solvers (if any).
   const double tol_inner;
+  
   // Damping parameter (only relevant for SIMPLE and aSIMPLE preconditioners).
   const double alpha;
+  
   // Whether the pressure mass matrix is used.
   bool use_pressure_mass;
 };

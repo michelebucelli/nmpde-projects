@@ -5,7 +5,9 @@
 
 class Step : public NavierStokes<3U> {
  private:
-  // Physical dimension.
+  // This is the physical dimension of the problem. We need to specify it here
+  // because we need it to be a constant expression. If this were not the case,
+  // we would have considered dropping the template approach.
   constexpr static unsigned int dim = 3;
 
  public:
@@ -15,9 +17,14 @@ class Step : public NavierStokes<3U> {
     // Constructor.
     InletVelocity(double alpha_) : Function<dim>(dim + 1), alpha(alpha_) {}
 
+    // When defining vector-valued functions, we need to define the value
+    // function, which returns the value of the function at a given point and
+    // component...
     virtual double value(const Point<dim> &p,
                          const unsigned int component = 0) const override;
 
+    // ... and the vector_value function, which returns the value of the
+    // function at a given point for all components.
     virtual void vector_value(const Point<dim> &p,
                               Vector<double> &values) const override;
 
@@ -31,6 +38,7 @@ class Step : public NavierStokes<3U> {
     // Constructor.
     NeumannFunction() : Function<dim>(dim + 1) {}
 
+    // Evaluation.
     virtual double value(const Point<dim> &p,
                          const unsigned int component = 0) const override;
 
@@ -50,10 +58,13 @@ class Step : public NavierStokes<3U> {
  private:
   // Inlet velocity.
   InletVelocity inlet_velocity;
+
   // Zero function.
   Functions::ZeroFunction<dim> zero_function;
+
   // Coefficient for inlet velocity.
   double alpha;
+
   // Function for Neumann (BC).
   NeumannFunction neumann_function;
 };
