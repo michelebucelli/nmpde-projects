@@ -5,9 +5,20 @@
 
 #include "NavierStokes.hpp"
 
+// We implement the Ethier-Steinman test case, as a means to test our code for
+// correctness. This is because the exact solution of this specific problem is
+// known. The problem is defined on the domain [-1,1]^3.
+
+// This is a template class for the Ethier-Steinman test case. It is templated
+// on the dimension, which can be either 2 or 3. The reason for this is that we
+// need the dimension to be constexpr. The class is derived from the
+// NavierStokes class, which is a template class itself, for the same reason. A
+// similar approach is used in most of our other classes.
 class EthierSteinman : public NavierStokes<3U> {
  private:
-  // Physical dimension.
+  // This is the physical dimension of the problem. We need to specify it here
+  // because we need it to be a constant expression. If this were not the case,
+  // we would have considered dropping the template approach.
   constexpr static unsigned int dim = 3;
 
  public:
@@ -28,17 +39,25 @@ class EthierSteinman : public NavierStokes<3U> {
           exact_velocity(nu_),
           exact_pressure(nu_) {}
 
-    // Evaluation.
+    // When defining vector-valued functions, we need to define the value
+    // function, which returns the value of the function at a given point and
+    // component...
     virtual double value(const Point<dim> &p,
                          const unsigned int component) const override;
+
+    // ... and the vector_value function, which returns the value of the
+    // function at a given point for all components.
     virtual void vector_value(const Point<dim> &p,
                               Vector<double> &values) const override;
 
-    // Class for the exact velocity.
+    // This is a function object, which defines the exact velocity. Since the
+    // problem's exact solution is known, we can define it as a function object
+    // and use it to compute the error of our numerical solution.
     class ExactVelocity : public Function<dim> {
      public:
       // Constructor.
       ExactVelocity(double nu_) : Function<dim>(dim), nu(nu_) {}
+
       // Evaluation.
       virtual double value(const Point<dim> &p,
                            const unsigned int component) const override;
@@ -54,13 +73,14 @@ class EthierSteinman : public NavierStokes<3U> {
       const double nu;
     };
 
-    // Class for the exact pressure.
-    // This returns a vector with 4 components, of which the first three are
-    // empty.
+    // Same as above, for the pressure. Note that the pressure is a scalar
+    // function, but this function returns a vector with 4 components, of
+    // which the first three are empty.
     class ExactPressure : public Function<dim> {
      public:
       // Constructor.
       ExactPressure(double nu_) : Function<dim>(1), nu(nu_) {}
+
       // Evaluation.
       virtual double value(const Point<dim> &p,
                            const unsigned int /*component*/ = 0) const override;
@@ -76,17 +96,22 @@ class EthierSteinman : public NavierStokes<3U> {
     const double nu;
 
    public:
-    // Exact velocity, mutable to set the time.
+    // This is a function object, which defines the exact velocity. Since we
+    // need to set the time, it's defined as mutable.
     mutable ExactVelocity exact_velocity;
-    // Exact pressure, mutable to set the time.
+
+    // This is a function object, which defines the exact pressure. Since we
+    // need to set the time, it's defined as mutable.
     mutable ExactPressure exact_pressure;
   };
 
+  // Class for the Neumann function, needed to impose the boundary conditions.
   class NeumannFunction : public Function<dim> {
    public:
     // Constructor.
     NeumannFunction(double nu_)
         : Function<dim>(dim + 1), nu(nu_), exact_solution(nu_) {}
+
     // Evaluation.
     virtual double value(const Point<dim> &p,
                          const unsigned int component) const override;
@@ -97,7 +122,8 @@ class EthierSteinman : public NavierStokes<3U> {
     const double nu;
 
    public:
-    // Exact solution, mutable to set the time.
+    // This is a function object, which defines the exact solution. Since we
+    // need to set the time, it's defined as mutable.
     mutable ExactSolution exact_solution;
   };
 
@@ -108,17 +134,19 @@ class EthierSteinman : public NavierStokes<3U> {
   void solve_time_step() override;
 
   // Compute the error (if velocity is true, the error on the velocity is
-  // computed, otherwise the error on the pressure is, the pressure does not
-  // support the H1 norm).
+  // computed, otherwise the error on the pressure is). Note that the pressure
+  // does not support the H1 norm.
   double compute_error(const VectorTools::NormType &norm_type, bool velocity);
 
  private:
   // Parameters of the problem.
   static constexpr double a = M_PI / 4.0;
   static constexpr double b = M_PI / 2.0;
+
   // Exact solution.
   ExactSolution exact_solution;
-  // Neumann function on y=-1.
+
+  // Neumann function on y = -1.
   NeumannFunction neumann_function;
 };
 

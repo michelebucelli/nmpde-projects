@@ -13,6 +13,7 @@ class BlockPrecondition {
  public:
   // Virtual destructor.
   virtual ~BlockPrecondition() = default;
+
   // Application of the preconditioner.
   virtual void vmult(TrilinosWrappers::MPI::BlockVector &dst,
                      const TrilinosWrappers::MPI::BlockVector &src) const = 0;
@@ -69,24 +70,34 @@ class PreconditionSIMPLE : public BlockPrecondition {
  private:
   // Damping parameter (must be in (0,1]).
   double alpha;
+
   // Matrix F (top left block of the system matrix).
   const TrilinosWrappers::SparseMatrix *F_matrix;
+
   // Matrix -B (bottom left block of the system matrix).
   const TrilinosWrappers::SparseMatrix *negB_matrix;
+
   // Matrix B^T (top right block of the system matrix).
   const TrilinosWrappers::SparseMatrix *Bt_matrix;
+
   // Matrix -D^-1, negative inverse diagonal of F.
   TrilinosWrappers::MPI::Vector negDinv_vector;
+
   // Matrix S := B*D^-1*B^T.
   TrilinosWrappers::SparseMatrix S_matrix;
+
   // Preconditioner used for the block multiplied by F.
   TrilinosWrappers::PreconditionAMG preconditioner_F;
+
   // Preconditioner used for the block multiplied by S.
   TrilinosWrappers::PreconditionAMG preconditioner_S;
+
   // Temporary vector.
   mutable TrilinosWrappers::MPI::BlockVector tmp;
+
   // Maximum number of iterations for the inner solvers.
   unsigned int maxit;
+
   // Tolerance for the inner solvers.
   double tol;
 };
@@ -109,28 +120,40 @@ class PreconditionaSIMPLE : public BlockPrecondition {
  private:
   // Damping parameter (must be in (0,1]).
   double alpha;
+
   // Matrix F (top left block of the system matrix).
   const TrilinosWrappers::SparseMatrix *F_matrix;
+
   // Matrix -B (bottom left block of the system matrix).
   const TrilinosWrappers::SparseMatrix *negB_matrix;
+
   // Matrix B^T (top right block of the system matrix).
   const TrilinosWrappers::SparseMatrix *Bt_matrix;
+
   // Matrix D, diagonal of F.
   TrilinosWrappers::MPI::Vector D_vector;
+
   // Matrix D^-1.
   TrilinosWrappers::MPI::Vector Dinv_vector;
+
   // Matrix -S := -B*D^-1*B^T.
   TrilinosWrappers::SparseMatrix negS_matrix;
+
   // Preconditioner used for the block multiplied by F.
   TrilinosWrappers::PreconditionAMG preconditioner_F;
+
   // Preconditioner used for the block multiplied by S.
   TrilinosWrappers::PreconditionAMG preconditioner_S;
+
   // Temporary vector.
   mutable TrilinosWrappers::MPI::BlockVector tmp;
+
   // Whether to use inner solvers.
   bool use_inner_solver;
+
   // Maximum number of iterations for the inner solvers.
   unsigned int maxit;
+
   // Tolerance for the inner solvers.
   double tol;
 };
@@ -153,23 +176,32 @@ class PreconditionYoshida : public BlockPrecondition {
  private:
   // Matrix F (top left block of the system matrix).
   const TrilinosWrappers::SparseMatrix *F_matrix;
+
   // Matrix -B (bottom left block of the system matrix).
   const TrilinosWrappers::SparseMatrix *negB_matrix;
+
   // Matrix B^T (top right block of the system matrix).
   const TrilinosWrappers::SparseMatrix *Bt_matrix;
+
   // Matrix D^-1, inverse diagonal of M/deltat.
   TrilinosWrappers::MPI::Vector Dinv_vector;
+
   // Matrix -S := -B*D^-1*B^T.
   TrilinosWrappers::SparseMatrix negS_matrix;
+
   // Preconditioner used for the block multiplied by F.
   TrilinosWrappers::PreconditionAMG preconditioner_F;
+
   // Preconditioner used for the block multiplied by S.
   TrilinosWrappers::PreconditionAMG preconditioner_S;
+
   // Temporary vectors.
   mutable TrilinosWrappers::MPI::BlockVector tmp;
   mutable TrilinosWrappers::MPI::Vector tmp_2;
+
   // Maximum number of iterations for the inner solvers.
   unsigned int maxit;
+
   // Tolerance for the inner solvers.
   double tol;
 };
