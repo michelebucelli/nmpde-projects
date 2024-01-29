@@ -33,8 +33,8 @@ int main(int argc, char* argv[]) {
       "                              4: Step\n" +
       "  -p, --precondition-id <id>  Preconditioner ID (1, 2, 3, 4)\n" +
       "                              1: Block diagonal\n"
-      "                              2: SIMPLE\n"
-      "                              3: aSIMPLE (default)\n"
+      "                              2: SIMPLE (default)\n"
+      "                              3: aSIMPLE\n"
       "                              4: Yoshida\n" +
       "  -T, --end-time <T>          End of the time range\n" +
       "  -t, --deltat <deltat>       Length of a time step\n" +
@@ -126,7 +126,7 @@ int main(int argc, char* argv[]) {
   constexpr unsigned int maxit = 10000;
   constexpr unsigned int maxit_inner = 10000;
   constexpr double tol = 1e-6;
-  constexpr double tol_inner = 1e-2;
+  constexpr double tol_inner = 1e-6;
   constexpr double alpha = 1.0;
   constexpr bool use_inner_solver = true;
 
@@ -178,9 +178,11 @@ int main(int argc, char* argv[]) {
         pcout << "Convergence check is being performed" << std::endl;
         pcout << "===============================================" << std::endl;
 
-        std::vector<std::string> mesh_factors = {"0.8", "0.4", "0.2", "0.1",
-                                                 "0.05"};
-        // We're setting T to deltat so that only one time step is performed.
+        std::vector<std::string> mesh_factors = {"1", "0.5", "0.25", "0.125",
+                                                 "0.0625"};
+        // We're setting T to 4*deltat so that only 4 time steps are performed,
+        // this is experimentally enough to get a precise enough result.
+        const double T = 4.0 * deltat;
         constexpr double nu = 0.01;
 
         std::vector<double> h_values;
@@ -191,8 +193,8 @@ int main(int argc, char* argv[]) {
               mesh_file_name + "-" + mesh_factor + ".msh";
 
           EthierSteinman problem(mesh_full_name, degree_velocity,
-                                 degree_pressure, deltat, deltat,
-                                 solver_options, nu);
+                                 degree_pressure, T, deltat, solver_options,
+                                 nu);
 
           problem.setup();
           problem.solve();

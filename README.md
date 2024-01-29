@@ -1,5 +1,6 @@
 ### Current issues
 - Computation of lift and drag coefficients uses a strong formulation
+- Hard-coded paths in convergence analysis
 
 ### Compiling
 To build the executable, make sure you have loaded the needed modules with
@@ -35,12 +36,11 @@ The executable supports multiple command line arguments, of which some are manda
     - `2`: SIMPLE preconditioner.
     - `3`: aSIMPLE preconditioner.
     - `4`: Yoshida preconditioner. 
-    - `5`: aYoshida preconditioner.
 - **`-T, --end-time <T>`**: specifies the end time of the simulation, or the overall length of the simulation. The default value is 1.
 - **`-t, --delta-t <deltat>`**: specifies the time step of the simulation. The lower the value, the more accurate the simulation will be. The default value is 0.01. Some preconditioners have better convergence behaviour for lower values of this parameter, e.g. 1e-3 or 1e-4.
 - **`-m --mesh-file <file>`**: specifies the mesh file to use. This argument is mandatory. Be careful to use the correct mesh file for the problem you're trying to solve, as the mesh files are specific to each problem. Mesh file generators for the Step problem are not provided, as mesh files from the laboratory sessions can be used.
 - **`-h --help`**: prints the help message and exits.
-- **`-c --convergence-check`**: enables the convergence check. If this argument is provided, the program will compute for each mesh factor h, the H1 norm for the velocity and the L2 norm for the pressure, and will print them on screen. This is useful to check if the solution is converging with the expected rate, to help verify corrected of the solution. If this option is enabled, the Ethier-Steinman problem is solved.
+- **`-c --convergence-check`**: enables the convergence check. If this argument is provided, the program will compute for each mesh factor h, the H1 norm for the velocity and the L2 norm for the pressure, and will print them on screen. This is useful to check if the solution is converging with the expected rate, to help verify corrected of the solution. This option is only compatible with the Ethier-Steinman problem.
 - **`-u, --inlet-velocity`**: specifies the reference velocity of the inflow. This parameter is only relevant for the 2D and 3D flow past a cylinder problems.
 - **`-k, --constant-inlet`**: this is a boolean flag. If provided, the inflow velocity will be constant in time. This parameter is only relevant for the 2D and 3D flow past a cylinder problems.
 
