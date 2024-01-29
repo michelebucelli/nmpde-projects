@@ -27,6 +27,9 @@ class Cylinder : public NavierStokes<dim> {
   // coefficients will be added to a .csv file and plotted in a Python script.
   void update_lift_drag();
 
+  // Like the previous function, but using the more precise method described in https://www.mate.polimi.it/biblioteca/add/qmox/mox84.pdf.
+  void update_lift_drag_weak();
+
   // Apply initial conditions and set the header for the lift and drag file.
   // This function applies the initial conditions for the problem, and also
   // sets the header for the lift and drag file.
@@ -89,6 +92,9 @@ class Cylinder : public NavierStokes<dim> {
   // Zero function. This is a handful function that is used to set some boundary
   // conditions to zero
   Functions::ZeroFunction<dim> zero_function;
+
+  // Function for the inlet velocity.
+  std::shared_ptr<Function<dim>> inlet_velocity;
 };
 
 class Cylinder2D : public Cylinder<2U> {
@@ -219,9 +225,6 @@ class Cylinder3D : public Cylinder<3U> {
  private:
   // Function to get the mean velocity.
   double get_mean_velocity() const override;
-
-  // Function for the inlet velocity.
-  std::shared_ptr<InletVelocity> inlet_velocity;
 };
 
 #endif

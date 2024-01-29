@@ -125,8 +125,8 @@ int main(int argc, char* argv[]) {
   constexpr unsigned int degree_pressure = 1;
   constexpr unsigned int maxit = 10000;
   constexpr unsigned int maxit_inner = 10000;
-  constexpr double tol = 1e-6;
-  constexpr double tol_inner = 1e-6;
+  constexpr double tol = 1e-9;
+  constexpr double tol_inner = 1e-9;
   constexpr double alpha = 1.0;
   constexpr bool use_inner_solver = true;
 

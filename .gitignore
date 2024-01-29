@@ -38,6 +38,7 @@
 
 # Build
 build
+build_debug
 
 # Mesh files
 mesh/*

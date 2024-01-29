@@ -33,10 +33,10 @@ void NavierStokes<dim>::output() const {
 
   data_out.build_patches();
 
-  const std::string output_file_name = "output-Solver";
-  data_out.write_vtu_with_pvtu_record("../results/", "output", time_step,
-                                      MPI_COMM_WORLD, 3);
+  const std::string output_file_name = "output";
+  data_out.write_vtu_with_pvtu_record("../results/", output_file_name,
+                                      time_step, MPI_COMM_WORLD, 3);
 
-  pcout << "  Output written to " << output_file_name << std::endl;
+  pcout << "  Output written to " << output_file_name << "*" << std::endl;
   pcout << "===============================================" << std::endl;
 }

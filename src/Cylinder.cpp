@@ -69,6 +69,8 @@ void Cylinder<dim>::solve_time_step() {
          << get_drag() << "," << get_reynolds_number() << "\n";
     file.close();
   }
+
+  // update_lift_drag_weak();
 }
 
 double Cylinder2D::TimeIndependentInletVelocity::value(

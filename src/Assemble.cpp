@@ -122,8 +122,7 @@ void NavierStokes<dim>::assemble_time_dependent() {
 
   FEValues<dim> fe_values(*fe, *quadrature,
                           update_values | update_quadrature_points |
-                              update_normal_vectors | update_JxW_values |
-                              update_gradients);
+                              update_JxW_values | update_gradients);
   FEFaceValues<dim> fe_face_values(
       *fe, *quadrature_face,
       update_values | update_quadrature_points | update_JxW_values);
@@ -155,8 +154,7 @@ void NavierStokes<dim>::assemble_time_dependent() {
       // Calculate the value of the previous solution at quadrature points.
       // Source:
       // https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
-      fe_values[velocity].get_function_values(solution_owned,
-                                              old_solution_values);
+      fe_values[velocity].get_function_values(solution, old_solution_values);
 
       cell_matrix = 0.0;
 

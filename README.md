@@ -49,7 +49,7 @@ Note that the only strictly necessary argument is `--mesh-file`. If no other arg
 ### Results
 Execution results will be generated in the `results` folder.
 In particular:
-    - `output_*` files will contain the computed solutions to the problem.
+    - `output*` files will contain the computed solutions to the problem.
     - `lift_drag.csv` will contain the computed lift and drag coefficients. This file is only updated if the 2D or 3D flow past a cylinder problems are run.
 
 ### Mesh Generation
