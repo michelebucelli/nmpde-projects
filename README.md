@@ -73,3 +73,10 @@ To generate meshes for the simulations, we use the [Gmsh](http://gmsh.info/) sof
 - **Generate a variety of meshes**: run `bash generate_all.sh <factor>`, where `<factor>` is a multiplicative factor for the size of the finite elements. For each problem type (two dimensional, three dimensional and simple cube), four meshes are generated with different levels of detail. The default value for `<factor>` is 0.1, which is divided by two each time the level of detail is increases. This script is a fast way to get some meaningful meshes for testing.
 
 Please note that running `generate_all.sh` will preventively delete all the meshes with the word `flow` or `cube` in their name. This is to avoid accumulating too many meshes in the `mesh` folder, which would make it difficult to find the ones you need.
+
+### Data Analysis
+The `scripts` folder contains a Python script to plot the lift and drag coefficients over time. To use it, make sure you have the `matplotlib` and `numpy` packages installed, and that you haven't loaded the mk modules. Then, run the following command:
+```bash
+python3 plot_lift_drag.py
+```
+This will plot the lift and drag coefficients, provided that the simulation has been run. After running the simulation, a file named `lift_drag.csv` will be created in the `results` folder. This file contains the lift and drag coefficients over time, and is used by the Python script to plot the coefficients.
