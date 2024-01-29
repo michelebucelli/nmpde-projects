@@ -177,9 +177,6 @@ int main(int argc, char* argv[]) {
       if (convergence_check) {
         pcout << "Convergence check is being performed" << std::endl;
         pcout << "===============================================" << std::endl;
-
-        std::vector<std::string> mesh_factors = {"1", "0.5", "0.25", "0.125",
-                                                 "0.0625"};
         // We're setting T to 4*deltat so that only 4 time steps are performed,
         // this is experimentally enough to get a precise enough result.
         const double T = 4.0 * deltat;
@@ -188,18 +185,38 @@ int main(int argc, char* argv[]) {
         std::vector<double> h_values;
         std::vector<double> errors_L2;
         std::vector<double> errors_H1;
-        for (auto& mesh_factor : mesh_factors) {
-          std::string mesh_full_name =
-              mesh_file_name + "-" + mesh_factor + ".msh";
+        int range = 3;
+        for (int i = 0; i < range; i++) {
+          // Extract the factor from the file name
+          size_t pos = mesh_file_name.find_last_of('-');
+          if (pos == std::string::npos) {
+            std::cerr << "Invalid file format. Exiting." << std::endl;
+            return 1;
+          }
 
-          EthierSteinman problem(mesh_full_name, degree_velocity,
+          std::string factorString = mesh_file_name.substr(pos + 1);
+
+          double mesh_factor = std::stod(factorString);
+
+          // Halve the factor
+          mesh_factor /= (2 << i);
+
+          // Generate the new file name
+          std::ostringstream new_mesh_name;
+          new_mesh_name << mesh_file_name.substr(0, pos + 1) << std::fixed
+                        << std::setprecision(3) << mesh_factor << ".msh";
+
+          // Print the new file name
+          pcout << "New file name: " << new_mesh_name.str() << std::endl;
+
+          EthierSteinman problem(new_mesh_name.str(), degree_velocity,
                                  degree_pressure, T, deltat, solver_options,
                                  nu);
 
           problem.setup();
           problem.solve();
 
-          h_values.emplace_back(std::stod(mesh_factor));
+          h_values.emplace_back(mesh_factor);
 
           errors_L2.emplace_back(
               problem.compute_error(VectorTools::L2_norm, false));
@@ -216,7 +233,7 @@ int main(int argc, char* argv[]) {
           std::ofstream convergence_file("convergence.csv");
           convergence_file << "h,p-L2,u-H1" << std::endl;
 
-          for (size_t i = 0; i < mesh_factors.size(); i++) {
+          for (size_t i = 0; i < range; i++) {
             table.add_value("h", h_values[i]);
             table.add_value("p-L2", errors_L2[i]);
             table.add_value("u-H1", errors_H1[i]);
