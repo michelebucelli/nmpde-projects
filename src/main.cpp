@@ -199,7 +199,7 @@ int main(int argc, char* argv[]) {
           double mesh_factor = std::stod(factorString);
 
           // Halve the factor
-          mesh_factor /= (2 << i);
+          mesh_factor /= pow(2, i);
 
           // Generate the new file name
           std::ostringstream new_mesh_name;
@@ -233,7 +233,7 @@ int main(int argc, char* argv[]) {
           std::ofstream convergence_file("convergence.csv");
           convergence_file << "h,p-L2,u-H1" << std::endl;
 
-          for (size_t i = 0; i < range; i++) {
+          for (int i = 0; i < range; i++) {
             table.add_value("h", h_values[i]);
             table.add_value("p-L2", errors_L2[i]);
             table.add_value("u-H1", errors_H1[i]);
