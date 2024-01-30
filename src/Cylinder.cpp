@@ -42,12 +42,17 @@ void Cylinder<dim>::solve_time_step() {
   // Update lift and drag coefficients.
   update_lift_drag();
 
+  if (NavierStokes<dim>::time_step == 1) {
+    calculate_phi_inf();
+  }
+  update_drag_weak();
+
   // Write the results to a file.
   if (NavierStokes<dim>::mpi_rank == 0) {
     std::ofstream file;
     file.open(lift_drag_output_file, std::ios::app);
     file << NavierStokes<dim>::time_step << "," << get_lift() << ","
-         << get_drag() << "," << get_reynolds_number() << "\n";
+         << get_drag(false) << "," << get_reynolds_number() << "\n";
     file.close();
   }
 }

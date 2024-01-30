@@ -193,7 +193,7 @@ int main(int argc, char* argv[]) {
         std::vector<double> errors_L2;
         std::vector<double> errors_H1;
 
-        for (int i = 0; i < num_files; i++) {
+        for (unsigned int i = 0; i < num_files; i++) {
           // Extract the factor from the file name
           size_t pos = mesh_file_name.find_last_of('-');
           if (pos == std::string::npos) {
@@ -241,7 +241,7 @@ int main(int argc, char* argv[]) {
           std::ofstream convergence_file("convergence.csv");
           convergence_file << "h,p-L2,u-H1" << std::endl;
 
-          for (int i = 0; i < num_files; i++) {
+          for (unsigned int i = 0; i < num_files; i++) {
             table.add_value("h", h_values[i]);
             table.add_value("p-L2", errors_L2[i]);
             table.add_value("u-H1", errors_H1[i]);
