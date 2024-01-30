@@ -10,6 +10,16 @@
 int main(int argc, char* argv[]) {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
+  // Parameters with no command line option assigned.
+  constexpr unsigned int degree_velocity = 2;
+  constexpr unsigned int degree_pressure = 1;
+  constexpr unsigned int maxit = 10000;
+  constexpr unsigned int maxit_inner = 10000;
+  constexpr double tol = 1e-7;
+  constexpr double tol_inner = 1e-4;
+  constexpr double alpha = 1.0;
+  constexpr bool use_inner_solver = true;
+
   // Default arguments.
   int problem_id = 1;
   int precondition_id = 2;
@@ -120,16 +130,6 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  // Parameters with no command line option assigned.
-  constexpr unsigned int degree_velocity = 2;
-  constexpr unsigned int degree_pressure = 1;
-  constexpr unsigned int maxit = 10000;
-  constexpr unsigned int maxit_inner = 10000;
-  constexpr double tol = 1e-9;
-  constexpr double tol_inner = 1e-9;
-  constexpr double alpha = 1.0;
-  constexpr bool use_inner_solver = true;
-
   // Get the correct preconditioner and set solver options.
   preconditioner_id preconditioner = SIMPLE;
   switch (precondition_id) {
@@ -177,16 +177,23 @@ int main(int argc, char* argv[]) {
       if (convergence_check) {
         pcout << "Convergence check is being performed" << std::endl;
         pcout << "===============================================" << std::endl;
+
+        constexpr unsigned int file_precision = 5;
+        constexpr unsigned int num_files = 4;
+
         // We're setting T to 4*deltat so that only 4 time steps are performed,
         // this is experimentally enough to get a precise enough result.
+        // For low values of T the stopping criterion on the residual can often
+        // lead to imprecise pressure solutions, especially for large meshes.
+        // Over multiple time steps, the phenomenon is mitigated.
         const double T = 4.0 * deltat;
         constexpr double nu = 0.01;
 
         std::vector<double> h_values;
         std::vector<double> errors_L2;
         std::vector<double> errors_H1;
-        int range = 3;
-        for (int i = 0; i < range; i++) {
+
+        for (int i = 0; i < num_files; i++) {
           // Extract the factor from the file name
           size_t pos = mesh_file_name.find_last_of('-');
           if (pos == std::string::npos) {
@@ -204,7 +211,8 @@ int main(int argc, char* argv[]) {
           // Generate the new file name
           std::ostringstream new_mesh_name;
           new_mesh_name << mesh_file_name.substr(0, pos + 1) << std::fixed
-                        << std::setprecision(3) << mesh_factor << ".msh";
+                        << std::setprecision(file_precision) << mesh_factor
+                        << ".msh";
 
           // Print the new file name
           pcout << "New file name: " << new_mesh_name.str() << std::endl;
@@ -233,7 +241,7 @@ int main(int argc, char* argv[]) {
           std::ofstream convergence_file("convergence.csv");
           convergence_file << "h,p-L2,u-H1" << std::endl;
 
-          for (int i = 0; i < range; i++) {
+          for (int i = 0; i < num_files; i++) {
             table.add_value("h", h_values[i]);
             table.add_value("p-L2", errors_L2[i]);
             table.add_value("u-H1", errors_H1[i]);

@@ -12,8 +12,8 @@ if [ $# -eq 1 ]
     factor=$1
 fi
 
-# Format the factor with two digits after the decimal point
-formatted_factor=$(printf "%.3f" $factor)
+# Format the factor with 5 digits after the decimal point
+formatted_factor=$(printf "%.5f" $factor)
 
 # 2D mesh generation.
 gmsh -2 -clmax $factor ../gmsh/2d-flow.geo -o ../mesh/2d-flow-$formatted_factor.msh
