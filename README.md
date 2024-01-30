@@ -1,7 +1,7 @@
 ### OInstruction to build and run the code
 
 
-The brain mesh can be downloaded from this link and placed inside the foder "FK_solver/mesh":
+The brain mesh can be downloaded from this link and placed inside the folder "FK_solver/mesh":
 https://drive.google.com/file/d/1PJTaHAU-kgxId5_C6Zd4nj27HRcyHZS2/view
 
 ### Compiling
