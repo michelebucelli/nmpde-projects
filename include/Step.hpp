@@ -3,6 +3,9 @@
 
 #include "NavierStokes.hpp"
 
+// A class that represents the problem in laboratory 9, but using Navier-Stokes
+// equations instead of Stokes equations. This class was used mainly for
+// debugging purposes.
 class Step : public NavierStokes<3U> {
  private:
   // This is the physical dimension of the problem. We need to specify it here

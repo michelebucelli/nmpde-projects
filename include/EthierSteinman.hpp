@@ -7,13 +7,12 @@
 
 // We implement the Ethier-Steinman test case, as a means to test our code for
 // correctness. This is because the exact solution of this specific problem is
-// known. The problem is defined on the domain [-1,1]^3.
+// known. The problem is defined on the domain (-1,1)^3.
 
-// This is a template class for the Ethier-Steinman test case. It is templated
-// on the dimension, which can be either 2 or 3. The reason for this is that we
-// need the dimension to be constexpr. The class is derived from the
-// NavierStokes class, which is a template class itself, for the same reason. A
-// similar approach is used in most of our other classes.
+// This is a class for the Ethier-Steinman test case. The class is derived from
+// the NavierStokes class, which is a template class on the physical dimension,
+// which needs to be a constant expression. The Ethier-Steinman problem is in 3D
+// and therefore inherits from NaverStokes<3U>.
 class EthierSteinman : public NavierStokes<3U> {
  private:
   // This is the physical dimension of the problem. We need to specify it here
@@ -52,7 +51,8 @@ class EthierSteinman : public NavierStokes<3U> {
 
     // This is a function object, which defines the exact velocity. Since the
     // problem's exact solution is known, we can define it as a function object
-    // and use it to compute the error of our numerical solution.
+    // and use it to compute the error of our numerical solution. To be able to
+    // compute the H1 norm of the error, the exact gradient is computed as well.
     class ExactVelocity : public Function<dim> {
      public:
       // Constructor.

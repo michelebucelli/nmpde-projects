@@ -76,18 +76,18 @@ class Cylinder : public NavierStokes<dim> {
   // expressed in meters.
   const double H = 0.41;
 
-  // This is the lift force, expressed in newtons. It is the component of the
+  // This is the lift force, expressed in Newtons. It is the component of the
   // force that is exerted on the cylinder in the direction perpendicular to
-  // the flow.
+  // the flow. IN the 3D case, "perpendicular" refers to the y direction.
   double lift_force;
 
-  // This is the drag force, expressed in newtons. It is the component of the
+  // This is the drag force, expressed in Newtons. It is the component of the
   // force that is exerted on the cylinder in the direction parallel to the
   // flow.
   double drag_force;
 
   // Zero function. This is a handful function that is used to set some boundary
-  // conditions to zero
+  // conditions to zero.
   Functions::ZeroFunction<dim> zero_function;
 
   // Function for the inlet velocity.
@@ -103,15 +103,17 @@ class Cylinder2D : public Cylinder<2U> {
 
  public:
   // This is a function that defines the inlet velocity in the 2D flow past a
-  // cyclinder test case. The returned object has four components (one for each
+  // cyclinder test case. The returned object has three components (one for each
   // dimensional component, and one for the pressure), but we only use the first
-  // three (see the component mask when applying boundary conditions at the end
-  // of assembly). If we only returned three components, however, we would get
+  // two (see the component mask when applying boundary conditions at the end
+  // of assembly). If we only returned two components, however, we would get
   // an error message due to this function being incompatible with the finite
   // element space.
   class InletVelocity : public Function<dim> {
    public:
+    // Virtual destructor.
     virtual ~InletVelocity() = default;
+    // Constructor.
     InletVelocity(double U_m_, double H_)
         : Function<dim>(dim + 1), U_m(U_m_), H(H_) {}
 
@@ -172,7 +174,9 @@ class Cylinder3D : public Cylinder<3U> {
   // Function for inlet velocity in the 3D flow past a cyclinder test case.
   class InletVelocity : public Function<dim> {
    public:
+    // Virtual destructor.
     virtual ~InletVelocity() = default;
+    // Constructor.
     InletVelocity(double U_m_, double H_)
         : Function<dim>(dim + 1), U_m(U_m_), H(H_) {}
 

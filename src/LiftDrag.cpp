@@ -39,8 +39,8 @@ void Cylinder<dim>::update_lift_drag() {
           cell->face(f)->boundary_id() == obstacle_tag) {
         fe_face_values.reinit(cell, f);
 
-        // Calculate the value of the previous solution at quadrature points.
-        // Source:
+        // Calculate the values and gradients of the solution at quadrature
+        // points. Source:
         // https://www.dealii.org/current/doxygen/deal.II/group__vector__valued.html
         fe_face_values[velocity].get_function_values(
             NavierStokes<dim>::solution, velocity_values);
@@ -52,44 +52,36 @@ void Cylinder<dim>::update_lift_drag() {
             NavierStokes<dim>::solution, pressure_values);
 
         for (unsigned int q = 0; q < n_q_face; ++q) {
-          // Get normal and tangent vectors.
-          // In formula in flow past a cylinder paper, the normal vector is
+          // Using as sources
+          // https://www.sciencedirect.com/science/article/pii/S0997754619303838
+          // and https://www.mate.polimi.it/biblioteca/add/qmox/mox84.pdf.
+
+          // Get the normal vector.
+          // In the formula in the paper, the normal vector is
           // defined in the opposite direction to the one in the mesh.
           Tensor<1, dim> normal = -fe_face_values.normal_vector(q);
-          Tensor<1, dim> tangent;
-          tangent[0] = normal[1];
-          tangent[1] = -normal[0];
-          for (unsigned int i = 2; i < dim; ++i) {
-            tangent[i] = 0.0;
-          }
 
-          // Get local pressure value and velocity gradient.
-          // What we usually refer to as "pressure" is multiplied by ro, as it
-          // actually represents the pressure divided by the density.
-          double pressure = NavierStokes<dim>::ro * pressure_values[q];
-          Tensor<2, dim> velocity_gradient = velocity_gradients[q];
-
-          // Calculate the gradient of the tangential velocity.
-          Tensor<1, dim> tangential_gradient;
-          for (unsigned int j = 0; j < dim; ++j) {
-            tangential_gradient[j] = 0.0;
-            for (unsigned int i = 0; i < dim; ++i) {
-              tangential_gradient[j] += tangent[i] * velocity_gradient[i][j];
+          // Calculate the stress tensor.
+          Tensor<2, dim> stress_tensor;
+          stress_tensor = velocity_gradients[q];
+          for (unsigned int i = 0; i < dim; i++) {
+            for (unsigned int j = 0; j < dim; j++) {
+              stress_tensor[i][j] += velocity_gradients[q][j][i];
             }
           }
+          stress_tensor *= NavierStokes<dim>::nu;
+          for (unsigned int i = 0; i < dim; i++) {
+            stress_tensor[i][i] -= pressure_values[q];
+          }
 
-          // Calculate the normal derivative of the tangential velocity.
-          double der_velocity = scalar_product(tangential_gradient, normal);
+          // Calculate the force acting on the cylinder.
+          Tensor<1, dim> force;
+          force = NavierStokes<dim>::ro * stress_tensor * normal *
+                  fe_face_values.JxW(q);
 
-          local_drag_force += (NavierStokes<dim>::ro * NavierStokes<dim>::nu *
-                                   der_velocity * normal[1] -
-                               pressure * normal[0]) *
-                              fe_face_values.JxW(q);
-
-          local_lift_force -= (NavierStokes<dim>::ro * NavierStokes<dim>::nu *
-                                   der_velocity * normal[0] -
-                               pressure * normal[1]) *
-                              fe_face_values.JxW(q);
+          // Update drag and lift forces.
+          local_drag_force += force[0];
+          local_lift_force += force[1];
         }
       }
     }
@@ -102,4 +94,23 @@ void Cylinder<dim>::update_lift_drag() {
   // Print the results.
   NavierStokes<dim>::pcout << "  Lift coefficient: " << get_lift() << std::endl;
   NavierStokes<dim>::pcout << "  Drag coefficient: " << get_drag() << std::endl;
+}
+
+template <unsigned int dim>
+double Cylinder<dim>::get_drag() const {
+  const double mean_velocity = get_mean_velocity();
+  return 2.0 * drag_force /
+         (NavierStokes<dim>::ro * mean_velocity * mean_velocity * D);
+}
+
+template <unsigned int dim>
+double Cylinder<dim>::get_lift() const {
+  const double mean_velocity = get_mean_velocity();
+  return 2.0 * lift_force /
+         (NavierStokes<dim>::ro * mean_velocity * mean_velocity * D);
+}
+
+template <unsigned int dim>
+double Cylinder<dim>::get_reynolds_number() const {
+  return get_mean_velocity() * D / NavierStokes<dim>::nu;
 }

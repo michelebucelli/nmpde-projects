@@ -1,8 +1,11 @@
 #ifndef SOLVER_OPTIONS_HPP
 #define SOLVER_OPTIONS_HPP
 
+// An enumeration of possible preconditioners for the problem.
 enum preconditioner_id { BLOCK_DIAGONAL, SIMPLE, ASIMPLE, YOSHIDA };
 
+// A struct with fields containing all settings for the linear solver and
+// preconditioner.
 struct SolverOptions {
   SolverOptions(const preconditioner_id &id_, const unsigned int &maxiter_,
                 const double &tol_, const bool &use_inner_solver_,
@@ -29,26 +32,26 @@ struct SolverOptions {
   }
   // Type of preconditioner.
   const preconditioner_id id;
-  
+
   // Maximum number of iterations for the main linear solver.
   const unsigned int maxiter;
-  
+
   // Relative tolerance for the main linear solver.
   const double tol;
-  
+
   // Whether to use an inner solver (only relevant for aSIMPLE and aYoshida
   // preconditioners).
   const bool use_inner_solver;
-  
+
   // Maximum number of iterations for the inner linear solvers (if any).
   const unsigned int maxiter_inner;
-  
+
   // Relative tolerance for the inner linear solvers (if any).
   const double tol_inner;
-  
+
   // Damping parameter (only relevant for SIMPLE and aSIMPLE preconditioners).
   const double alpha;
-  
+
   // Whether the pressure mass matrix is used.
   bool use_pressure_mass;
 };

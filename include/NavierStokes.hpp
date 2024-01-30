@@ -151,7 +151,8 @@ class NavierStokes {
   // DoFs relevant to current process in the velocity and pressure blocks.
   std::vector<IndexSet> block_relevant_dofs;
 
-  // Velocity mass matrix divided by deltat (M/deltat).
+  // Velocity mass matrix divided by deltat (M/deltat). The symbols M and M_u
+  // will be used as synonyms.
   TrilinosWrappers::BlockSparseMatrix velocity_mass;
 
   // Pressure mass matrix divided by nu (M_p/nu).

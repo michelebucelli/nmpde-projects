@@ -22,25 +22,6 @@ Cylinder<dim>::Cylinder(const std::string &mesh_file_name_,
 }
 
 template <unsigned int dim>
-double Cylinder<dim>::get_reynolds_number() const {
-  return get_mean_velocity() * D / NavierStokes<dim>::nu;
-}
-
-template <unsigned int dim>
-double Cylinder<dim>::get_drag() const {
-  const double mean_velocity = get_mean_velocity();
-  return 2.0 * drag_force /
-         (NavierStokes<dim>::ro * mean_velocity * mean_velocity * D);
-}
-
-template <unsigned int dim>
-double Cylinder<dim>::get_lift() const {
-  const double mean_velocity = get_mean_velocity();
-  return 2.0 * lift_force /
-         (NavierStokes<dim>::ro * mean_velocity * mean_velocity * D);
-}
-
-template <unsigned int dim>
 void Cylinder<dim>::apply_initial_conditions() {
   NavierStokes<dim>::apply_initial_conditions();
 
