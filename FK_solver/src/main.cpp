@@ -7,9 +7,7 @@ int
 main(int argc, char *argv[])
 {
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
-    const unsigned int               mpi_rank =
-    Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
-
+   
   const unsigned int degree = 2;
 
    double T      = 3.0;
@@ -17,6 +15,11 @@ main(int argc, char *argv[])
    FK_solver problem("../mesh/brain-h3.0.msh", degree, T, deltat);
    problem.setup();
    problem.solve();
+
+
+  // const unsigned int               mpi_rank =
+  // Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
+
 
 
   //     ConvergenceTable table;
