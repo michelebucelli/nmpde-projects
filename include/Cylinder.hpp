@@ -40,10 +40,10 @@ class Cylinder : public NavierStokes<dim> {
   double get_reynolds_number() const;
 
   // Return the lift coefficient in the current configuration.
-  double get_lift() const;
+  virtual double get_lift() const = 0;
 
   // Return the drag coefficient in the current configuration.
-  double get_drag() const;
+  virtual double get_drag() const = 0;
 
  protected:
   // Constructor.
@@ -161,6 +161,12 @@ class Cylinder2D : public Cylinder<2U> {
  private:
   // Function to get the mean velocity.
   double get_mean_velocity() const override;
+
+  // Function to get the lift coefficient.
+  double get_lift() const override;
+
+  // Function to get the drag coefficient.
+  double get_drag() const override;
 };
 
 class Cylinder3D : public Cylinder<3U> {
@@ -223,6 +229,12 @@ class Cylinder3D : public Cylinder<3U> {
  private:
   // Function to get the mean velocity.
   double get_mean_velocity() const override;
+
+  // Function to get the lift coefficient.
+  double get_lift() const override;
+
+  // Function to get the drag coefficient.
+  double get_drag() const override;
 };
 
 #endif
