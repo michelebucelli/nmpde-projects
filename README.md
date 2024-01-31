@@ -82,4 +82,4 @@ python3 plot_lift_drag.py <left-cut> <right-cut>
 
 This will plot the lift and drag coefficients, provided that the simulation has been run. After running the simulation, a file named `lift_drag.csv` will be created in the `results` folder. This file contains the lift and drag coefficients over time, and is used by the Python script to plot the coefficients.
 
-The two arguments are optional, and specift the amount of values to ignore at the beginning and at the end of the simulation. This is useful because those samples are often not representative of the actual lift and drag coefficients. The default values are 0 for both arguments.
+The two arguments are optional, and specify the amount of values to ignore at the beginning and at the end of the simulation. This is useful because those samples are often not representative of the actual lift and drag coefficients. The default values are 0 for both arguments.
