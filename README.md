@@ -40,6 +40,7 @@ The executable supports multiple command line arguments, of which some are manda
 - **`-u, --inlet-velocity`**: specifies the reference velocity of the inflow. This parameter is only relevant for the 2D and 3D flow past a cylinder problems.
 - **`-v, --varying-inlet`**: this is a boolean flag. If provided, the inflow velocity will change in time. This parameter is only relevant for the 2D and 3D flow past a cylinder problems.
 - **`-i, --no-inner-solver`**: use a single sweep of the preconditioner instead of an inner solver for the aSIMPLE preconditioner. This parameter is only relevant if aSIMPLE is selected.
+- **`-l, --ilu-preconditioner`**: use an ILU preconditioner instead of AMG for the inner solvers.
 - **`-a, --alpha`**: value of alpha for the SIMPLE or aSIMPLE preconditioners, it must be greater than 0 and at most 1, which is the default value. This parameter is only relevant if SIMPLE or aSIMPLE are selected.
 - **`-x --tol`**: relative tolerance for the main solver, the default value is `1e-7`.
 - **`-y --tol`**: relative tolerance for the inner solvers, the default value is `1e-5`. Some preconditioners might need this value to be below a certain amount in some problems.

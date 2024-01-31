@@ -40,7 +40,8 @@ void NavierStokes<dim>::solve_time_step() {
           std::make_shared<PreconditionBlockDiagonal>();
       actual_precondition->initialize(
           system_matrix.block(0, 0), pressure_mass.block(1, 1),
-          solver_options.maxiter_inner, solver_options.tol_inner);
+          solver_options.maxiter_inner, solver_options.tol_inner,
+          solver_options.use_ilu);
       precondition = actual_precondition;
       break;
     }
@@ -50,7 +51,8 @@ void NavierStokes<dim>::solve_time_step() {
       actual_precondition->initialize(
           system_matrix.block(0, 0), system_matrix.block(1, 0),
           system_matrix.block(0, 1), solution_owned, solver_options.alpha,
-          solver_options.maxiter_inner, solver_options.tol_inner);
+          solver_options.maxiter_inner, solver_options.tol_inner,
+          solver_options.use_ilu);
       precondition = actual_precondition;
       break;
     }
@@ -61,7 +63,7 @@ void NavierStokes<dim>::solve_time_step() {
           system_matrix.block(0, 0), system_matrix.block(1, 0),
           system_matrix.block(0, 1), solution_owned, solver_options.alpha,
           solver_options.use_inner_solver, solver_options.maxiter_inner,
-          solver_options.tol_inner);
+          solver_options.tol_inner, solver_options.use_ilu);
       precondition = actual_precondition;
       break;
     }
@@ -71,7 +73,8 @@ void NavierStokes<dim>::solve_time_step() {
       actual_precondition->initialize(
           system_matrix.block(0, 0), system_matrix.block(1, 0),
           system_matrix.block(0, 1), velocity_mass.block(0, 0), solution_owned,
-          solver_options.maxiter_inner, solver_options.tol_inner);
+          solver_options.maxiter_inner, solver_options.tol_inner,
+          solver_options.use_ilu);
       precondition = actual_precondition;
       break;
     }

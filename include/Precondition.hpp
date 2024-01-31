@@ -26,7 +26,8 @@ class PreconditionBlockDiagonal : public BlockPrecondition {
   // Initialize the preconditioner.
   void initialize(const TrilinosWrappers::SparseMatrix &velocity_stiffness_,
                   const TrilinosWrappers::SparseMatrix &pressure_mass_,
-                  const unsigned int &maxit_, const double &tol_);
+                  const unsigned int &maxit_, const double &tol_,
+                  const bool &use_ilu);
 
   // Application of the preconditioner.
   void vmult(TrilinosWrappers::MPI::BlockVector &dst,
@@ -37,13 +38,13 @@ class PreconditionBlockDiagonal : public BlockPrecondition {
   const TrilinosWrappers::SparseMatrix *velocity_stiffness;
 
   // Preconditioner used for the velocity block.
-  TrilinosWrappers::PreconditionILU preconditioner_velocity;
+  std::shared_ptr<TrilinosWrappers::PreconditionBase> preconditioner_velocity;
 
   // Pressure mass matrix.
   const TrilinosWrappers::SparseMatrix *pressure_mass;
 
   // Preconditioner used for the pressure block.
-  TrilinosWrappers::PreconditionILU preconditioner_pressure;
+  std::shared_ptr<TrilinosWrappers::PreconditionBase> preconditioner_pressure;
 
   // Maximum number of iterations for the inner solvers.
   unsigned int maxit;
@@ -61,7 +62,7 @@ class PreconditionSIMPLE : public BlockPrecondition {
                   const TrilinosWrappers::SparseMatrix &Bt_matrix_,
                   const TrilinosWrappers::MPI::BlockVector &vec,
                   const double &alpha_, const unsigned int &maxit_,
-                  const double &tol_);
+                  const double &tol_, const bool &use_ilu);
 
   // Application of the preconditioner.
   void vmult(TrilinosWrappers::MPI::BlockVector &dst,
@@ -87,10 +88,10 @@ class PreconditionSIMPLE : public BlockPrecondition {
   TrilinosWrappers::SparseMatrix S_matrix;
 
   // Preconditioner used for the block multiplied by F.
-  TrilinosWrappers::PreconditionAMG preconditioner_F;
+  std::shared_ptr<TrilinosWrappers::PreconditionBase> preconditioner_F;
 
   // Preconditioner used for the block multiplied by S.
-  TrilinosWrappers::PreconditionAMG preconditioner_S;
+  std::shared_ptr<TrilinosWrappers::PreconditionBase> preconditioner_S;
 
   // Temporary vector.
   mutable TrilinosWrappers::MPI::BlockVector tmp;
@@ -111,7 +112,8 @@ class PreconditionaSIMPLE : public BlockPrecondition {
                   const TrilinosWrappers::SparseMatrix &Bt_matrix_,
                   const TrilinosWrappers::MPI::BlockVector &vec,
                   const double &alpha_, const bool &use_inner_solver_,
-                  const unsigned int &maxit_ = 1000, const double &tol_ = 1e-2);
+                  const unsigned int &maxit_, const double &tol_,
+                  const bool &use_ilu);
 
   // Application of the preconditioner.
   void vmult(TrilinosWrappers::MPI::BlockVector &dst,
@@ -140,10 +142,10 @@ class PreconditionaSIMPLE : public BlockPrecondition {
   TrilinosWrappers::SparseMatrix negS_matrix;
 
   // Preconditioner used for the block multiplied by F.
-  TrilinosWrappers::PreconditionAMG preconditioner_F;
+  std::shared_ptr<TrilinosWrappers::PreconditionBase> preconditioner_F;
 
   // Preconditioner used for the block multiplied by S.
-  TrilinosWrappers::PreconditionAMG preconditioner_S;
+  std::shared_ptr<TrilinosWrappers::PreconditionBase> preconditioner_S;
 
   // Temporary vector.
   mutable TrilinosWrappers::MPI::BlockVector tmp;
@@ -167,7 +169,8 @@ class PreconditionYoshida : public BlockPrecondition {
                   const TrilinosWrappers::SparseMatrix &Bt_matrix_,
                   const TrilinosWrappers::SparseMatrix &M_dt_matrix_,
                   const TrilinosWrappers::MPI::BlockVector &vec,
-                  const unsigned int &maxit_, const double &tol_);
+                  const unsigned int &maxit_, const double &tol_,
+                  const bool &use_ilu);
 
   // Application of the preconditioner.
   void vmult(TrilinosWrappers::MPI::BlockVector &dst,
@@ -190,10 +193,10 @@ class PreconditionYoshida : public BlockPrecondition {
   TrilinosWrappers::SparseMatrix negS_matrix;
 
   // Preconditioner used for the block multiplied by F.
-  TrilinosWrappers::PreconditionAMG preconditioner_F;
+  std::shared_ptr<TrilinosWrappers::PreconditionBase> preconditioner_F;
 
   // Preconditioner used for the block multiplied by S.
-  TrilinosWrappers::PreconditionAMG preconditioner_S;
+  std::shared_ptr<TrilinosWrappers::PreconditionBase> preconditioner_S;
 
   // Temporary vectors.
   mutable TrilinosWrappers::MPI::BlockVector tmp;

@@ -29,6 +29,7 @@ int main(int argc, char* argv[]) {
   double tol = 1e-7;
   double tol_inner = 1e-5;
   double alpha = 1.0;
+  bool use_ilu = false;
 
   ConditionalOStream pcout(
       std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
@@ -57,13 +58,15 @@ int main(int argc, char* argv[]) {
       "past a cylinder\n" +
       "  -i  --no-inner-solver       Use a single preconditioner sweep instead "
       "of an inner solver for aSIMPLE\n" +
+      "  -l  --ilu-preconditioner    Use ILU as inner preconditioner instead "
+      "of AMG\n" +
       "  -a  --alpha <alpha>         Value of alpha in (0, 1] for the SIMPLE "
       "or aSIMPLE preconditioners\n" +
       "  -x  --tol <tol>             Relative tolerance for the main solver\n" +
       "  -y  --tol-inner <tol-inner> Relative tolerance for the inner "
       "solvers\n.";
 
-  const char* const short_opts = "P:p:T:t:m:hcu:via:x:y:";
+  const char* const short_opts = "P:p:T:t:m:hcu:vila:x:y:";
   const option long_opts[] = {
       {"problem-id", required_argument, nullptr, 'P'},
       {"precondition-id", required_argument, nullptr, 'p'},
@@ -73,6 +76,7 @@ int main(int argc, char* argv[]) {
       {"help", no_argument, nullptr, 'h'},
       {"convergence-check", no_argument, nullptr, 'c'},
       {"inlet-velocity", required_argument, nullptr, 'u'},
+      {"ilu-preconditioner", no_argument, nullptr, 'l'},
       {"varying-inlet", no_argument, nullptr, 'v'},
       {"no-inner-solver", no_argument, nullptr, 'i'},
       {"alpha", required_argument, nullptr, 'a'},
@@ -129,6 +133,10 @@ int main(int argc, char* argv[]) {
         use_inner_solver = false;
         break;
 
+      case 'l':
+        use_ilu = true;
+        break;
+
       case 'a':
         alpha = std::stod(optarg);
         break;
@@ -178,7 +186,7 @@ int main(int argc, char* argv[]) {
   }
   const SolverOptions solver_options(preconditioner, maxit, tol,
                                      use_inner_solver, maxit_inner, tol_inner,
-                                     alpha);
+                                     use_ilu, alpha);
 
   // Run the chosen problem.
   switch (problem_id) {
