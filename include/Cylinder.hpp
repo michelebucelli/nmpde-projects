@@ -27,6 +27,10 @@ class Cylinder : public NavierStokes<dim> {
   // coefficients will be added to a .csv file and plotted in a Python script.
   void update_lift_drag();
 
+  // Like the previous function, but using the more precise method described in
+  // https://www.mate.polimi.it/biblioteca/add/qmox/mox84.pdf.
+  void update_drag_weak();
+
   // Apply initial conditions and set the header for the lift and drag file.
   // This function applies the initial conditions for the problem, and also
   // sets the header for the lift and drag file.
@@ -43,7 +47,7 @@ class Cylinder : public NavierStokes<dim> {
   virtual double get_lift() const = 0;
 
   // Return the drag coefficient in the current configuration.
-  virtual double get_drag() const = 0;
+  double get_drag(bool weak) const;
 
  protected:
   // Constructor.
@@ -55,6 +59,9 @@ class Cylinder : public NavierStokes<dim> {
 
   // Function to get the mean velocity.
   virtual double get_mean_velocity() const = 0;
+
+  // Function to calculate phi_inf.
+  void calculate_phi_inf();
 
   // Path to the drag and lift coefficient logging file.
   const std::string lift_drag_output_file = "../results/lift_drag.csv";
@@ -86,12 +93,21 @@ class Cylinder : public NavierStokes<dim> {
   // flow.
   double drag_force;
 
+  // Same as the previous force, but calculated with the weak formulation.
+  double drag_force_weak;
+
   // Zero function. This is a handful function that is used to set some boundary
   // conditions to zero.
   Functions::ZeroFunction<dim> zero_function;
 
   // Function for the inlet velocity.
   std::shared_ptr<Function<dim>> inlet_velocity;
+
+  // Phi_inf (without ghost elements), used for weak calculation of the drag coefficient.
+  TrilinosWrappers::MPI::BlockVector phi_inf_owned;
+
+  // Phi_inf (including ghost elements), used for weak calculation of the drag coefficient.
+  TrilinosWrappers::MPI::BlockVector phi_inf;
 };
 
 class Cylinder2D : public Cylinder<2U> {
