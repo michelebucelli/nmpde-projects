@@ -108,12 +108,12 @@ double Cylinder2D::get_drag() const {
 
 double Cylinder2D::get_lift() const {
   const double mean_velocity = get_mean_velocity();
-  return 2.0 * lift_force / (ro * mean_velocity * mean_velocity * D * H);
+  return 2.0 * lift_force / (ro * mean_velocity * mean_velocity * D);
 }
 
 double Cylinder3D::get_drag() const {
   const double mean_velocity = get_mean_velocity();
-  return 2.0 * drag_force / (ro * mean_velocity * mean_velocity * D);
+  return 2.0 * drag_force / (ro * mean_velocity * mean_velocity * D * H);
 }
 
 double Cylinder3D::get_lift() const {
