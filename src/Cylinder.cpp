@@ -125,6 +125,8 @@ Cylinder2D::Cylinder2D(const std::string &mesh_file_name_,
                        const SolverOptions &solver_options_)
     : Cylinder<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
                     deltat_, U_m_, solver_options_) {
+  pcout << "Solving 2D flow past a cylinder problem" << std::endl;
+
   if (time_dep_inlet) {
     inlet_velocity = std::make_shared<TimeDependentInletVelocity>(U_m, H);
   } else {
@@ -150,6 +152,8 @@ Cylinder3D::Cylinder3D(const std::string &mesh_file_name_,
                        const SolverOptions &solver_options_)
     : Cylinder<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
                     deltat_, U_m_, solver_options_) {
+  pcout << "Solving 3D flow past a cylinder problem" << std::endl;
+
   if (time_dep_inlet) {
     inlet_velocity = std::make_shared<TimeDependentInletVelocity>(U_m, H);
   } else {

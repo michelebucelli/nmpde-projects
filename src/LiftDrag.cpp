@@ -44,18 +44,6 @@ double Cylinder<dim>::get_drag(bool weak) const {
 }
 
 template <unsigned int dim>
-double Cylinder<dim>::get_lift() const {
-  const double mean_velocity = get_mean_velocity();
-  return 2.0 * lift_force /
-         (NavierStokes<dim>::ro * mean_velocity * mean_velocity * D);
-}
-
-template <unsigned int dim>
-double Cylinder<dim>::get_reynolds_number() const {
-  return get_mean_velocity() * D / NavierStokes<dim>::nu;
-}
-
-template <unsigned int dim>
 void Cylinder<dim>::update_lift_drag() {
   NavierStokes<dim>::pcout << "  Calculating lift and drag forces" << std::endl;
 
@@ -349,4 +337,27 @@ void Cylinder<dim>::update_drag_weak() {
   // Print the result.
   NavierStokes<dim>::pcout << "  Weak drag coefficient: " << get_drag(true)
                            << std::endl;
+
+double Cylinder<dim>::get_reynolds_number() const {
+  return get_mean_velocity() * D / NavierStokes<dim>::nu;
+}
+
+double Cylinder2D::get_drag() const {
+  const double mean_velocity = get_mean_velocity();
+  return 2.0 * drag_force / (ro * mean_velocity * mean_velocity * D);
+}
+
+double Cylinder2D::get_lift() const {
+  const double mean_velocity = get_mean_velocity();
+  return 2.0 * lift_force / (ro * mean_velocity * mean_velocity * D);
+}
+
+double Cylinder3D::get_drag() const {
+  const double mean_velocity = get_mean_velocity();
+  return 2.0 * drag_force / (ro * mean_velocity * mean_velocity * D * H);
+}
+
+double Cylinder3D::get_lift() const {
+  const double mean_velocity = get_mean_velocity();
+  return 2.0 * lift_force / (ro * mean_velocity * mean_velocity * D * H);
 }

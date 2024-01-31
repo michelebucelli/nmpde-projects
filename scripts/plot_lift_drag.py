@@ -1,6 +1,19 @@
 
+import sys
+
 import matplotlib.pyplot as plt
 import numpy as np
+
+time_step_start = 0
+time_step_end = 0
+
+# Read the optional two integer arguments
+# These are the number of time steps to cut off the beginning and end of the
+# simulation
+if len(sys.argv) == 3:
+    # Set the time steps
+    time_step_start = int(sys.argv[1])
+    time_step_end = int(sys.argv[2])
 
 # Open the file at ../results/lift_drag.csv
 with open('../results/lift_drag.csv', 'r') as file:
@@ -20,7 +33,7 @@ drag_coefficient = []
 reynolds_number = []
 
 # Iterate over the lines
-for line in lines[:-1]:
+for line in lines[time_step_start:-1-time_step_end]:
     # Split the line into values
     values = line.split(',')
 

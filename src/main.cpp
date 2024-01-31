@@ -15,10 +15,6 @@ int main(int argc, char* argv[]) {
   constexpr unsigned int degree_pressure = 1;
   constexpr unsigned int maxit = 10000;
   constexpr unsigned int maxit_inner = 10000;
-  constexpr double tol = 1e-7;
-  constexpr double tol_inner = 1e-4;
-  constexpr double alpha = 1.0;
-  constexpr bool use_inner_solver = true;
 
   // Default arguments.
   int problem_id = 1;
@@ -29,6 +25,11 @@ int main(int argc, char* argv[]) {
   bool varying_inlet = false;
   std::string mesh_file_name;
   bool convergence_check = false;
+  bool use_inner_solver = true;
+  double tol = 1e-7;
+  double tol_inner = 1e-5;
+  double alpha = 1.0;
+  bool use_ilu = false;
 
   ConditionalOStream pcout(
       std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
@@ -54,9 +55,18 @@ int main(int argc, char* argv[]) {
       "  -u, --inlet-velocity <U>    Reference inlet velocity for flow past a "
       "cylinder [m/s]\n" +
       "  -v, --varying-inlet         Use a non-constant inlet velocity in flow "
-      "past a cylinder\n";
+      "past a cylinder\n" +
+      "  -i  --no-inner-solver       Use a single preconditioner sweep instead "
+      "of an inner solver for aSIMPLE\n" +
+      "  -l  --ilu-preconditioner    Use ILU as inner preconditioner instead "
+      "of AMG\n" +
+      "  -a  --alpha <alpha>         Value of alpha in (0, 1] for the SIMPLE "
+      "or aSIMPLE preconditioners\n" +
+      "  -x  --tol <tol>             Relative tolerance for the main solver\n" +
+      "  -y  --tol-inner <tol-inner> Relative tolerance for the inner "
+      "solvers\n.";
 
-  const char* const short_opts = "P:p:T:t:m:hcu:v";
+  const char* const short_opts = "P:p:T:t:m:hcu:vila:x:y:";
   const option long_opts[] = {
       {"problem-id", required_argument, nullptr, 'P'},
       {"precondition-id", required_argument, nullptr, 'p'},
@@ -66,7 +76,12 @@ int main(int argc, char* argv[]) {
       {"help", no_argument, nullptr, 'h'},
       {"convergence-check", no_argument, nullptr, 'c'},
       {"inlet-velocity", required_argument, nullptr, 'u'},
+      {"ilu-preconditioner", no_argument, nullptr, 'l'},
       {"varying-inlet", no_argument, nullptr, 'v'},
+      {"no-inner-solver", no_argument, nullptr, 'i'},
+      {"alpha", required_argument, nullptr, 'a'},
+      {"tol", required_argument, nullptr, 'x'},
+      {"tol-inner", required_argument, nullptr, 'y'},
       {nullptr, no_argument, nullptr, 0}};
 
   // Parse the command line arguments.
@@ -114,6 +129,26 @@ int main(int argc, char* argv[]) {
         varying_inlet = true;
         break;
 
+      case 'i':
+        use_inner_solver = false;
+        break;
+
+      case 'l':
+        use_ilu = true;
+        break;
+
+      case 'a':
+        alpha = std::stod(optarg);
+        break;
+
+      case 'x':
+        tol = std::stod(optarg);
+        break;
+
+      case 'y':
+        tol_inner = std::stod(optarg);
+        break;
+
       case '?':
         pcout << err_msg << std::endl;
         return 1;
@@ -125,7 +160,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Check if all required parameters are provided.
-  if (mesh_file_name.empty()) {
+  if (mesh_file_name.empty() || alpha <= 0 || alpha > 1) {
     pcout << err_msg << std::endl;
     return 1;
   }
@@ -151,7 +186,7 @@ int main(int argc, char* argv[]) {
   }
   const SolverOptions solver_options(preconditioner, maxit, tol,
                                      use_inner_solver, maxit_inner, tol_inner,
-                                     alpha);
+                                     use_ilu, alpha);
 
   // Run the chosen problem.
   switch (problem_id) {

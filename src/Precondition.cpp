@@ -3,10 +3,29 @@
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_gmres.h>
 
+// Utility function to initialize "preconditioner" to an AMG or ILU
+// preconditioner, based on "use_ilu". This is done because PreconditionBase
+// defines a vmult method, but not an initialize method.
+void initialize_inner_preconditioner(
+    std::shared_ptr<TrilinosWrappers::PreconditionBase> &preconditioner,
+    const TrilinosWrappers::SparseMatrix &matrix, bool use_ilu) {
+  if (use_ilu) {
+    std::shared_ptr<TrilinosWrappers::PreconditionILU> actual_preconditioner =
+        std::make_shared<TrilinosWrappers::PreconditionILU>();
+    actual_preconditioner->initialize(matrix);
+    preconditioner = actual_preconditioner;
+  } else {
+    std::shared_ptr<TrilinosWrappers::PreconditionAMG> actual_preconditioner =
+        std::make_shared<TrilinosWrappers::PreconditionAMG>();
+    actual_preconditioner->initialize(matrix);
+    preconditioner = actual_preconditioner;
+  }
+}
+
 void PreconditionBlockDiagonal::initialize(
     const TrilinosWrappers::SparseMatrix &velocity_stiffness_,
     const TrilinosWrappers::SparseMatrix &pressure_mass_,
-    const unsigned int &maxit_, const double &tol_) {
+    const unsigned int &maxit_, const double &tol_, const bool &use_ilu) {
   maxit = maxit_;
   tol = tol_;
   // Save a reference to the input matrices.
@@ -14,8 +33,10 @@ void PreconditionBlockDiagonal::initialize(
   pressure_mass = &pressure_mass_;
 
   // Initialize the preconditioners.
-  preconditioner_velocity.initialize(velocity_stiffness_);
-  preconditioner_pressure.initialize(pressure_mass_);
+  initialize_inner_preconditioner(preconditioner_velocity, *velocity_stiffness,
+                                  use_ilu);
+  initialize_inner_preconditioner(preconditioner_pressure, *pressure_mass,
+                                  use_ilu);
 }
 
 void PreconditionBlockDiagonal::vmult(
@@ -26,14 +47,14 @@ void PreconditionBlockDiagonal::vmult(
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_velocity(
       solver_control_velocity);
   solver_gmres_velocity.solve(*velocity_stiffness, dst.block(0), src.block(0),
-                              preconditioner_velocity);
+                              *preconditioner_velocity);
 
   // Solve the bottom-right block.
   SolverControl solver_control_pressure(maxit, tol * src.block(1).l2_norm());
   SolverCG<TrilinosWrappers::MPI::Vector> solver_cg_pressure(
       solver_control_pressure);
   solver_cg_pressure.solve(*pressure_mass, dst.block(1), src.block(1),
-                           preconditioner_pressure);
+                           *preconditioner_pressure);
 }
 
 void PreconditionSIMPLE::initialize(
@@ -41,7 +62,7 @@ void PreconditionSIMPLE::initialize(
     const TrilinosWrappers::SparseMatrix &negB_matrix_,
     const TrilinosWrappers::SparseMatrix &Bt_matrix_,
     const TrilinosWrappers::MPI::BlockVector &vec, const double &alpha_,
-    const unsigned int &maxit_, const double &tol_) {
+    const unsigned int &maxit_, const double &tol_, const bool &use_ilu) {
   alpha = alpha_;
   maxit = maxit_;
   tol = tol_;
@@ -60,8 +81,8 @@ void PreconditionSIMPLE::initialize(
   negB_matrix->mmult(S_matrix, *Bt_matrix, negDinv_vector);
 
   // Initialize the preconditioners.
-  preconditioner_F.initialize(*F_matrix);
-  preconditioner_S.initialize(S_matrix);
+  initialize_inner_preconditioner(preconditioner_F, *F_matrix, use_ilu);
+  initialize_inner_preconditioner(preconditioner_S, S_matrix, use_ilu);
 }
 
 void PreconditionSIMPLE::vmult(
@@ -72,13 +93,13 @@ void PreconditionSIMPLE::vmult(
   // Step 1.1: solve F*sol1_u = src_u.
   SolverControl solver_control_F(maxit, tol * src.block(0).l2_norm());
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver_F(solver_control_F);
-  solver_F.solve(*F_matrix, tmp.block(0), src.block(0), preconditioner_F);
+  solver_F.solve(*F_matrix, tmp.block(0), src.block(0), *preconditioner_F);
   // Step 1.2: solve S*sol1_p = B*sol1_u - src_p.
   Bt_matrix->Tvmult(tmp.block(1), tmp.block(0));
   tmp.block(1) -= src.block(1);
   SolverControl solver_control_S(maxit, tol * tmp.block(1).l2_norm());
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver_S(solver_control_S);
-  solver_S.solve(S_matrix, dst.block(1), tmp.block(1), preconditioner_S);
+  solver_S.solve(S_matrix, dst.block(1), tmp.block(1), *preconditioner_S);
 
   // Step 2: solve [I D^-1*B^T; 0 alpha*I]dst = sol1.
   // Step 2.1: solve alpha*I*dst_p = sol1_p.
@@ -96,7 +117,7 @@ void PreconditionaSIMPLE::initialize(
     const TrilinosWrappers::SparseMatrix &Bt_matrix_,
     const TrilinosWrappers::MPI::BlockVector &vec, const double &alpha_,
     const bool &use_inner_solver_, const unsigned int &maxit_,
-    const double &tol_) {
+    const double &tol_, const bool &use_ilu) {
   alpha = alpha_;
   use_inner_solver = use_inner_solver_;
   maxit = maxit_;
@@ -119,8 +140,8 @@ void PreconditionaSIMPLE::initialize(
   negB_matrix->mmult(negS_matrix, *Bt_matrix, Dinv_vector);
 
   // Initialize the preconditioners.
-  preconditioner_F.initialize(*F_matrix);
-  preconditioner_S.initialize(negS_matrix);
+  initialize_inner_preconditioner(preconditioner_F, *F_matrix, use_ilu);
+  initialize_inner_preconditioner(preconditioner_S, negS_matrix, use_ilu);
 }
 
 void PreconditionaSIMPLE::vmult(
@@ -131,9 +152,9 @@ void PreconditionaSIMPLE::vmult(
   if (use_inner_solver) {
     SolverControl solver_control_F(maxit, tol * src.block(0).l2_norm());
     SolverGMRES<TrilinosWrappers::MPI::Vector> solver_F(solver_control_F);
-    solver_F.solve(*F_matrix, dst.block(0), src.block(0), preconditioner_F);
+    solver_F.solve(*F_matrix, dst.block(0), src.block(0), *preconditioner_F);
   } else {
-    preconditioner_F.vmult(dst.block(0), src.block(0));
+    preconditioner_F->vmult(dst.block(0), src.block(0));
   }
   tmp.block(1) = src.block(1);
   // Step 2: multiply the result by [I 0; -B I].
@@ -142,9 +163,9 @@ void PreconditionaSIMPLE::vmult(
   if (use_inner_solver) {
     SolverControl solver_control_S(maxit, tol * tmp.block(1).l2_norm());
     SolverGMRES<TrilinosWrappers::MPI::Vector> solver_S(solver_control_S);
-    solver_S.solve(negS_matrix, dst.block(1), tmp.block(1), preconditioner_S);
+    solver_S.solve(negS_matrix, dst.block(1), tmp.block(1), *preconditioner_S);
   } else {
-    preconditioner_S.vmult(dst.block(1), tmp.block(1));
+    preconditioner_S->vmult(dst.block(1), tmp.block(1));
   }
   // Step 4: multiply the result by [D 0; 0 I/alpha].
   dst.block(0).scale(D_vector);
@@ -162,7 +183,7 @@ void PreconditionYoshida::initialize(
     const TrilinosWrappers::SparseMatrix &Bt_matrix_,
     const TrilinosWrappers::SparseMatrix &M_dt_matrix_,
     const TrilinosWrappers::MPI::BlockVector &vec, const unsigned int &maxit_,
-    const double &tol_) {
+    const double &tol_, const bool &use_ilu) {
   maxit = maxit_;
   tol = tol_;
   // Save a reference to the input matrices.
@@ -180,8 +201,8 @@ void PreconditionYoshida::initialize(
   negB_matrix->mmult(negS_matrix, *Bt_matrix, Dinv_vector);
 
   // Initialize the preconditioners.
-  preconditioner_F.initialize(*F_matrix);
-  preconditioner_S.initialize(negS_matrix);
+  initialize_inner_preconditioner(preconditioner_F, *F_matrix, use_ilu);
+  initialize_inner_preconditioner(preconditioner_S, negS_matrix, use_ilu);
 }
 
 void PreconditionYoshida::vmult(
@@ -193,13 +214,13 @@ void PreconditionYoshida::vmult(
   tmp.block(0) = dst.block(0);
   SolverControl solver_control_F(maxit, tol * src.block(0).l2_norm());
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver_F(solver_control_F);
-  solver_F.solve(*F_matrix, tmp.block(0), src.block(0), preconditioner_F);
+  solver_F.solve(*F_matrix, tmp.block(0), src.block(0), *preconditioner_F);
   // Step 1.2: solve -S*sol1_p = -B*sol1_u + src_p.
   tmp.block(1) = src.block(1);
   negB_matrix->vmult_add(tmp.block(1), tmp.block(0));
   SolverControl solver_control_S(maxit, tol * tmp.block(1).l2_norm());
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver_S(solver_control_S);
-  solver_S.solve(negS_matrix, dst.block(1), tmp.block(1), preconditioner_S);
+  solver_S.solve(negS_matrix, dst.block(1), tmp.block(1), *preconditioner_S);
 
   // Step 2: solve [I F^-1*B^T; 0 I]dst = sol1.
   tmp_2 = src.block(0);
@@ -207,6 +228,6 @@ void PreconditionYoshida::vmult(
   Bt_matrix->vmult(tmp.block(0), dst.block(1));
   SolverControl solver_control_F2(maxit, tol * tmp.block(0).l2_norm());
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_F2(solver_control_F);
-  solver_gmres_F2.solve(*F_matrix, tmp_2, tmp.block(0), preconditioner_F);
+  solver_gmres_F2.solve(*F_matrix, tmp_2, tmp.block(0), *preconditioner_F);
   dst.block(0) -= tmp_2;
 }
