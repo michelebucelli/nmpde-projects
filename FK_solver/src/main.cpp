@@ -10,8 +10,8 @@ main(int argc, char *argv[])
    
   const unsigned int degree = 2;
 
-   double T      = 3.0;
-   double deltat = 0.1;
+   double T      = 2.0;
+   double deltat = 0.01;
    FK_solver problem("../mesh/brain-h3.0.msh", degree, T, deltat);
    problem.setup();
    problem.solve();
