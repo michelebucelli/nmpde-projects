@@ -53,10 +53,12 @@ class EthierSteinman : public NavierStokes<3U> {
     // problem's exact solution is known, we can define it as a function object
     // and use it to compute the error of our numerical solution. To be able to
     // compute the H1 norm of the error, the exact gradient is computed as well.
+    // This function returns 4 values, despite the fact that the last one is
+    // empty, for compatibility reasons.
     class ExactVelocity : public Function<dim> {
      public:
       // Constructor.
-      ExactVelocity(double nu_) : Function<dim>(dim), nu(nu_) {}
+      ExactVelocity(double nu_) : Function<dim>(dim + 1), nu(nu_) {}
 
       // Evaluation.
       virtual double value(const Point<dim> &p,
@@ -73,9 +75,8 @@ class EthierSteinman : public NavierStokes<3U> {
       const double nu;
     };
 
-    // Same as above, for the pressure. Note that the pressure is a scalar
-    // function, but this function returns a vector with 4 components, of
-    // which the first three are empty.
+    // Same as above, for the pressure. This is a scalar function since there is
+    // no need to return 4 values due to the way it is used.
     class ExactPressure : public Function<dim> {
      public:
       // Constructor.

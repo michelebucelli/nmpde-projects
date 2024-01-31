@@ -9,6 +9,7 @@ Step::Step(const std::string &mesh_file_name_,
                    deltat_, solver_options_),
       inlet_velocity(alpha_),
       zero_function(dim + 1) {
+  pcout << "Solving Step problem" << std::endl;
   ro = 1.0;
   nu = 1.0;
   initial_conditions = std::make_shared<Functions::ZeroFunction<dim>>(dim + 1);

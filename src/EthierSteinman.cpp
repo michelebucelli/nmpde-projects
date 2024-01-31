@@ -13,6 +13,7 @@ EthierSteinman::EthierSteinman(const std::string &mesh_file_name_,
                    deltat_, solver_options_),
       exact_solution(nu_),
       neumann_function(nu_) {
+  pcout << "Solving Ethier-Steinman problem" << std::endl;
   nu = nu_;
   ro = 1.0;
   initial_conditions = std::make_shared<ExactSolution>(nu);
@@ -45,7 +46,7 @@ double EthierSteinman::ExactSolution::ExactVelocity::value(
 
 void EthierSteinman::ExactSolution::ExactVelocity::vector_value(
     const Point<dim> &p, Vector<double> &values) const {
-  for (unsigned int i = 0; i < dim; i++) {
+  for (unsigned int i = 0; i < dim + 1; i++) {
     values[i] = value(p, i);
   }
 }
@@ -91,7 +92,7 @@ EthierSteinman::ExactSolution::ExactVelocity::gradient(
 
 void EthierSteinman::ExactSolution::ExactVelocity::vector_gradient(
     const Point<dim> &p, std::vector<Tensor<1, dim>> &values) const {
-  for (unsigned int i = 0; i < dim; i++) {
+  for (unsigned int i = 0; i < dim + 1; i++) {
     values[i] = gradient(p, i);
   }
 }
