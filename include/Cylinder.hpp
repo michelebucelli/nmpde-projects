@@ -29,7 +29,7 @@ class Cylinder : public NavierStokes<dim> {
 
   // Like the previous function, but using the more precise method described in
   // https://www.mate.polimi.it/biblioteca/add/qmox/mox84.pdf.
-  void update_drag_weak();
+  void update_lift_drag_weak();
 
   // Apply initial conditions and set the header for the lift and drag file.
   // This function applies the initial conditions for the problem, and also
@@ -44,7 +44,7 @@ class Cylinder : public NavierStokes<dim> {
   double get_reynolds_number() const;
 
   // Return the lift coefficient in the current configuration.
-  virtual double get_lift() const = 0;
+  virtual double get_lift(bool weak) const = 0;
 
   // Return the drag coefficient in the current configuration.
   virtual double get_drag(bool weak) const = 0;
@@ -60,7 +60,7 @@ class Cylinder : public NavierStokes<dim> {
   // Function to get the mean velocity.
   virtual double get_mean_velocity() const = 0;
 
-  // Function to calculate phi_inf.
+  // Function to calculate the two values of phi_inf.
   void calculate_phi_inf();
 
   // Path to the drag and lift coefficient logging file.
@@ -85,13 +85,16 @@ class Cylinder : public NavierStokes<dim> {
 
   // This is the lift force, expressed in Newtons. It is the component of the
   // force that is exerted on the cylinder in the direction perpendicular to
-  // the flow. IN the 3D case, "perpendicular" refers to the y direction.
+  // the flow. In the 3D case, "perpendicular" refers to the y direction.
   double lift_force;
 
   // This is the drag force, expressed in Newtons. It is the component of the
   // force that is exerted on the cylinder in the direction parallel to the
   // flow.
   double drag_force;
+
+  // Same as the previous force, but calculated with the weak formulation.
+  double lift_force_weak;
 
   // Same as the previous force, but calculated with the weak formulation.
   double drag_force_weak;
@@ -103,13 +106,13 @@ class Cylinder : public NavierStokes<dim> {
   // Function for the inlet velocity.
   std::shared_ptr<Function<dim>> inlet_velocity;
 
-  // Phi_inf (without ghost elements), used for weak calculation of the drag
+  // Phi_inf (including ghost elements), used for weak calculation of the lift
   // coefficient.
-  TrilinosWrappers::MPI::BlockVector phi_inf_owned;
+  TrilinosWrappers::MPI::BlockVector phi_inf_lift;
 
   // Phi_inf (including ghost elements), used for weak calculation of the drag
   // coefficient.
-  TrilinosWrappers::MPI::BlockVector phi_inf;
+  TrilinosWrappers::MPI::BlockVector phi_inf_drag;
 };
 
 class Cylinder2D : public Cylinder<2U> {
@@ -181,7 +184,7 @@ class Cylinder2D : public Cylinder<2U> {
   double get_mean_velocity() const override;
 
   // Function to get the lift coefficient.
-  double get_lift() const override;
+  double get_lift(bool weak) const override;
 
   // Function to get the drag coefficient.
   double get_drag(bool weak) const override;
@@ -249,7 +252,7 @@ class Cylinder3D : public Cylinder<3U> {
   double get_mean_velocity() const override;
 
   // Function to get the lift coefficient.
-  double get_lift() const override;
+  double get_lift(bool weak) const override;
 
   // Function to get the drag coefficient.
   double get_drag(bool weak) const override;
