@@ -40,7 +40,6 @@ public:
   // Physical dimension (1D, 2D, 3D)
   static constexpr unsigned int dim = 3;
 
-
   // Function for the alpha coefficient.
   class FunctionAlpha : public Function<dim>
   {
@@ -49,7 +48,7 @@ public:
     value(const Point<dim> & /*p*/,
           const unsigned int /*component*/ = 0) const override
     {
-      return 0.9;
+      return 1;
     }
   };
 
@@ -64,31 +63,32 @@ public:
       return 0.0;
     }
   };
-
   // Function of the matrix D
-  class FunctionD : public Function<dim>
+  class FunctionD
   {
   public:
-    virtual void
-    matrix_value(const Point<dim> & /*p*/,
-                 FullMatrix<double> &values) const // override
+    Tensor<2, dim> matrix_value(const Point<dim> & /*p*/ /* ,
+                   Tensor<2,dim> &values */
+    ) const
     {
+      Tensor<2, dim> values;
       for (unsigned int i = 0; i < dim; ++i)
+      {
+        for (unsigned int j = 0; j < dim; ++j)
         {
-          for (unsigned int j = 0; j < dim; ++j)
-            {
-              if (i == j)
-                values[i][j] = 0.1;
-              else
-                values[i][j] = 0.0;
-            }
+          if (i == j)
+            values[i][j] = 0.1;
+          else
+            values[i][j] = 0.0;
         }
-        values[1][1]+=10.0;
+      }
+      values[1][1] += 10.0;
+      return values;
     }
-    virtual double
+    double
     value(const Point<dim> & /*p*/,
           const unsigned int component_1 = 0,
-          const unsigned int component_2 = 1) const // override
+          const unsigned int component_2 = 1) const
     {
       if (component_1 == component_2)
         return 1.0;
@@ -103,23 +103,27 @@ public:
   {
   public:
     virtual double
-    value(const Point<dim> & p,
+    value(const Point<dim> &p,
           const unsigned int /*component*/ = 0) const override
     {
-    //return 0.02*(50 -50 *(p[0]*p[0] + p[1]*p[1] + p[2]*p[2])/(0.01+p[0]*p[0] + p[1]*p[1] + p[2]*p[2]));
-     if(p[0]<65 && p[0 ]>55 && p[1]<85 && p[1]>75 && p[2]<45 && p[2]>35){
-      return 0.9;
-     }
-    //    if(p[0]<0.55 && p[0 ]>0.45 && p[1]<0.55 && p[1]>0.45 && p[2]<0.55 && p[2]>0.45){
-    //   return 0.9;
-    //  }
+      // return 0.02*(50 -50 *(p[0]*p[0] + p[1]*p[1] + p[2]*p[2])/(0.01+p[0]*p[0] + p[1]*p[1] + p[2]*p[2]));
+      // if (p[0] < 65 && p[0] > 55 && p[1] < 85 && p[1] > 75 && p[2] < 45 && p[2] > 35)
+      //{
+      //  return 0.9;
+      //}
+      if (p[0] < 0.25 && p[0] > 0.0 && p[1] < 0.25 && p[1] > 0.0 && p[2] < 0.25 && p[2] > 0.0)
+      {
+        return 0.95;
+      }
+      //    if(p[0]<0.55 && p[0 ]>0.45 && p[1]<0.55 && p[1]>0.45 && p[2]<0.55 && p[2]>0.45){
+      //   return 0.9;
+      //  }
 
-     return 0;
+      return 0;
     }
   };
-  
 
-  // Exact solution.
+  // Exact solution, only for convergence test
   class ExactSolution : public Function<dim>
   {
   public:
@@ -142,30 +146,23 @@ public:
       result[1] = -M_PI * std::cos(M_PI * p[0]) * std::sin(M_PI * p[1]) *
                   std::exp(-get_time());
       if (dim == 3)
-        {
-          result[2] = 0;
-        }
+      {
+        result[2] = 0;
+      }
 
       return result;
     }
   };
 
-
   // Constructor. We provide the final time, time step Delta t and theta method
   // parameter as constructor arguments.
-  FK_solver(const std::string  &mesh_file_name_,
+  FK_solver(const std::string &mesh_file_name_,
             const unsigned int &r_,
-            const double       &T_,
-            const double       &deltat_)
-    : mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
-    , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
-    , pcout(std::cout, mpi_rank == 0)
-    , T(T_)
-    , mesh_file_name(mesh_file_name_)
-    , r(r_)
-    , deltat(deltat_)
-    , mesh(MPI_COMM_WORLD)
-  {}
+            const double &T_,
+            const double &deltat_)
+      : mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD)), mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)), pcout(std::cout, mpi_rank == 0), T(T_), mesh_file_name(mesh_file_name_), r(r_), deltat(deltat_), mesh(MPI_COMM_WORLD)
+  {
+  }
 
   // Initialization.
   void
@@ -195,7 +192,6 @@ protected:
   // Output.
   void
   output(const unsigned int &time_step) const;
-
 
   // MPI parallel. /////////////////////////////////////////////////////////////
 
