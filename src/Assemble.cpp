@@ -290,6 +290,5 @@ void NavierStokes<dim>::assemble_time_dependent() {
 
     MatrixTools::apply_boundary_values(boundary_values, system_matrix,
                                        solution_owned, system_rhs, false);
-    solution = solution_owned;
   }
 }

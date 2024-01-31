@@ -217,7 +217,6 @@ void Cylinder<dim>::calculate_phi_inf() {
                                            boundary_values, mask);
   MatrixTools::apply_boundary_values(boundary_values, matrix, phi_inf_owned,
                                      rhs, false);
-  phi_inf = phi_inf_owned;
 
   // Solve the system.
   SolverControl solver_control(
@@ -297,52 +296,50 @@ void Cylinder<dim>::update_drag_weak() {
 
     fe_values.reinit(cell);
 
+    fe_values[velocity].get_function_values(NavierStokes<dim>::solution,
+                                            velocity_values);
+    fe_values[velocity].get_function_gradients(NavierStokes<dim>::solution,
+                                               velocity_gradients);
+    fe_values[pressure].get_function_values(NavierStokes<dim>::solution,
+                                            pressure_values);
+    fe_values[velocity].get_function_values(phi_inf, phi_inf_values);
+    fe_values[velocity].get_function_gradients(phi_inf, phi_inf_gradients);
+
     for (unsigned int q = 0; q < n_q; ++q) {
-      fe_values[velocity].get_function_values(NavierStokes<dim>::solution,
-                                              velocity_values);
-      fe_values[velocity].get_function_gradients(NavierStokes<dim>::solution,
-                                                 velocity_gradients);
-      fe_values[pressure].get_function_values(NavierStokes<dim>::solution,
-                                              pressure_values);
-      fe_values[velocity].get_function_values(phi_inf, phi_inf_values);
-      fe_values[velocity].get_function_gradients(phi_inf, phi_inf_gradients);
-
-      for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-        // Viscosity term a(u, phi_inf).
-        Tensor<2, dim> transposed_gradient;
-        for (unsigned int i = 0; i < dim; i++) {
-          for (unsigned int j = 0; j < dim; j++) {
-            transposed_gradient[i][j] = velocity_gradients[q][j][i];
-          }
+      // Viscosity term a(u, phi_inf).
+      Tensor<2, dim> transposed_gradient;
+      for (unsigned int i = 0; i < dim; i++) {
+        for (unsigned int j = 0; j < dim; j++) {
+          transposed_gradient[i][j] = velocity_gradients[q][j][i];
         }
-        local_drag_force +=
-            NavierStokes<dim>::nu *
-            scalar_product(velocity_gradients[q] + transposed_gradient,
-                           phi_inf_gradients[q]) *
-            fe_values.JxW(q);
-
-        // Pressure term in the momentum equation b(p, phi_inf).
-        double phi_inf_divergence = 0.0;
-        for (unsigned int i = 0; i < dim; i++) {
-          phi_inf_divergence += phi_inf_gradients[q][i][i];
-        }
-        local_drag_force -=
-            phi_inf_divergence * pressure_values[q] * fe_values.JxW(q);
-
-        // Nonlinear term.
-        // Calculate (u . nabla) u.
-        Tensor<1, dim> nonlinear_term;
-        for (unsigned int k = 0; k < dim; k++) {
-          nonlinear_term[k] = 0.0;
-          for (unsigned int l = 0; l < dim; l++) {
-            nonlinear_term[k] +=
-                velocity_values[q][l] * velocity_gradients[q][k][l];
-          }
-        }
-        // Add the term (u . nabla) phi_inf.
-        local_drag_force += scalar_product(nonlinear_term, phi_inf_values[q]) *
-                            fe_values.JxW(q);
       }
+      local_drag_force +=
+          NavierStokes<dim>::nu *
+          scalar_product(velocity_gradients[q] + transposed_gradient,
+                         phi_inf_gradients[q]) *
+          fe_values.JxW(q);
+
+      // Pressure term in the momentum equation b(p, phi_inf).
+      double phi_inf_divergence = 0.0;
+      for (unsigned int i = 0; i < dim; i++) {
+        phi_inf_divergence += phi_inf_gradients[q][i][i];
+      }
+      local_drag_force -=
+          phi_inf_divergence * pressure_values[q] * fe_values.JxW(q);
+
+      // Nonlinear term.
+      // Calculate (u . nabla) u.
+      Tensor<1, dim> nonlinear_term;
+      for (unsigned int k = 0; k < dim; k++) {
+        nonlinear_term[k] = 0.0;
+        for (unsigned int l = 0; l < dim; l++) {
+          nonlinear_term[k] +=
+              velocity_values[q][l] * velocity_gradients[q][k][l];
+        }
+      }
+      // Add the term (u . nabla) phi_inf.
+      local_drag_force +=
+          scalar_product(nonlinear_term, phi_inf_values[q]) * fe_values.JxW(q);
     }
   }
 
