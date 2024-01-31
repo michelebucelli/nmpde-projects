@@ -8,9 +8,9 @@ int main(int argc, char *argv[])
 
   const unsigned int degree = 1;
 
-  double T = 5;
-  double deltat = 0.1;
-  FK_solver problem("/home/samuele/Primo_semestre/Numerical_methods_for_partial_differential_equations/temp/FK_solver/mesh/mesh-cube-10.msh", degree, T, deltat);
+  double T = 2.0;
+  double deltat = 0.01;
+  FK_solver problem("../mesh/brain-h3.0.msh", degree, T, deltat);
   problem.setup();
   problem.solve();
 
