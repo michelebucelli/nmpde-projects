@@ -30,6 +30,7 @@ int main(int argc, char* argv[]) {
   double tol_inner = 1e-5;
   double alpha = 1.0;
   bool use_ilu = false;
+  bool compute_lift_drag = false;
 
   ConditionalOStream pcout(
       std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
@@ -52,6 +53,8 @@ int main(int argc, char* argv[]) {
       "  -m, --mesh-file <file>      Mesh file name\n" +
       "  -h, --help                  Display this message\n" +
       "  -c, --convergence-check     Check convergence\n" +
+      "  -d  --lift-drag             Whether to compute the lift and drag "
+      "coefficients for flow past a cylinder\n" +
       "  -u, --inlet-velocity <U>    Reference inlet velocity for flow past a "
       "cylinder [m/s]\n" +
       "  -v, --varying-inlet         Use a non-constant inlet velocity in flow "
@@ -66,7 +69,7 @@ int main(int argc, char* argv[]) {
       "  -y  --tol-inner <tol-inner> Relative tolerance for the inner "
       "solvers\n.";
 
-  const char* const short_opts = "P:p:T:t:m:hcu:vila:x:y:";
+  const char* const short_opts = "P:p:T:t:m:hcdu:vila:x:y:";
   const option long_opts[] = {
       {"problem-id", required_argument, nullptr, 'P'},
       {"precondition-id", required_argument, nullptr, 'p'},
@@ -75,6 +78,7 @@ int main(int argc, char* argv[]) {
       {"mesh-file", required_argument, nullptr, 'm'},
       {"help", no_argument, nullptr, 'h'},
       {"convergence-check", no_argument, nullptr, 'c'},
+      {"lift-drag", no_argument, nullptr, 'd'},
       {"inlet-velocity", required_argument, nullptr, 'u'},
       {"ilu-preconditioner", no_argument, nullptr, 'l'},
       {"varying-inlet", no_argument, nullptr, 'v'},
@@ -119,6 +123,10 @@ int main(int argc, char* argv[]) {
 
       case 'c':
         convergence_check = true;
+        break;
+
+      case 'd':
+        compute_lift_drag = true;
         break;
 
       case 'u':
@@ -193,7 +201,8 @@ int main(int argc, char* argv[]) {
     case 1: {
       if (U_m == 0.0) U_m = 1.5;
       Cylinder2D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                         deltat, U_m, varying_inlet, solver_options);
+                         deltat, U_m, varying_inlet, solver_options,
+                         compute_lift_drag);
       problem.setup();
       problem.solve();
       break;
@@ -202,7 +211,8 @@ int main(int argc, char* argv[]) {
     case 2: {
       if (U_m == 0.0) U_m = 2.25;
       Cylinder3D problem(mesh_file_name, degree_velocity, degree_pressure, T,
-                         deltat, U_m, varying_inlet, solver_options);
+                         deltat, U_m, varying_inlet, solver_options,
+                         compute_lift_drag);
       problem.setup();
       problem.solve();
       break;
