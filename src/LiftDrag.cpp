@@ -36,14 +36,6 @@ class ObstacleFunction : public Function<dim> {
 };
 
 template <unsigned int dim>
-double Cylinder<dim>::get_drag(bool weak) const {
-  const double mean_velocity = get_mean_velocity();
-  const double force = weak ? drag_force_weak : drag_force;
-  return 2.0 * force /
-         (NavierStokes<dim>::ro * mean_velocity * mean_velocity * D);
-}
-
-template <unsigned int dim>
 void Cylinder<dim>::update_lift_drag() {
   NavierStokes<dim>::pcout << "  Calculating lift and drag forces" << std::endl;
 
@@ -217,7 +209,8 @@ void Cylinder<dim>::calculate_phi_inf() {
                           phi_inf_owned,
                           NavierStokes<dim>::solver_options.alpha,
                           NavierStokes<dim>::solver_options.maxiter_inner,
-                          NavierStokes<dim>::solver_options.tol_inner);
+                          NavierStokes<dim>::solver_options.tol_inner,
+                          NavierStokes<dim>::solver_options.use_ilu);
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
   solver.solve(matrix, phi_inf_owned, rhs, precondition);
   phi_inf = phi_inf_owned;
@@ -337,14 +330,17 @@ void Cylinder<dim>::update_drag_weak() {
   // Print the result.
   NavierStokes<dim>::pcout << "  Weak drag coefficient: " << get_drag(true)
                            << std::endl;
+}
 
+template <unsigned int dim>
 double Cylinder<dim>::get_reynolds_number() const {
   return get_mean_velocity() * D / NavierStokes<dim>::nu;
 }
 
-double Cylinder2D::get_drag() const {
+double Cylinder2D::get_drag(bool weak) const {
   const double mean_velocity = get_mean_velocity();
-  return 2.0 * drag_force / (ro * mean_velocity * mean_velocity * D);
+  const double force = weak ? drag_force_weak : drag_force;
+  return 2.0 * force / (ro * mean_velocity * mean_velocity * D);
 }
 
 double Cylinder2D::get_lift() const {
@@ -352,9 +348,10 @@ double Cylinder2D::get_lift() const {
   return 2.0 * lift_force / (ro * mean_velocity * mean_velocity * D);
 }
 
-double Cylinder3D::get_drag() const {
+double Cylinder3D::get_drag(bool weak) const {
   const double mean_velocity = get_mean_velocity();
-  return 2.0 * drag_force / (ro * mean_velocity * mean_velocity * D * H);
+  const double force = weak ? drag_force_weak : drag_force;
+  return 2.0 * force / (ro * mean_velocity * mean_velocity * D * H);
 }
 
 double Cylinder3D::get_lift() const {

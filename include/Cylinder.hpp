@@ -47,7 +47,7 @@ class Cylinder : public NavierStokes<dim> {
   virtual double get_lift() const = 0;
 
   // Return the drag coefficient in the current configuration.
-  double get_drag(bool weak) const;
+  virtual double get_drag(bool weak) const = 0;
 
  protected:
   // Constructor.
@@ -103,10 +103,12 @@ class Cylinder : public NavierStokes<dim> {
   // Function for the inlet velocity.
   std::shared_ptr<Function<dim>> inlet_velocity;
 
-  // Phi_inf (without ghost elements), used for weak calculation of the drag coefficient.
+  // Phi_inf (without ghost elements), used for weak calculation of the drag
+  // coefficient.
   TrilinosWrappers::MPI::BlockVector phi_inf_owned;
 
-  // Phi_inf (including ghost elements), used for weak calculation of the drag coefficient.
+  // Phi_inf (including ghost elements), used for weak calculation of the drag
+  // coefficient.
   TrilinosWrappers::MPI::BlockVector phi_inf;
 };
 
@@ -182,7 +184,7 @@ class Cylinder2D : public Cylinder<2U> {
   double get_lift() const override;
 
   // Function to get the drag coefficient.
-  double get_drag() const override;
+  double get_drag(bool weak) const override;
 };
 
 class Cylinder3D : public Cylinder<3U> {
@@ -250,7 +252,7 @@ class Cylinder3D : public Cylinder<3U> {
   double get_lift() const override;
 
   // Function to get the drag coefficient.
-  double get_drag() const override;
+  double get_drag(bool weak) const override;
 };
 
 #endif
