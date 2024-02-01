@@ -45,3 +45,11 @@ mesh/*
 
 # Result files
 results/*
+
+# Report files
+report/*.log
+report/*.out
+report/*.aux
+report/*.pdf
+report/*.bbl
+report/*.blg

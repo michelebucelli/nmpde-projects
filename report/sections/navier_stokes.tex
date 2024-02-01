@@ -1,0 +1,133 @@
+To aid the future discussion on preconditioners, we will use a similar notation to \cite{Quarteroni}.
+
+\subsection{Strong problem}
+To mathematically model an incompressible viscous fluid with constant density and viscosity, we use the Navier-Stokes equations, which read:
+\begin{equation}
+\frac{\partial}{\partial t} \mathbf{u} - \nu \Delta \mathbf{u} + \mathbf{u} \cdot \nabla \mathbf{u} + \nabla p = \mathbf{f} \text{ in } \Omega \times (0, T)
+\end{equation}
+\begin{equation}
+\nabla \cdot \mathbf{u} = 0 \text{ in } \Omega \times (0, T)
+\end{equation}
+\begin{equation}
+\mathbf{u} = \mathbf{g}_D \text{ on } \Gamma_D \times (0, T)
+\end{equation}
+\begin{equation}
+\nu \frac{\partial \mathbf{u}}{\partial n} - p \mathbf{n} = \mathbf{g}_N \text{ on } \Gamma_N\times (0, T)
+\end{equation}
+\begin{equation}
+\mathbf{u} = \mathbf{u}_0 \text{ in } \Omega \times \{0\}
+\end{equation}
+Where $\mathbf{u}$ is the velocity vector, $p$ is the pressure divided by the density $\rho$, from now on simply referred to as the pressure, $\nu$ is the kinematic viscosity, $\mathbf{f}$ are the external forces, $\mathbf{g}_D$ is the Dirichlet boundary function, $\mathbf{g}_N$ is the Neumann boundary function, $\mathbf{n}$ is the outward unit normal vector, $\mathbf{u}_0$ is the initial velocity, $\Omega \subseteq \mathbb{R}^d$ is the domain of the problem, $\Gamma_D \cup \Gamma_N = \partial\Omega$, $\Gamma_D \cap \Gamma_N = \emptyset$ and $T$ is the end of the time interval for the model.
+
+\subsection{Weak formulation}
+The weak formulation of the Navier-Stokes equations is obtained by multiplying the equations by test functions and integrating over the domain $\Omega$.
+To define the test functions, we limit the discussion to the case $\text{meas}(\Gamma_N) \neq 0$ and introduce the following spaces:
+
+\begin{equation}
+    H^1_D(\Omega) = \{f \in H^1(\Omega) : f = 0 \text{ on } \Gamma_D\}
+\end{equation}
+\begin{equation}
+    V = [H^1_D(\Omega)]^d
+\end{equation}
+\begin{equation}
+    Q = L^2(\Omega)
+\end{equation}
+
+We may now multiply the equations by test functions ($\mathbf{v} \in V$ and $q \in Q$) and integrate over the domain $\Omega$. In the case where $\mathbf{g}_D \equiv \mathbf{0}$, the weak formulation can be obtained by means of the Green formula and consists in letting $\mathbf{u} = \mathbf{u}_0$ at $t=0$ and finding, for all times in (0, T), $(\mathbf{u}, p) \in V \times Q$ such that:
+
+\begin{equation}\label{eq:momentum_weak}
+    \begin{split}
+        & \int_{\Omega} \frac{\partial \mathbf{u}}{\partial t} \mathbf{v} \, d\Omega + \int_{\Omega} \nu \nabla \mathbf{u} : \nabla \mathbf{v} \, d\Omega + \int_{\Omega} ((\mathbf{u} \cdot \nabla) \mathbf{u}) \cdot \mathbf{v} \, d\Omega - \\
+        & \int_{\Omega} p \nabla \cdot \mathbf{v} \, d\Omega = \int_{\Omega} \mathbf{f} \cdot \mathbf{v} \, d\Omega + \int_{\partial \Omega} \mathbf{g}_N \cdot \mathbf{v} \, ds \quad \forall \mathbf{v} \in V
+    \end{split}
+\end{equation}
+\begin{equation}\label{eq:continuity_weak}
+    \int_{\Omega} q \nabla \cdot \mathbf{u} \, d \Omega = 0 \;\; \forall q \in Q
+\end{equation}
+
+If the Dirichlet datum is not homogeneous, the lifting technique can be used. While the solver implements problems with non-homogeneous Dirichlet functions, the explanation of said technique will be omitted for the sake of brevity.
+
+\subsection{Discretization}
+\subsubsection{Discretization in space}
+Space discretization is performed using the finite element method, obtaining the semi-discrete problem. We can introduce the finite element space:
+\begin{equation}
+    X_h^r = \{x_h \in C^0(\bar\Omega) : x_h|_K \in \mathbb{P}^r(K) \; \forall K \in \mathcal{T}_h\}
+\end{equation}
+Where $\mathcal{T}_h$ is a triangulation of the domain $\Omega$. We then use Taylor-Hood elements, which use discrete spaces $V_h = (X_h^k)^d \cap V$ and $Q_h = X_h^{k-1} \cap Q$ for $k \geq 2$. In this work $k = 2$ was used, i.e. $V_h = X_h^2$ and $Q_h = X_h^1$.
+
+The semi-discrete problem consists in finding approximations $\mathbf{u}_h$ and $p_h$ of $\mathbf{u}$ and $p$, in $V_h$ and $Q_h$ respectively, that satisfy equations \ref{eq:continuity_weak} and \ref{eq:momentum_weak} for all test functions in the spaces $V_h$ and $Q_h$, in place of $V$ and $Q$ respectively.
+
+\subsubsection{Discretization in time}
+We now discretize the semi-discrete problem over time using a semi-implicit time discretization. Note that we're using the notation $\mathbf{u}_h^n$ to denote $\mathbf{u}_h$  at time $t^n$, or $n \Delta t$, where $\Delta t$ is the time step, and $p_h^n$ to do the same for $p_h$. The terms ($\mathbf{u} \cdot \nabla) \mathbf{u}$ and $\frac{\partial \mathbf{u}}{\partial t}$ will be discretized respectively as $(\mathbf{u}_h^n \cdot \nabla) \mathbf{u}_h^{n+1}$ and $\frac{\mathbf{u}_h^{n+1} - \mathbf{u}_h^n}{\Delta t}$, while all other terms depending on $\mathbf{u}$ or $p$ will be treated implicitly, using $\mathbf{u}_h^{n+1}$ and $p^{n+1}_h$ respectively.
+
+Given the exact solutions $\mathbf{u}$ and $p$ at time $t_n$, the discrete problem consists in finding the approximate solutions $\mathbf{u}^n_h \in V_h$ and $p^n_h \in Q_h$ at each time $t_n$, setting $\mathbf{u}_h^0 = \mathbf{u}_0$.
+
+We introduce the finite element basis functions $\{\mathbf{\phi}_j\}_{j=1}^{N_{\mathbf{u}}}$ and $\{\psi_k\}_{k=1}^{N_p}$, where $N_{\mathbf{u}}$ and $N_p$ are the dimensions of the $V_h$ and $Q_h$ respectively and then express the approximate solutions as a linear combination of the vectors of the bases:
+\begin{equation}
+    \mathbf{u}^n_h(\mathbf{x}) = \sum_{j=1}^{N_{\mathbf{u}}} u_j^n \mathbf{\phi}_j(\mathbf{x}) \quad \text{and} \quad p^n_h(\mathbf{x}) = \sum_{k=1}^{N_p} p_k^n \psi_k(\mathbf{x})
+\end{equation}
+
+\subsubsection{Formulation as a linear system}
+We can now assemble the linear system of equations that we need to solve to obtain the approximate solutions $\mathbf{u}^n_h$ and $p^n_h$.
+This problem can be written in the form $\mathcal{A} \mathbf{x} = \mathbf{b}$, where $\mathbf{x}$ is the vector of unknowns, $\mathbf{b}$ is the right hand side vector and $A$ is the matrix of coefficients. $\mathcal{A}$, $\mathbf{x}$ and $\mathbf{b}$ can be written as follows:
+$$
+\begin{matrix}
+    \mathcal{A} = \begin{bmatrix}
+        F & B^T \\
+        -B & 0
+    \end{bmatrix} \quad
+    \mathbf{x} = \begin{bmatrix}
+        \mathbf{U}^{n+1} \\
+        \mathbf{P}^{n+1}
+    \end{bmatrix} \quad
+    \mathbf{b} = \begin{bmatrix}
+        \mathbf{G} \\
+        \mathbf{0}
+    \end{bmatrix}
+\end{matrix}
+$$
+Where $-B$ and $B^T$ contain the discretized versions of Equation \ref{eq:continuity_weak} and the term depending on both velocity and pressure in Equation \ref{eq:momentum_weak} respectively, $\mathbf{G}$ is a known vector depending on $\mathbf{f}$, $\Delta t$ and the boundary data and $F$ is defined as follows:
+\begin{equation}
+    F = \frac{1}{\Delta t} M + A + C(\mathbf{U}^n)
+\end{equation}
+Where $M$ is the mass matrix for the velocity, $A$ is the stiffness matrix, which discretizes the viscosity term, and $C(\mathbf{U}^n)$ is the convection matrix at time $t^n$, which discretizes the nonlinear term. The vector $\mathbf{U}^{n+1}$ contains the velocity unknowns $u_1^{n+1}, \dots, u_{N_{\mathbf{u}}}^{n+1}$, while $\mathbf{P}^{n+1}$ contains the pressure unknowns $p_1^{n+1}, \dots, p_{N_p}^{n+1}$. Note that while $A$, $B$ and $M$ are constant matrices, $G$ and $C(\mathbf{U^n})$ change at every time step.
+
+\subsection{Stability}
+If the forcing term $\mathbf{f}$ is in $(L^2(\Omega))^d$ and $\mathbf{g}_N$ is in $(L^2(\Gamma_N))^d$, then the weak and semi-discretized problems are bounded. This is true for all problems we implemented, as $\mathbf{f} \equiv \mathbf{0}$ and $\mathbf{g}_N \in C^\infty(\Gamma_N)$.
+
+The time discretization method is not absolutely stable, but it is conditionally stable. The stability condition is, for all $n$:
+
+\begin{equation}
+    \Delta t \leq \frac{C}{\max\limits_n |\mathbf{u}^n|}
+\end{equation}
+
+For some constant $C \in \mathbb{R}$.
+
+\subsection{LBB condition}
+By definition, the LBB condition is satisfied if there exists a positive constant $\beta$ such that for all $q_h$ in $Q_h$ there exists $\mathbf{v}_h$ in $V_h$ such that:
+
+\begin{equation}
+    b(\mathbf{v}_h, q_h) \geq \beta \|\mathbf{v}_h\|_V \|q_h\|_Q
+\end{equation}
+
+If a saddle problem does not satisfy the LBB condition, then the solution of the saddle problem is not unique due to the presence of spurious modes. While this result was introduced for Stokes problems, this condition is necessary for the uniqueness of the solution of Navier-Stokes problems as well. Due to the choice of Taylor-Hood elements, the LBB condition is satisfied.
+
+\subsection{Convergence rates}
+For Taylor-Hood elements with degree $k$, and with a time discretization method of order $q$, we have that, for all positive $t$:
+
+\begin{equation}
+    \begin{split}
+        & \|\mathbf{u}(t) - \mathbf{u}_h(t)\|_{H^1(\Omega)} + \|p(t) - p_h(t)\|_{L^2(\Omega)} \leq \\
+        & C (\Delta t^q + h^k)(|\mathbf{u}(t)|_{H^{k+1}(\Omega)} + |p(t)|_{H^k(\Omega)} + K(\partial_t \mathbf{u}(t), \partial_t p(t)))
+    \end{split}
+\end{equation}
+Where $C$ is a positive constant, and $K(\partial_t \mathbf{u}(t), \partial_t p(t))$ represents some measure of the time derivatives of the exact velocity and pressure at time $t$. To get the error rates for our problem, it's sufficient to set $q=1$ and $k=2$ in the equation above.
+
+\subsection{Reasoning}
+The reasoning behind our discretization choices, which are the same ones as \cite{Quarteroni}, are:
+\begin{itemize}
+    \item Ensuring the maximum possible compatibility with the preconditioners presented in \cite{Quarteroni}.
+    \item Using discretization techniques that have been presented both during the course lectures and laboratories whenever possible, which excludes stabilization techniques and different elements from Taylor-Hood elements.
+    \item Ensuring compatibility with meshes of simplex finite elements. With the previous point, this sets $k = 2$ for the degree of Taylor-Hood elements.
+    \item Avoding the need to use Newton linearization at each time step to handle the nonlinear term. While this would yield unconditional stability, we deemed it too computationally expensive.
+\end{itemize}
