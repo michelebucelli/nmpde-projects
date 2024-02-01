@@ -16,9 +16,9 @@ As instructed no mesh files were uploaded but only the .geo files used to genera
 To run the construction of the mesh the command is 
 
 ```
-./gmsh cilinder_2D.geo
+$ gmsh cilinder_2D.geo
 // OR
-./gmsh cilinder_3D.geo_unrolled
+$ gmsh cilinder_3D.geo_unrolled
 ```
 
 These outputs the files called "cilinder_XD_fine.msh".
@@ -26,7 +26,7 @@ These outputs the files called "cilinder_XD_fine.msh".
 When compiling (standard methodology) two executables are generated, in order to run them the command is 
 
 ```
-./navier_stokesXD mesh_name.msh
+$ ./navier_stokesXD mesh_name.msh
 ```
 
 Where X can be either 2 or 3, depending on the dimension of the mesh. The mesh name is optional if the file created above ( in `../mesh/`) is present.
