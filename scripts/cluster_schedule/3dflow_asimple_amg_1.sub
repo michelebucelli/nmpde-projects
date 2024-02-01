@@ -2,7 +2,7 @@
 #PBS -S /bin/bash
 
 #PBS -l nodes=1:ppn=20,walltime=12:00:00 -q gigat
-#PBS -N asimple_amg_10
+#PBS -N asimple_amg_1
 
 source ~/.bashrc
 module load gcc-glibc/11
