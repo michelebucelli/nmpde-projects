@@ -1,0 +1,43 @@
+mpiexec -n 4 ./Project_parallel -p 1 -P jacobi -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 2 -P jacobi -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 3 -P jacobi -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 4 -P jacobi -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 5 -P jacobi -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 1 -P ssor -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 2 -P ssor -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 3 -P ssor -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 4 -P ssor -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 5 -P ssor -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 1 -P amg -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 2 -P amg -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 3 -P amg -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 4 -P amg -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 5 -P amg -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 1 -P identity -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 2 -P identity -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 3 -P identity -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 4 -P identity -r 2 -m mesh-cube-10.msh -s yes
+mpiexec -n 4 ./Project_parallel -p 5 -P identity -r 2 -m mesh-cube-10.msh -s yes
+
+mesh-cube-10,1,2,jacobi,6,72,1,4,240.626
+mesh-cube-10,2,2,jacobi,12,136,1,4,852.108
+mesh-cube-10,3,2,jacobi,26,308,1,4,7285.73
+mesh-cube-10,4,2,jacobi,77,776,1,4,70108.7
+mesh-cube-10,5,2,jacobi,163,1673,1,4,653825
+mesh-cube-10,1,2,ssor,799,6,1,4,1.368
+mesh-cube-10,2,2,ssor,1197,10,1,4,5.0131
+mesh-cube-10,3,2,ssor,1971,21,1,4,62.9948
+mesh-cube-10,4,2,ssor,5765,64,1,4,132.848
+mesh-cube-10,5,2,ssor,21102,245,1,4,3501.51
+mesh-cube-10,1,2,amg,49,16,1,4,6.5049
+mesh-cube-10,2,2,amg,36,25,1,4,15.5092
+mesh-cube-10,3,2,amg,43,40,1,4,33.5038
+mesh-cube-10,4,2,amg,65,74,1,4,183.838
+mesh-cube-10,5,2,amg,148,217,1,4,1039.09
+mesh-cube-10,1,2,identity,9,113,1,4,951.525
+mesh-cube-10,2,2,identity,26,293,1,4,8742.81
+mesh-cube-10,3,2,identity,67,851,1,4,84908
+mesh-cube-10,4,2,identity,252,2187,1,4,835106
+mesh-cube-10,5,2,identity,638,5651,1,4,8.30527e+06
+
+
