@@ -1,0 +1,19 @@
+#!/bin/bash
+#PBS -S /bin/bash
+
+#PBS -l nodes=1:ppn=20,walltime=12:00:00 -q gigat
+#PBS -N asimple_amg_inner_10
+
+source ~/.bashrc
+module load gcc-glibc/11
+module load dealii
+# ...any other modules you may need...
+
+cd /u/par3/nmpde-project3-Allahakbari-Miotti-Pesce/build
+
+# Create the machinefile to be passed to mpirun.
+sort ${PBS_NODEFILE} | uniq -c | awk '{printf("%s\n", $2);}' > mpd.nodes
+
+# Actually run the simulation.
+mpirun -machinefile mpd.nodes -n 10 -npernode 10 \
+navier_stokes -T 0.001 -t 0.001 -m ../mesh/3d-flow-0.05.msh -P 2 -p 3 &> asimple_amg_inner_10.out
