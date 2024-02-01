@@ -31,22 +31,23 @@ class Cylinder : public NavierStokes<dim> {
   // https://www.mate.polimi.it/biblioteca/add/qmox/mox84.pdf.
   void update_lift_drag_weak();
 
-  // Apply initial conditions and set the header for the lift and drag file.
   // This function applies the initial conditions for the problem, and also
-  // sets the header for the lift and drag file.
+  // sets the header for the lift and drag file if needed.
   void apply_initial_conditions() override;
 
   // This function performs the time stepping. It just performs one time step
-  // and then stores the lift and drag coefficients.
+  // and then stores the lift and drag coefficients if needed.
   void solve_time_step() override;
 
   // This function uses the definition of the Reynolds number to compute it.
   double get_reynolds_number() const;
 
-  // Return the lift coefficient in the current configuration.
+  // Return the lift coefficient in the current configuration. If weak is true,
+  // return the one calculated with the weak formulation.
   virtual double get_lift(bool weak) const = 0;
 
-  // Return the drag coefficient in the current configuration.
+  // Return the drag coefficient in the current configuration. If weak is true,
+  // return the one calculated with the weak formulation.
   virtual double get_drag(bool weak) const = 0;
 
  protected:
@@ -55,7 +56,8 @@ class Cylinder : public NavierStokes<dim> {
            const unsigned int &degree_velocity_,
            const unsigned int &degree_pressure_, const double &T_,
            const double &deltat_, const double &U_m_,
-           const SolverOptions &solver_options_);
+           const SolverOptions &solver_options_,
+           const bool &compute_lift_drag_);
 
   // Function to get the mean velocity.
   virtual double get_mean_velocity() const = 0;
@@ -82,6 +84,9 @@ class Cylinder : public NavierStokes<dim> {
   // This is the height of the domain, or the length of the inlet boundary,
   // expressed in meters.
   const double H = 0.41;
+
+  // Whether to compute the lift and drag coefficients.
+  const bool compute_lift_drag;
 
   // This is the lift force, expressed in Newtons. It is the component of the
   // force that is exerted on the cylinder in the direction perpendicular to
@@ -177,7 +182,8 @@ class Cylinder2D : public Cylinder<2U> {
              const unsigned int &degree_velocity_,
              const unsigned int &degree_pressure_, const double &T_,
              const double &deltat_, const double &U_m_,
-             const bool &time_dep_inlet, const SolverOptions &solver_options_);
+             const bool &time_dep_inlet, const SolverOptions &solver_options_,
+             const bool &compute_lift_drag_);
 
  private:
   // Function to get the mean velocity.
@@ -245,7 +251,8 @@ class Cylinder3D : public Cylinder<3U> {
              const unsigned int &degree_velocity_,
              const unsigned int &degree_pressure_, const double &T_,
              const double &deltat_, const double &U_m_,
-             const bool &time_dep_inlet, const SolverOptions &solver_options_);
+             const bool &time_dep_inlet, const SolverOptions &solver_options_,
+             const bool &compute_lift_drag_);
 
  private:
   // Function to get the mean velocity.

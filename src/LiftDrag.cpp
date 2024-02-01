@@ -2,12 +2,12 @@
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/fe/component_mask.h>
 #include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/trilinos_precondition.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/vector_tools.h>
 
 #include "Cylinder.hpp"
-#include "Precondition.hpp"
 
 template class Cylinder<2U>;
 template class Cylinder<3U>;
@@ -157,10 +157,9 @@ void Cylinder<dim>::update_lift_drag() {
 // - on the obstacle: phi_inf = -i
 // - on the other boundaries: phi_inf = 0
 // For the lift force, the same ones but using -j.
-// A simple way to achieve this is solving the linear system used to calculate
-// v and p but with different boundary conditions.
-// While this is in no way the most efficient method and the code isn't the
-// prettiest, it does the job.
+// A simple way to achieve this is setting the integral over Omega of phi_inf *
+// v to 0 for all test functions v in V_h and the appling lifting. This way, the
+// mass matrix for the velocity, which is already assembled, is used.
 template <unsigned int dim>
 void Cylinder<dim>::calculate_phi_inf() {
   NavierStokes<dim>::pcout << "==============================================="
@@ -173,7 +172,8 @@ void Cylinder<dim>::calculate_phi_inf() {
   Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
   for (unsigned int c = 0; c < dim + 1; ++c) {
     for (unsigned int d = 0; d < dim + 1; ++d) {
-      if (c == dim && d == dim)  // pressure-pressure term
+      if ((c == dim && d != dim) ||
+          (d == dim && c != dim))  // pressure-velocity terms
         coupling[c][d] = DoFTools::none;
       else  // other combinations
         coupling[c][d] = DoFTools::always;
@@ -203,10 +203,12 @@ void Cylinder<dim>::calculate_phi_inf() {
     // Create needed matrices and vectors.
     TrilinosWrappers::BlockSparseMatrix matrix;
     matrix.reinit(sparsity);
-    matrix.copy_from(NavierStokes<dim>::system_matrix);
+    matrix.block(0, 0).copy_from(NavierStokes<dim>::velocity_mass.block(0, 0));
+    matrix.block(0, 0) *= NavierStokes<dim>::deltat;
+    matrix.block(1, 1) = 0.0;
     TrilinosWrappers::MPI::BlockVector rhs;
     rhs.reinit(NavierStokes<dim>::system_rhs);
-    rhs = NavierStokes<dim>::system_rhs;
+    rhs = 0.0;
 
     TrilinosWrappers::MPI::BlockVector phi_inf_owned;
     TrilinosWrappers::MPI::BlockVector *phi_inf =
@@ -244,33 +246,24 @@ void Cylinder<dim>::calculate_phi_inf() {
     }
 
     // Apply the boundary conditions.
-    ComponentMask mask;
-    if constexpr (dim == 2) {
-      mask = ComponentMask({true, true, false});
-    } else {
-      mask = ComponentMask({true, true, true, false});
-    }
     std::map<types::global_dof_index, double> boundary_values;
     VectorTools::interpolate_boundary_values(NavierStokes<dim>::dof_handler,
                                              const_dirichlet_boundary_functions,
-                                             boundary_values, mask);
+                                             boundary_values);
     MatrixTools::apply_boundary_values(boundary_values, matrix, phi_inf_owned,
                                        rhs, false);
 
     // Solve the system.
     NavierStokes<dim>::pcout << "  Solving the system" << std::endl;
-    SolverControl solver_control(
-        NavierStokes<dim>::solver_options.maxiter,
-        NavierStokes<dim>::solver_options.tol * rhs.l2_norm());
-    PreconditionSIMPLE precondition;
-    precondition.initialize(matrix.block(0, 0), matrix.block(1, 0),
-                            matrix.block(0, 1), phi_inf_owned,
-                            NavierStokes<dim>::solver_options.alpha,
-                            NavierStokes<dim>::solver_options.maxiter_inner,
-                            NavierStokes<dim>::solver_options.tol_inner,
-                            NavierStokes<dim>::solver_options.use_ilu);
-    SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
-    solver.solve(matrix, phi_inf_owned, rhs, precondition);
+    constexpr double tolerance = 1e-12;
+    SolverControl solver_control(NavierStokes<dim>::solver_options.maxiter,
+                                 tolerance);
+    TrilinosWrappers::PreconditionILU precondition;
+    precondition.initialize(matrix.block(0, 0));
+    SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);
+    solver.solve(matrix.block(0, 0), phi_inf_owned.block(0), rhs.block(0),
+                 precondition);
+    phi_inf_owned.block(1) = 0.0;
     *phi_inf = phi_inf_owned;
 
     // Output (for debugging).
@@ -284,9 +277,9 @@ void Cylinder<dim>::calculate_phi_inf() {
         DataComponentInterpretation::component_is_scalar);
     std::vector<std::string> names;
     if constexpr (dim == 2) {
-      names = {"velocity", "velocity", "pressure"};
+      names = {"velocity", "velocity", "placeholder"};
     } else {
-      names = {"velocity", "velocity", "velocity", "pressure"};
+      names = {"velocity", "velocity", "velocity", "placeholder"};
     }
     data_out.add_data_vector(NavierStokes<dim>::dof_handler, *phi_inf, names,
                              data_component_interpretation);
@@ -317,7 +310,7 @@ void Cylinder<dim>::update_lift_drag_weak() {
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
-  // Declare vector which will contain the values and gradients of the required
+  // Declare vectors which will contain the values and gradients of the required
   // quantities at quadrature points.
   std::vector<Tensor<1, dim>> velocity_values(n_q);
   std::vector<Tensor<2, dim>> velocity_gradients(n_q);

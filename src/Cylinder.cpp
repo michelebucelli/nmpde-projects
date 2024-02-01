@@ -10,10 +10,12 @@ Cylinder<dim>::Cylinder(const std::string &mesh_file_name_,
                         const unsigned int &degree_velocity_,
                         const unsigned int &degree_pressure_, const double &T_,
                         const double &deltat_, const double &U_m_,
-                        const SolverOptions &solver_options_)
+                        const SolverOptions &solver_options_,
+                        const bool &compute_lift_drag_)
     : NavierStokes<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
                         deltat_, solver_options_),
       U_m(U_m_),
+      compute_lift_drag(compute_lift_drag_),
       zero_function(dim + 1) {
   NavierStokes<dim>::ro = 1.0;   //[kg/m^3].
   NavierStokes<dim>::nu = 1e-3;  //[m^2/s].
@@ -26,7 +28,7 @@ void Cylinder<dim>::apply_initial_conditions() {
   NavierStokes<dim>::apply_initial_conditions();
 
   // Set the header for the lift and drag file.
-  if (NavierStokes<dim>::mpi_rank == 0) {
+  if (NavierStokes<dim>::mpi_rank == 0 && compute_lift_drag) {
     std::ofstream file;
     file.open(lift_drag_output_file);
     file << "time_step(delta_t=" << NavierStokes<dim>::deltat
@@ -40,21 +42,23 @@ template <unsigned int dim>
 void Cylinder<dim>::solve_time_step() {
   NavierStokes<dim>::solve_time_step();
 
-  // Update lift and drag coefficients.
-  if (NavierStokes<dim>::time_step == 1) {
-    calculate_phi_inf();
-  }
-  update_lift_drag();
-  update_lift_drag_weak();
+  if (compute_lift_drag) {
+    // Update lift and drag coefficients.
+    if (NavierStokes<dim>::time_step == 1) {
+      calculate_phi_inf();
+    }
+    update_lift_drag();
+    update_lift_drag_weak();
 
-  // Write the results to a file.
-  if (NavierStokes<dim>::mpi_rank == 0) {
-    std::ofstream file;
-    file.open(lift_drag_output_file, std::ios::app);
-    file << NavierStokes<dim>::time_step << "," << get_lift(false) << ","
-         << get_drag(false) << "," << get_lift(true) << "," << get_drag(true)
-         << "," << get_reynolds_number() << "\n";
-    file.close();
+    // Write the results to a file.
+    if (NavierStokes<dim>::mpi_rank == 0) {
+      std::ofstream file;
+      file.open(lift_drag_output_file, std::ios::app);
+      file << NavierStokes<dim>::time_step << "," << get_lift(false) << ","
+           << get_drag(false) << "," << get_lift(true) << "," << get_drag(true)
+           << "," << get_reynolds_number() << "\n";
+      file.close();
+    }
   }
 }
 
@@ -123,9 +127,10 @@ Cylinder2D::Cylinder2D(const std::string &mesh_file_name_,
                        const unsigned int &degree_pressure_, const double &T_,
                        const double &deltat_, const double &U_m_,
                        const bool &time_dep_inlet,
-                       const SolverOptions &solver_options_)
+                       const SolverOptions &solver_options_,
+                       const bool &compute_lift_drag_)
     : Cylinder<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
-                    deltat_, U_m_, solver_options_) {
+                    deltat_, U_m_, solver_options_, compute_lift_drag_) {
   pcout << "Solving 2D flow past a cylinder problem" << std::endl;
 
   if (time_dep_inlet) {
@@ -150,9 +155,10 @@ Cylinder3D::Cylinder3D(const std::string &mesh_file_name_,
                        const unsigned int &degree_pressure_, const double &T_,
                        const double &deltat_, const double &U_m_,
                        const bool &time_dep_inlet,
-                       const SolverOptions &solver_options_)
+                       const SolverOptions &solver_options_,
+                       const bool &compute_lift_drag_)
     : Cylinder<dim>(mesh_file_name_, degree_velocity_, degree_pressure_, T_,
-                    deltat_, U_m_, solver_options_) {
+                    deltat_, U_m_, solver_options_, compute_lift_drag_) {
   pcout << "Solving 3D flow past a cylinder problem" << std::endl;
 
   if (time_dep_inlet) {
