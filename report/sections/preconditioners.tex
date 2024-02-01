@@ -1,0 +1,133 @@
+\subsection{Implemented preconditioners}
+To solve the linear systems arising from the discretization of the Navier-Stokes equations, a variety of preconditioners have been implemented. The preconditioners are based on the ones presented in \cite{Quarteroni} and are the following ones:
+\begin{itemize}
+    \item Block diagonal preconditioner
+    \item SIMPLE preconditioner
+    \item aSIMPLE preconditioner
+    \item Yoshida preconditioner
+\end{itemize}
+The diagonal preconditioner was adapted from the code in laboratory 9 and used during development of the other preconditioners and for comparison. 
+
+\paragraph{SIMPLE}
+The \texttt{SIMPLE} preconditioner is defined as:
+\begin{equation}
+    P_{SIMPLE} = \begin{bmatrix}
+        F & 0 \\
+        B & -\tilde{S} 
+    \end{bmatrix}
+    \begin{bmatrix}
+        I & D^{-1}B^T \\
+        0 & \alpha I
+    \end{bmatrix}
+\end{equation}
+Where $D$ is the diagonal of $F$ and $\alpha$ is a parameter that can be tuned to damp the pressure update. The value $\tilde S$ is an approximation of the Schur complement, and is defined as:
+
+\begin{equation}
+    \tilde{S} = B D^{-1} B^T
+\end{equation}
+
+\paragraph{aSIMPLE}
+The \texttt{aSIMPLE} (approximate SIMPLE) preconditioner is a modified version of the \texttt{SIMPLE} preconditioner, and its inverse can be computed directly as:
+\begin{equation}
+    \begin{split}
+        & P_{aSIMPLE}^{-1} = \\
+        & \begin{bmatrix}
+            D^{-1} & 0 \\
+            0 & I
+        \end{bmatrix}
+        \begin{bmatrix}
+            I & -B^T \\
+            0 & I
+        \end{bmatrix}
+        \begin{bmatrix}
+            D & 0 \\
+            0 & \dfrac{1}{\alpha}I
+        \end{bmatrix} 
+        \begin{bmatrix}
+            I & 0 \\
+            0 & -\hat{\tilde{S}}^{-1}
+        \end{bmatrix}
+        \begin{bmatrix}
+            I & 0 \\
+            -B & I
+        \end{bmatrix}
+        \begin{bmatrix}
+            \hat{F}^{-1} & 0 \\
+            0 & I
+        \end{bmatrix}
+    \end{split}
+\end{equation}
+Where $\hat{F} \approx F$ and $\hat{\tilde{S}} \approx \tilde{S}$.
+
+\paragraph{Yoshida}
+The \texttt{Yoshida} preconditioner is based on the Yoshida's method. The preconditioner is defined as:
+\begin{equation}
+    P_{Yoshida} = \begin{bmatrix}
+        F & 0 \\
+        B & -\Delta t B M^{-1} B^T 
+    \end{bmatrix}
+    \begin{bmatrix}
+        I & F^{-1} B^T \\
+        0 & I
+    \end{bmatrix}
+\end{equation}
+Once again, the term $\Delta t B M^{-1} B^T$ is an approximation of the Schur complement. The actual implementation of the preconditioner approximates $M$ with its diagonal.
+
+\subsection{Implementation details}
+Clearly, preconditioners were implemented using their structure as the product of block diagonal or block triangular systems. 
+
+The approximations of the Schur complements were computed explicitly and diagonal matrices were inverted, while terms requiring the resolution of linear systems on $F$, $\tilde{S}$ or $\Delta t B M^{-1} B^T$ were solved using GMRES as an iterative solver with an appropriate preconditioner. Namely, the supported preconditioners are the algebraic multigrid and ILU preconditioners implemented in \texttt{Trilinos\-Wrappers::\-PreconditionAMG} and \texttt{Trilinos\-Wrappers::\-PreconditionILU} respectively. This choice can be made setting the flag \texttt{-l}.
+
+Regarding the terms $\hat{F}$ and $\hat{\tilde{S}}$ in \texttt{aSIMPLE}, we support both the same approach used for $F$ and $\tilde{S}$, i.e. solving the linear system with GMRES, and setting $\hat{F}$ and $\hat{\tilde{S}}$ to their algebraic multigrid or ILU preconditioners. The choice between the two options can be made by setting the flag $\texttt{-i}$.
+
+\subsection{Performance}
+As stated in \cite{Quarteroni}, all implemented preconditioners require the choice of a relatively small value for $\Delta t$, as their approximations of the Schur complement deteriorate when $\Delta t$ increases.
+
+While we took performance into consideration in the whole codebase, avoiding expensive operations and serial bottlenecks aside from the mesh initialization, the linear system resolution code is the only part whose performance was analyzed quantitatively.
+
+Table \ref{tab:performance} shows performance results for the preconditioners, on the three dimensional flow past a cylinder problem and with multiple inner preconditioners. The results are relative to $\Delta t = 10^{-3}$ and \texttt{-clmax 0.05} and were obtained using the MOX cluster and 10 MPI processes. The tolerance for the outer and inner solvers was $10^{-7}$ and $10^{-5}$ respectively, and $\alpha$ was set to $1$. These values were chosen as they were experimentally a sweet spot between performance and result precision. In particular, reducing the precision of the inner solver has an experimentally small impact on performance, but it can create issues with precision. Results were obtained using \texttt{chrono} and include both the time for building the preconditioner and the time to solve the linear system.
+
+Table \ref{tab:scaling} shows performance results for \texttt{aSIMPLE} with no inner solver and the AMG preconditioner with multiple numbers of MPI processes.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{P{30mm}|P{17mm}|P{17mm}|P{17mm}|P{17mm}}
+        Preconditioner & Time (AMG) & Iterations (AMG) & Time (ILU) & Iterations (ILU)\\
+        \hline
+        \texttt{Block diagonal} & - & - & - & -\\
+        \texttt{SIMPLE} & 4.0s & 39 & 3.5s & 37\\
+        \texttt{aSIMPLE} & 4.2s & 32 & 3.9s & 37\\
+        \texttt{aSIMPLE -i} & 1.4s & 137 & - & -\\
+        \texttt{Yoshida} & 7.4s & 37 & 6.7s & 39\\
+    \end{tabular}
+    \caption{Execution times and GMRES iterations for each preconditioner on the first iteration of the 3D flow past a cylinder problem. \texttt{aSIMPLE -i} refers to the preconditioner \texttt{aSIMPLE} without the usage of an inner solver. The symbol - means no convergence in 10000 iterations.}
+    \label{tab:performance}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{c|c|c}
+        Processes & Time & Iterations\\
+        \hline
+        1 & 10.2s & 178\\
+        5 & 2.3s & 160\\
+        10 & 1.4s & 137\\
+        15 & 1.7s & 159\\
+        20 & 1.8s & 161\\
+    \end{tabular}
+    \caption{Execution times and GMRES iterations with multiple numbers of MPI processes for \texttt{aSIMPLE} with no inner solver and using the AMG preconditioner.}
+    \label{tab:scaling}
+\end{table}
+
+\subsubsection{Results discussion}
+The data presented in Table \ref{tab:performance} and from other tests shows the following findings:
+\begin{itemize}
+    \item While the block diagonal preconditioner performs sufficiently well to be used for coarse meshes and as a tool to aid development, it is unsuitable for Navier-Stokes problems with fine meshes and the need for better performing preconditioners is evident.
+    \item When inner solvers are used, the preconditioners \texttt{SIMPLE} and \texttt{aSIMPLE} perform similarly and better than \texttt{Yoshida}. Moreover, ILU performs slightly better than AMG as a preconditioner for the inner solvers.
+    \item The \texttt{aSIMPLE} preconditioner with no inner solver is by far the best performing, despite the larger number of GMRES iterations, as each iteration is by far less computationally demanding. This result matches with the results presented in \cite{Quarteroni}. The ILU preconditioner is not suitable in this case, showing that the matrices are better approximated by their AMG preconditioner than by their incomplete LU factorizations.
+\end{itemize}
+Regarding the best performing preconditioner, \texttt{aSIMPLE} with no inner solver, the results are as follows:
+\begin{itemize}
+    \item As shown in Table \ref{tab:scaling}, the preconditioner scales well up to around 10 cores, achieving a $7.3x$ speed-up over the serial computation. After that amount, testing with up to 20 processes, the preconditioner appears to be scalable in the sense that the number of GMRES iterations does not increase. However, when using more than 10 processes, execution time does not decrease, instead increasing slightly. This shows that either the parallelism expressed by the solver is exhausted by 10 processes or that there is another bottleneck, which might be the memory access time or the overhead for communication. While \cite{Quarteroni} presents much better scaling with the number of cores, this is likely due to the fact that more complex and better performing approximations $\hat{F} \approx F$ and $\hat{\tilde{S}} \approx \tilde{S}$ are used in said work.
+    \item Further tests with \texttt{-clmax} ranging from 0.5 to 0.05 show that the preconditioner is experimentally optimal, as the number of GMRES iterations does not increase with the matrix dimension, remaining in the range $[150, 210]$ for 4 MPI processes. In particular, the number of iterations for \texttt{-clmax 0.05} is lower than with multiple coarser meshes.
+\end{itemize}

@@ -1,0 +1,55 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings} % Required for inserting code snippets
+\usepackage{xcolor} % Required for inserting colored text
+\usepackage{url} % Required for inserting urls
+\usepackage{graphicx} % Required for inserting images
+\usepackage{subfigure} % Required for inserting subimages
+\usepackage{tikz-uml}
+\usepackage{graphicx}
+\usepackage{float}  % For using [H] specifier
+\usepackage{comment} % For multi line comments
+\usepackage{subfig}
+\usepackage{array} % For table centering 
+
+\sloppy % For making URLs wrap around better
+\newcolumntype{P}[1]{>{\centering\arraybackslash}p{#1}} % Centered paragraph table column
+
+\title{Numerical Methods for Partial Differential Equations report}
+\author{Mohammadhossein Allahakbari, Michele Miotti, \\Francesco Pesce}
+\date{February 1 2024}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+	\input{sections/intro}
+
+\section{Code structure}
+	\input{sections/code}
+
+\section{Navier Stokes equations}
+	\input{sections/navier_stokes} 
+
+\section{Solver correctness}\label{sec:correctness}
+	\input{sections/correctness} 
+
+\section{Flow past a cylinder}
+	\input{sections/cylinder} 
+
+\section{Lift and drag coefficients}
+	\input{sections/lift_drag} 
+
+\section{Preconditioners}\label{sec:preconditioners}
+	\input{sections/preconditioners} 
+
+\section{Conclusions}
+    \input{sections/conclusions}
+
+\bibliographystyle{unsrt}
+\bibliography{bibliography}
+
+\end{document}

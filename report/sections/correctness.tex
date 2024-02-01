@@ -1,0 +1,18 @@
+\subsection{Ethier-Steinman problem}
+In 1994 Ethier and Steinman proposed a family of functions that exactly satisfy the unsteady, incompressible Navier-Stokes equations in three dimensions in \cite{EthierSteinman}. In particular, we implemented the solutions described in \cite{Quarteroni}, in the domain $(-1, 1)^3$ and using the same choices for all parameters. The class \texttt{EthierSteinman} implements said problem and was used to verify, with a reasonable degree of confidence, the correctness of the solver. We implemented classes for the exact solution and the exact gradient of the velocity, generating the boundary functions and initial conditions with the method of manufactured solutions. A method to compute the norm of the error on the velocity and pressure was implemented as well.
+
+\subsection{Error and convergence rates}
+Table \ref{tab:convergence} shows the achieved convergence rates for the problem w.r.t. the finite element diameter. For Taylor-Hood elements, the expected convergence rates for the velocity in $H^1$ norm and the pressure in $L^2$ norm are both $k$. Since we used $k=2$, the achieved error rates match with the theoretical ones rather closely. $\Delta t$ was set to a relatively low value, $10^{-6}$, for three main reasons: reducing the impact of time discretization on the error, meeting the stability condition due to the semi-implicit treatment of the nonlinear term and achieving good effectiveness of the preconditioner.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{c|c|c|c|c}
+        h & p - L2 error & p - error rate & u - H1 error & u - error rate \\
+        0.5000 & 2.8411e-01 &    - & 3.96216-01 &    -\\
+        0.2500 & 7.6656e-02 & 1.89 & 1.0543e-01 & 1.91\\
+        0.1250 & 2.1131e-02 & 1.86 & 2.6527e-02 & 1.99\\
+        0.0625 & 5.3868e-03 & 1.97 & 6.8302e-03 & 1.96\\
+    \end{tabular}
+    \caption{Error and error rates for pressure and velocity in the Ethier-Steinman problem. The results are relative to $t = 4\Delta t$ and were obtained using the preconditioner SIMPLE, with relative tolerance on the residual of $10^{-9}$ for both the outer and inner solvers and $\Delta t = 10^{-6}$. $h$ is the value passed as an argument to the \texttt{-clmax} option in gmsh.}
+    \label{tab:convergence}
+\end{table}

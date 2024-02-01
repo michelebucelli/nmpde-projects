@@ -33,4 +33,25 @@
 *.out
 *.app
 
-*/build/*
+# .vscode
+.vscode
+
+# Build
+build
+build_debug
+
+# Mesh files
+mesh/*.msh
+
+# Result files
+results/*.pvtu
+results/*.vtu
+results/*.csv
+
+# Report files
+report/*.log
+report/*.out
+report/*.aux
+report/*.pdf
+report/*.bbl
+report/*.blg
