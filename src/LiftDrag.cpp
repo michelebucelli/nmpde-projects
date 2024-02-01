@@ -83,6 +83,10 @@ void Cylinder<dim>::update_lift_drag() {
   std::vector<Tensor<2, dim>> velocity_gradients(n_q_face);
   std::vector<double> pressure_values(n_q_face);
 
+  // Allocate space for the stress tensor and force.
+  Tensor<2, dim> stress_tensor;
+  Tensor<1, dim> force;
+
   for (const auto &cell :
        NavierStokes<dim>::dof_handler.active_cell_iterators()) {
     if (!cell->is_locally_owned()) continue;
@@ -110,12 +114,11 @@ void Cylinder<dim>::update_lift_drag() {
           // and https://www.mate.polimi.it/biblioteca/add/qmox/mox84.pdf.
 
           // Get the normal vector.
-          // In the formula in the paper, the normal vector is
+          // In the formula in the benchmark and report, the normal vector is
           // defined in the opposite direction to the one in the mesh.
-          Tensor<1, dim> normal = -fe_face_values.normal_vector(q);
+          const Tensor<1, dim> &neg_normal = fe_face_values.normal_vector(q);
 
           // Calculate the stress tensor.
-          Tensor<2, dim> stress_tensor;
           stress_tensor = velocity_gradients[q];
           for (unsigned int i = 0; i < dim; i++) {
             for (unsigned int j = 0; j < dim; j++) {
@@ -128,8 +131,7 @@ void Cylinder<dim>::update_lift_drag() {
           }
 
           // Calculate the force acting on the cylinder.
-          Tensor<1, dim> force;
-          force = NavierStokes<dim>::ro * stress_tensor * normal *
+          force = -NavierStokes<dim>::ro * stress_tensor * neg_normal *
                   fe_face_values.JxW(q);
 
           // Update drag and lift forces.
@@ -156,10 +158,13 @@ void Cylinder<dim>::update_lift_drag() {
 // For the drag force:
 // - on the obstacle: phi_inf = -i
 // - on the other boundaries: phi_inf = 0
-// For the lift force, the same ones but using -j.
+// For the lift force:
+// - on the obstacle: phi_inf = -j
+// - on the other boundaries: phi_inf = 0
 // A simple way to achieve this is setting the integral over Omega of phi_inf *
-// v to 0 for all test functions v in V_h and the appling lifting. This way, the
-// mass matrix for the velocity, which is already assembled, is used.
+// v_h to 0 for all test functions v_h in V_h and the appling lifting. This way,
+// the mass matrix for the velocity, which is already assembled and not badly
+// conditioned, is used.
 template <unsigned int dim>
 void Cylinder<dim>::calculate_phi_inf() {
   NavierStokes<dim>::pcout << "==============================================="
@@ -187,7 +192,7 @@ void Cylinder<dim>::calculate_phi_inf() {
   phi_inf_lift.reinit(NavierStokes<dim>::solution);
   phi_inf_drag.reinit(NavierStokes<dim>::solution);
 
-  // Run the code for the lift and drag coefficients
+  // Run this for each of the lift and drag coefficients.
   for (unsigned int f = 0; f < 2; f++) {
     if (f == 0) {
       NavierStokes<dim>::pcout
@@ -201,15 +206,17 @@ void Cylinder<dim>::calculate_phi_inf() {
                              << std::endl;
 
     // Create needed matrices and vectors.
+    // Matrix.
     TrilinosWrappers::BlockSparseMatrix matrix;
     matrix.reinit(sparsity);
     matrix.block(0, 0).copy_from(NavierStokes<dim>::velocity_mass.block(0, 0));
     matrix.block(0, 0) *= NavierStokes<dim>::deltat;
     matrix.block(1, 1) = 0.0;
+    // Rhs.
     TrilinosWrappers::MPI::BlockVector rhs;
     rhs.reinit(NavierStokes<dim>::system_rhs);
     rhs = 0.0;
-
+    // Solution.
     TrilinosWrappers::MPI::BlockVector phi_inf_owned;
     TrilinosWrappers::MPI::BlockVector *phi_inf =
         (f == 0 ? &phi_inf_lift : &phi_inf_drag);
@@ -218,13 +225,14 @@ void Cylinder<dim>::calculate_phi_inf() {
 
     // Handle boundary conditions.
     NavierStokes<dim>::pcout << "  Setting boundary conditions" << std::endl;
-    // Create a map with the correct Dirichlet boundary functions.
+    // Set the Dirichlet function on the obstacle boundary.
     std::shared_ptr<const Function<dim>> obstacle_function;
     if (f == 0) {
       obstacle_function = std::make_shared<const NegativeJFunction<dim>>();
     } else {
       obstacle_function = std::make_shared<const NegativeIFunction<dim>>();
     }
+    // Create a map with the correct Dirichlet boundary functions.
     std::map<types::boundary_id, const Function<dim> *>
         const_dirichlet_boundary_functions;
     for (auto iter = NavierStokes<dim>::dirichlet_boundary_functions.begin();
@@ -297,9 +305,9 @@ void Cylinder<dim>::calculate_phi_inf() {
   }
 }
 
+// Compute the lift and drag coefficients integrating over the domain.
 template <unsigned int dim>
 void Cylinder<dim>::update_lift_drag_weak() {
-  // Compute the lift and drag coefficients integrating over the domain.
   const unsigned int dofs_per_cell = NavierStokes<dim>::fe->dofs_per_cell;
   const unsigned int n_q = NavierStokes<dim>::quadrature->size();
 
@@ -322,6 +330,11 @@ void Cylinder<dim>::update_lift_drag_weak() {
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
 
+  // Allocate space for the transposed gradient of u and part of the nonlinear
+  // term.
+  Tensor<2, dim> transposed_gradient;
+  Tensor<1, dim> nonlinear_term;
+
   for (unsigned int f = 0; f < 2; f++) {
     TrilinosWrappers::MPI::BlockVector *phi_inf =
         (f == 0 ? &phi_inf_lift : &phi_inf_drag);
@@ -334,7 +347,8 @@ void Cylinder<dim>::update_lift_drag_weak() {
 
       fe_values.reinit(cell);
 
-      // Get the values at the quadrature points for this cell.
+      // Get the values of the needed quantities at the quadrature points for
+      // this cell.
       fe_values[velocity].get_function_values(NavierStokes<dim>::solution,
                                               velocity_values);
       fe_values[velocity].get_function_gradients(NavierStokes<dim>::solution,
@@ -346,7 +360,6 @@ void Cylinder<dim>::update_lift_drag_weak() {
 
       for (unsigned int q = 0; q < n_q; ++q) {
         // Viscosity term a(u, phi_inf).
-        Tensor<2, dim> transposed_gradient;
         for (unsigned int i = 0; i < dim; i++) {
           for (unsigned int j = 0; j < dim; j++) {
             transposed_gradient[i][j] = velocity_gradients[q][j][i];
@@ -368,7 +381,6 @@ void Cylinder<dim>::update_lift_drag_weak() {
 
         // Nonlinear term.
         // Calculate (u . nabla) u.
-        Tensor<1, dim> nonlinear_term;
         for (unsigned int k = 0; k < dim; k++) {
           nonlinear_term[k] = 0.0;
           for (unsigned int l = 0; l < dim; l++) {

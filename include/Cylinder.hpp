@@ -98,10 +98,10 @@ class Cylinder : public NavierStokes<dim> {
   // flow.
   double drag_force;
 
-  // Same as the previous force, but calculated with the weak formulation.
+  // Same as the previous force, but calculated with the "weak" formulation.
   double lift_force_weak;
 
-  // Same as the previous force, but calculated with the weak formulation.
+  // Same as the previous force, but calculated with the "weak" formulation.
   double drag_force_weak;
 
   // Zero function. This is a handful function that is used to set some boundary

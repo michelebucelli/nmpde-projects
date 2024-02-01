@@ -21,7 +21,7 @@ void NavierStokes<dim>::assemble_constant() {
                           update_values | update_gradients |
                               update_quadrature_points | update_JxW_values);
 
-  // Create the matrices as full matrices.
+  // Allocate full matrices to store information about a cell.
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> velocity_mass_cell_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> pressure_mass_cell_matrix;
@@ -93,7 +93,7 @@ void NavierStokes<dim>::assemble_constant() {
 
     cell->get_dof_indices(dof_indices);
 
-    // Add the cell terms to the matrices.
+    // Add the cell values to the matrices.
     constant_matrix.add(dof_indices, cell_matrix);
     velocity_mass.add(dof_indices, velocity_mass_cell_matrix);
     if (solver_options.use_pressure_mass) {
@@ -146,6 +146,11 @@ void NavierStokes<dim>::assemble_time_dependent() {
     FEValuesExtractors::Vector velocity(0);
     FEValuesExtractors::Scalar pressure(dim);
 
+    // Declare tensors to store the old solution value at a set quadrature
+    // point and part of the nonlinear term.
+    Tensor<1, dim> local_old_solution_value;
+    Tensor<1, dim> nonlinear_term;
+
     for (const auto &cell : dof_handler.active_cell_iterators()) {
       if (!cell->is_locally_owned()) continue;
 
@@ -159,11 +164,6 @@ void NavierStokes<dim>::assemble_time_dependent() {
       cell_matrix = 0.0;
 
       for (unsigned int q = 0; q < n_q; ++q) {
-        // Declare tensors to store the old solution value at this quadrature
-        // point and part of the nonlinear term.
-        Tensor<1, dim> local_old_solution_value = old_solution_values[q];
-        Tensor<1, dim> nonlinear_term;
-
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
           for (unsigned int j = 0; j < dofs_per_cell; ++j) {
             // Calculate (u . nabla) u.
@@ -174,7 +174,7 @@ void NavierStokes<dim>::assemble_time_dependent() {
                 // first: component of the vector valued function
                 // second: derivative direction
                 // So gradient[0][1] = du_x / dy
-                nonlinear_term[k] += local_old_solution_value[l] *
+                nonlinear_term[k] += old_solution_values[q][l] *
                                      fe_values[velocity].gradient(j, q)[k][l];
               }
             }
@@ -206,6 +206,11 @@ void NavierStokes<dim>::assemble_time_dependent() {
 
     system_rhs = 0.0;
 
+    // Declare a vector and a tensor containing the local value of Neumann
+    // functions.
+    Vector<double> neumann_loc(dim + 1);
+    Tensor<1, dim> neumann_loc_tensor;
+
     for (const auto &cell : dof_handler.active_cell_iterators()) {
       if (!cell->is_locally_owned()) continue;
 
@@ -214,6 +219,8 @@ void NavierStokes<dim>::assemble_time_dependent() {
       // Boundary integral for Neumann BCs.
       if (cell->at_boundary()) {
         for (unsigned int f = 0; f < cell->n_faces(); ++f) {
+          // Check if the face is at a boundary and if it is a Neunmann
+          // boundary.
           if (cell->face(f)->at_boundary() &&
               neumann_boundary_functions.count(cell->face(f)->boundary_id())) {
             fe_face_values.reinit(cell, f);
@@ -222,11 +229,6 @@ void NavierStokes<dim>::assemble_time_dependent() {
             Function<dim> *neumann_function =
                 neumann_boundary_functions[cell->face(f)->boundary_id()];
             neumann_function->set_time(time_step * deltat);
-
-            // Declare vectors containing the local value of the Neumann
-            // function.
-            Vector<double> neumann_loc(dim + 1);
-            Tensor<1, dim> neumann_loc_tensor;
 
             for (unsigned int q = 0; q < n_q_face; ++q) {
               // Get the local value of the Neumann function.
@@ -264,7 +266,7 @@ void NavierStokes<dim>::assemble_time_dependent() {
   {
     std::map<types::global_dof_index, double> boundary_values;
 
-    // Since only velocity has a Dirichlet (BC), create a mask.
+    // Since Dirichlet (BC) are not applied to the pressure, create a mask.
     ComponentMask mask;
     if constexpr (dim == 2) {
       mask = ComponentMask({true, true, false});

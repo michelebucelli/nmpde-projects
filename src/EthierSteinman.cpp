@@ -146,6 +146,7 @@ double EthierSteinman::NeumannFunction::value(
   // Set the time for the exact solution.
   exact_solution.set_time(get_time());
 
+  // Calculate the Neumann function.
   // This result was obtained by setting the normal vector to -j.
   if (component == 0 || component == 2) {
     Tensor<1, dim> velocity_gradient =
@@ -193,6 +194,7 @@ double EthierSteinman::compute_error(const VectorTools::NormType &norm_type,
         mapping, dof_handler, solution, exact_solution.exact_velocity,
         error_per_cell, quadrature_error, norm_type, &mask);
   } else {
+    // Do the same for the pressure.
     QGaussSimplex<dim> quadrature_error(degree_pressure + 2);
     ComponentSelectFunction<dim> mask(dim, dim + 1);
     VectorTools::integrate_difference(mapping, dof_handler, solution,

@@ -32,7 +32,9 @@ void NavierStokes<dim>::solve_time_step() {
 
   pcout << "  Initializing the preconditioner" << std::endl;
 
-  // Choose the preconditioner and initialize it.
+  // Choose the preconditioner and initialize it. Since the preconditioners
+  // share the interface for the vmult method but for the initialize method,
+  // this is done separately for each preconditioner.
   std::shared_ptr<BlockPrecondition> precondition;
   switch (solver_options.id) {
     case BLOCK_DIAGONAL: {
