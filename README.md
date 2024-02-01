@@ -30,3 +30,5 @@ $ ./navier_stokesXD mesh_name.msh
 ```
 
 Where X can be either 2 or 3, depending on the dimension of the mesh. The mesh name is optional if the file created above ( in `../mesh/`) is present.
+
+NOTE: the tests can also be run using MPI .
