@@ -92,3 +92,7 @@ Some examples...
 mpiexec -n 4 ./Project_parallel -p 4 -P amg -r 2 -m mesh-cube-40.msh -s 0
 ```
 ## 6. References
+https://www.dealii.org/current/doxygen/deal.II/classTrilinosWrappers_1_1PreconditionBase.html
+https://www.dealii.org/current/doxygen/deal.II/classTrilinosWrappers_1_1PreconditionAMG.html
+https://www.dealii.org/current/doxygen/deal.II/classTrilinosWrappers_1_1PreconditionSSOR.html
+https://www.dealii.org/current/doxygen/deal.II/classTrilinosWrappers_1_1PreconditionJacobi.html
