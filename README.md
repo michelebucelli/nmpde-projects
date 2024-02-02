@@ -88,6 +88,9 @@ The following command arguments below are to be considered when trying to run ou
 -s : Choose between symmetric (any value) /unsymmetric ("no")  
 -n : set n_spheres  
 
+Preconditioner names in Project_parallel are : identity , jacobi , ssor , amg , sor , ilu , ilut , blockwise_direct  
+Preconditioner names in Project are : identity , jacobi , ssor , sor 
+
 [Preconditioner related arguments]  
 -o : set overlap  
 -e : set sweeps  
