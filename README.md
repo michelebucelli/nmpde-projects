@@ -7,12 +7,11 @@ The objective of our project is to implement preconditioning techniques that aim
 ## 2. Heterogeneous diffusion problems
 Heterogeneous diffusion problems involve the spatially varying transport of a substance through a medium, where the diffusivity coefficient is not uniform across the domain. In mathematical terms, this is expressed by a partial differential equation of the form ∇ ⋅ (D(x) ∇u(x)) = f(x), where u(x) is the substance concentration, D(x) is the diffusivity coefficient, and f(x) represents any source or sink terms.
 
-## 3. Our Implementation
-Our project is structured as follows: 
+## 3. Project Structure
 
 The project is organized in the following folders:
 - `src/`: Contains the files for both the serial & parallel implementations.
-- `mesh/`: Contains a series of mesh files for testing.
+- `mesh/`: Contains two directories input_mesh where a series of input mesh files for testing and output_mesh where output meshes are found .
 - `results/`: Contains a csv file with the results of all the completed tests.
 - `scripts/`: Contains a Python script for visualizing the results via plots.
 
