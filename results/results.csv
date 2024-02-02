@@ -298,3 +298,4 @@ mesh-cube-40,2,1,ssor,2343,151,cube,4,215.145,10,1,1,7
 mesh-cube-40,2,1,amg,132,28,cube,4,22.2987,10,1,1,7
 mesh-cube-5,2,1,identity,1,18,cube,4,24.5668,10,1,1,2
 mesh-cube-20,2,1,identity,20,269,cube,4,6339.02,10,1,1,2
+mesh-cube-40,4,2,amg,5524,170,cube,4,56.1859,10,1,1,2

@@ -1,0 +1,4 @@
+/home/ubuntu/Desktop/PIPPO/nmpde-projects/build/CMakeFiles/rebuild_cache.dir
+/home/ubuntu/Desktop/PIPPO/nmpde-projects/build/CMakeFiles/edit_cache.dir
+/home/ubuntu/Desktop/PIPPO/nmpde-projects/build/CMakeFiles/Project_parallel.dir
+/home/ubuntu/Desktop/PIPPO/nmpde-projects/build/CMakeFiles/Project.dir

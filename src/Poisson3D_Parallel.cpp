@@ -10,7 +10,7 @@ Poisson3DParallel::write_csv(const long int elapsed_time, int iterations, double
     if (mpi_rank == 0)
     {
         std::ofstream csv_file;
-        csv_file.open("/u/par1/NMPDE-Project/results.csv", std::ios_base::app);
+    csv_file.open("../results/results.csv", std::ios_base::app);
 
         if (!csv_file.is_open()) {
             std::cerr<<"Error! Cannot open csv file! ";
@@ -154,7 +154,7 @@ Poisson3DParallel::manage_flags(int argc, char **argv) {
 
     }
 
-    mesh_file_name = "/u/par1/NMPDE-Project/mesh/input_mesh/" + mesh_name_no_path;
+    mesh_file_name = "../mesh/input_mesh/" + mesh_name_no_path;
 
     if(p_or_c=="cube")
         initialize_diffusion_coefficient_symmetric(p_value, n_spheres);
@@ -484,6 +484,68 @@ Poisson3DParallel::solve()
         // Solve the linear system using GMRES and the AMG preconditioner
         GMRESsolver.solve(system_matrix, solution, system_rhs, preconditioner);
         pcout << "Memory Consumption: " << memoryUsage << " bytes" << std::endl;
+    }else if (preconditioner_name == "sor"){
+
+        pcout<<"Using preconditioner sor"<<std::endl;
+        pcout<<"Not a symmetric preconditioner, hence solving with GMRES and not GC"<<std::endl;
+        TrilinosWrappers::PreconditionSOR preconditioner;
+        preconditioner.initialize(system_matrix, TrilinosWrappers::PreconditionSOR::AdditionalData(1.0));
+        GMRESsolver.solve(system_matrix, solution, system_rhs, preconditioner);
+   
+    }else if (preconditioner_name == "ilu"){
+
+        pcout<<"Using preconditioner ilu"<<std::endl;
+
+        TrilinosWrappers::PreconditionILU::AdditionalData ilu_data;
+
+        ilu_data.ilu_fill = 1;
+
+        TrilinosWrappers::PreconditionILU preconditioner;
+        preconditioner.initialize(system_matrix, ilu_data);
+
+        solver.solve(system_matrix, solution, system_rhs, preconditioner);
+    
+    }else if (preconditioner_name == "ilut") {
+
+        pcout << "Using preconditioner Incomplete LU with Threshold (ILUT)" << std::endl;
+
+        TrilinosWrappers::PreconditionILUT::AdditionalData ilut_data;
+
+        // Set the drop threshold for the ILUT preconditioner
+        ilut_data.ilut_drop = 0.0; // Adjust this value based on the characteristics of your problem
+
+        // Set the level of additional fill-in elements for the ILUT preconditioner
+        ilut_data.ilut_fill = 1; // Adjust this value based on the characteristics of your problem
+
+        // Set the absolute perturbation for the ILUT preconditioner
+        ilut_data.ilut_atol = 0.0; // Adjust this value based on the characteristics of your problem
+
+        // Set the scaling factor for the diagonal of the matrix for the ILUT preconditioner
+        ilut_data.ilut_rtol = 1.0; // Adjust this value based on the characteristics of your problem
+
+        // Set the overlap for the ILUT preconditioner in parallel execution
+        ilut_data.overlap = 0; // Adjust this value based on the parallel setup of your problem
+
+        TrilinosWrappers::PreconditionILUT preconditioner;
+        preconditioner.initialize(system_matrix, ilut_data);
+
+        GMRESsolver.solve(system_matrix, solution, system_rhs, preconditioner);
+
+      }else if (preconditioner_name == "blockwise_direct") {
+
+        pcout << "Using Blockwise Direct preconditioner" << std::endl;
+
+        TrilinosWrappers::PreconditionBlockwiseDirect::AdditionalData blockwise_direct_data;
+
+        // Set parameters based on your problem characteristics
+        blockwise_direct_data.overlap = 0;  // Set the overlap of local matrix portions in parallel
+
+        TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
+
+        preconditioner.initialize(system_matrix, blockwise_direct_data);
+
+        GMRESsolver.solve(system_matrix, solution, system_rhs, preconditioner);
+          
     }else{
         pcout<<"Error! Preconditioner \" " <<preconditioner_name <<" \" not supported!"<<std::endl;
         std::exit(-1);
@@ -538,8 +600,8 @@ Poisson3DParallel::output() const
   data_out.build_patches();
 
   const std::filesystem::path mesh_path(mesh_file_name);
-  const std::string output_file_name = "/u/par1/NMPDE-Project/mesh/output_mesh/output-" + mesh_path.stem().string();
-
+  const std::string output_file_name = "../mesh/output_mesh/output-" + mesh_path.stem().string();
+  
   // Finally, we need to write in a format that supports parallel output. This
   // can be achieved in multiple ways (e.g. XDMF/H5). We choose VTU/PVTU files,
   // because the interface is nice and it is quite robust.
