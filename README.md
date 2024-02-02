@@ -78,22 +78,22 @@ cmake ..
 make
 ```
 Two executable files will be produced : ./Project & ./Project_parallel.   
-The following command arguments below are to be considered when trying to run our project.
-[Problem related arguments]
+The following command arguments below are to be considered when trying to run our project.  
+[Problem related arguments]  
 
 -p : set p value (10^p)  
 -P : set preconditionner  
 -r : set degree  
 -m : set mesh file (without path)  
 -s : Choose between symmetric (any value) /unsymmetric ("no")  
--n : set n_spheres
+-n : set n_spheres  
 
-[Preconditioner related arguments] 
--o : set overlap
--e : set sweeps
--w : set omega
+[Preconditioner related arguments]  
+-o : set overlap  
+-e : set sweeps  
+-w : set omega  
 
-For AMG; you set -e | for Jacobi; you set -w & -e | for SSOR; you set -w , -o & -e
+For AMG; you set -e | for Jacobi; you set -w & -e | for SSOR; you set -w , -o & -e  
 
 
 Some examples...
