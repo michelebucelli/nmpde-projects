@@ -77,10 +77,10 @@ cmake ..
 ```sh
 make
 ```
-Two executable files will be produced : ./Project & ./Project_parallel.
+Two executable files will be produced : ./Project & ./Project_parallel.   
 The following command arguments below are to be considered when trying to run our project.
 
-mpiexec -n (number of processors) ./Project_parallel -p (p-value) -P (preconditioner) -r (degree) -m (mesh file) -s (choose symmetry)
+in order to run the the parallel version executable for instance; mpiexec -n (number of processors) ./Project_parallel ... (command line arguments)...
 
 -p : set p value (10^p)  
 -P : set preconditionner  
