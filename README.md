@@ -65,14 +65,15 @@ You can compile the project by running the following command in the root directo
 ```sh
 module load gcc-glibc dealii vtk
 ```
-```sh
 
 ```sh
 mkdir build && cd build/ 
 ```
+
 ```sh
 cmake ..
 ```
+
 ```sh
 make
 ```
