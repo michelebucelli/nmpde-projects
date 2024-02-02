@@ -77,15 +77,16 @@ cmake ..
 ```sh
 make
 ```
-The following format
+Two executable files will be produced : ./Project & ./Project_parallel.
+The following command arguments below are to be considered when trying to run our project.
 
 mpiexec -n (number of processors) ./Project_parallel -p (p-value) -P (preconditioner) -r (degree) -m (mesh file) -s (choose symmetry)
 
--p : set p value (10^p)
--P : set preconditionner
--r : set degree
--m : set mesh file (without path)
--s : Choose between symmetric (any value) /unsymmetric ("no")
+-p : set p value (10^p)  
+-P : set preconditionner  
+-r : set degree  
+-m : set mesh file (without path)  
+-s : Choose between symmetric (any value) /unsymmetric ("no")  
 
 Some examples...
 ```sh
