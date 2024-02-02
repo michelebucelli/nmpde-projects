@@ -62,6 +62,10 @@ This project requires `CMake` for building the project,  `MPI` in order to enabl
 In the case `openMP` is not installed or not found the project will still compile and run, only in fully serial manner.   
 
 You can compile the project by running the following command in the root directory of the project:
+```sh
+module load gcc-glibc dealii vtk
+```
+```sh
 
 ```sh
 mkdir build && cd build/ 
