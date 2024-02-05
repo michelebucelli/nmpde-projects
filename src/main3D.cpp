@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_fine.msh";
+  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_3D_fine.msh";
   const unsigned int degree_velocity = 2;
   const unsigned int degree_pressure = 1;
 

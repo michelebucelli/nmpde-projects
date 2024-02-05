@@ -193,7 +193,7 @@ public:
 
   protected:
     static inline constexpr double H = 0.41;
-    static inline constexpr double u_m = 0.3;
+    static inline constexpr double u_m = 0.45;
   };
 
   // Since we're working with block matrices, we need to make our own
