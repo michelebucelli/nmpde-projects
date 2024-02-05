@@ -195,16 +195,16 @@ void NavierStokes<dim>::assemble(const double &time)
   
 	//Define a variable to store the boundaries
 
-	unsigned int boundary_inlet ;
-	unsigned int boundary_outlet;
-	if constexpr(dim==2){
-		boundary_inlet =1;
-		boundary_outlet=3;
-	}
-	else if constexpr(dim==3){
-		boundary_inlet =5;
-		boundary_outlet=3;
-	}
+  unsigned int boundary_inlet ;
+  unsigned int boundary_outlet;
+  if constexpr(dim==2){
+    boundary_inlet =1;
+    boundary_outlet=3;
+  }
+  else if constexpr(dim==3){
+    boundary_inlet =5;
+    boundary_outlet=3;
+  }
   
 	for (const auto &cell : dof_handler.active_cell_iterators())
   {
@@ -332,18 +332,18 @@ void NavierStokes<dim>::assemble(const double &time)
     inlet_velocity.set_time(time);
     boundary_functions[boundary_inlet] = &inlet_velocity;
 
-		unsigned int n_faces_mesh;
+    unsigned int n_faces_mesh;
 		
-		ComponentMask mask({true,true,false});
+    ComponentMask mask({true,true,false});
 
-		if constexpr(dim==2){
-			n_faces_mesh=7;
-		}
-		else if constexpr(dim==3){
-			n_faces_mesh=11;
-			mask.set(2,true);
-			mask.set(3,false);
-		}
+    if constexpr(dim==2){
+      n_faces_mesh=7;
+    }
+    else if constexpr(dim==3){
+      n_faces_mesh=11;
+      mask.set(2,true);
+      mask.set(3,false);
+    }
 
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
@@ -595,14 +595,14 @@ void NavierStokes<dim>::compute_forces()
   double drag_coeff;
   double lift_coeff;
   
-	if constexpr(dim==2){
-  	drag_coeff=(2. * drag) / (mean_v * mean_v * rho * 0.1);
-  	lift_coeff=(2. * lift) / (mean_v * mean_v * rho * 0.1);
-	}
-	else if constexpr(dim==3){
-  	drag_coeff=(2. * drag) / (mean_v * mean_v * rho * 0.1 * 0.41);
-  	lift_coeff=(2. * lift) / (mean_v * mean_v * rho * 0.1 * 0.41);
-	}
+  if constexpr(dim==2){
+    drag_coeff=(2. * drag) / (mean_v * mean_v * rho * 0.1);
+    lift_coeff=(2. * lift) / (mean_v * mean_v * rho * 0.1);
+  }
+  else if constexpr(dim==3){
+    drag_coeff=(2. * drag) / (mean_v * mean_v * rho * 0.1 * 0.41);
+    lift_coeff=(2. * lift) / (mean_v * mean_v * rho * 0.1 * 0.41);
+  }
 
 	vec_drag_coeff.emplace_back(drag_coeff);
   vec_lift_coeff.emplace_back(lift_coeff);
