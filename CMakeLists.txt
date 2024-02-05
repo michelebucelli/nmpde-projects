@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.12.0)
 project(project_title LANGUAGES CXX C)
 
-include(../common/cmake-common.cmake)
+include(cmake-common.cmake)
 
-add_executable(lab-01 src/lab-01.cpp src/Poisson1D.cpp)
-deal_ii_setup_target(lab-01)
+add_executable(navier_stokes3D src/main3D.cpp src/NavierStokes.cpp)
+deal_ii_setup_target(navier_stokes3D)
+
+add_executable(navier_stokes2D src/main2D.cpp src/NavierStokes.cpp)
+deal_ii_setup_target(navier_stokes2D)
