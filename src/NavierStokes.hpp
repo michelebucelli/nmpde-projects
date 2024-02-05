@@ -156,38 +156,40 @@ public:
     vector_value(const Point<dim> &p, Vector<double> &values) const override
     {
       if constexpr(dim==2)
-				values[0] = 4 * u_m * p[1] * (H - p[1]) /** std::sin(M_PI * this->get_time() / 8.)*/ / (H * H);
-			else if constexpr(dim==3)
-				values[0] = 16 * u_m * p[1] * p[2] * (H - p[1]) * (H - p[2]) /** std::sin(M_PI*this->get_time()/8.)*/ / (H * H * H * H);
-			else
-				values[0]=0.;
+	values[0] = 4 * u_m * p[1] * (H - p[1]) /** std::sin(M_PI * this->get_time() / 8.)*/ / (H * H);
+      else if constexpr(dim==3)
+	values[0] = 16 * u_m * p[1] * p[2] * (H - p[1]) * (H - p[2]) /** std::sin(M_PI*this->get_time()/8.)*/ / (H * H * H * H);
+      else
+	values[0]=0.;
 
-			for (unsigned int i = 1; i < dim + 1; ++i)
+      for (unsigned int i = 1; i < dim + 1; ++i)
         values[i] = 0.0;
     }
 
     virtual double
     value(const Point<dim> &p, const unsigned int component = 0) const override
     {
-      if (component == 0)
+      if (component == 0){
         if constexpr(dim==2)
-					return 4 * u_m * p[1] * (H - p[1]) / (H * H);
+	  return 4 * u_m * p[1] * (H - p[1]) / (H * H);
       	else if constexpr(dim==3)
-					return 16 * u_m * p[1] * p[2] * (H - p[1]) * (H - p[2]) /** std::sin(M_PI*this->get_time()/8.)*/ / (H * H * H * H);
-				else return 0.;
-			else
-        return 0;
+	  return 16 * u_m * p[1] * p[2] * (H - p[1]) * (H - p[2]) /** std::sin(M_PI*this->get_time()/8.)*/ / (H * H * H * H);
+	else return 0.;
+      }
+      else{
+	return 0;
+      }
     }
 
     double getMeanVelocity() const
     {
-			if constexpr(dim==2)
-      	return 2. * u_m /**std::sin(M_PI*this->get_time()/8.)*/ / 3.;
+	if constexpr(dim==2)
+      	  return 2. * u_m /**std::sin(M_PI*this->get_time()/8.)*/ / 3.;
     	else if constexpr(dim==3)
-      	return 4. * u_m /**std::sin(M_PI*this->get_time()/8.)*/ / 9.;
-			else
-				return 0.;
-		}
+      	  return 4. * u_m /**std::sin(M_PI*this->get_time()/8.)*/ / 9.;
+	else
+	  return 0.;
+    }
 
   protected:
     static inline constexpr double H = 0.41;
@@ -226,61 +228,6 @@ public:
     }
 
   protected:
-  };
-
-  // Block-diagonal preconditioner.
-  class PreconditionBlockDiagonal
-  {
-  public:
-    // Initialize the preconditioner, given the velocity stiffness matrix, the
-    // pressure mass matrix.
-    void
-    initialize(const TrilinosWrappers::SparseMatrix &velocity_stiffness_,
-               const TrilinosWrappers::SparseMatrix &pressure_mass_)
-    {
-      velocity_stiffness = &velocity_stiffness_;
-      pressure_mass = &pressure_mass_;
-
-      preconditioner_velocity.initialize(velocity_stiffness_);
-      preconditioner_pressure.initialize(pressure_mass_);
-    }
-
-    // Application of the preconditioner.
-    void
-    vmult(TrilinosWrappers::MPI::BlockVector &dst,
-          const TrilinosWrappers::MPI::BlockVector &src) const
-    {
-      SolverControl solver_control_velocity(10000,
-                                            1e-2 /** src.block(0).l2_norm()*/);
-      SolverCG<TrilinosWrappers::MPI::Vector> solver_cg_velocity(
-          solver_control_velocity);
-      solver_cg_velocity.solve(*velocity_stiffness,
-                               dst.block(0),
-                               src.block(0),
-                               preconditioner_velocity);
-
-      SolverControl solver_control_pressure(10000,
-                                            1e-2 /** src.block(1).l2_norm()*/);
-      SolverCG<TrilinosWrappers::MPI::Vector> solver_cg_pressure(
-          solver_control_pressure);
-      solver_cg_pressure.solve(*pressure_mass,
-                               dst.block(1),
-                               src.block(1),
-                               preconditioner_pressure);
-    }
-
-  protected:
-    // Velocity stiffness matrix.
-    const TrilinosWrappers::SparseMatrix *velocity_stiffness;
-
-    // Preconditioner used for the velocity block.
-    TrilinosWrappers::PreconditionILU preconditioner_velocity;
-
-    // Pressure mass matrix.
-    const TrilinosWrappers::SparseMatrix *pressure_mass;
-
-    // Preconditioner used for the pressure block.
-    TrilinosWrappers::PreconditionILU preconditioner_pressure;
   };
 
   class PreconditionSIMPLE
@@ -451,28 +398,28 @@ public:
   void
   solve();
 
-	double get_drag(const unsigned int i) const{
-		return vec_drag[i];
-	}
-	double get_lift(const unsigned int i) const{
-		return vec_lift[i];
-	}
-	double get_drag_coeff(const unsigned int i) const{
-		return vec_drag_coeff[i];
-	}
-	double get_lift_coeff(const unsigned int i) const{
-		return vec_lift_coeff[i];
-	}
-	double get_time_prec(const unsigned int i) const{
-		return time_prec[i];
-	}
-	double get_time_solve(const unsigned int i) const{
-		return time_solve[i];
-	}
+  double get_drag(const unsigned int i) const{
+    return vec_drag[i];
+  }
+  double get_lift(const unsigned int i) const{
+    return vec_lift[i];
+  }
+  double get_drag_coeff(const unsigned int i) const{
+    return vec_drag_coeff[i];
+  }
+  double get_lift_coeff(const unsigned int i) const{
+    return vec_lift_coeff[i];
+  }
+  double get_time_prec(const unsigned int i) const{
+    return time_prec[i];
+  }
+  double get_time_solve(const unsigned int i) const{
+    return time_solve[i];
+  }
 
-	unsigned int get_result_size() const{
-		return vec_drag.size();
-	}
+  unsigned int get_result_size() const{
+    return vec_drag.size();
+  }
 
 protected:
   // Assemble system. We also assemble the pressure mass matrix (needed for the
@@ -488,12 +435,12 @@ protected:
   void
   output(const unsigned int &time_step) const;
 
-	// Method to calculate the forces
+  // Method to calculate the forces
   void
   compute_forces();
   
-	// Vectors where the results are stored
-	std::vector<double> vec_drag;
+  // Vectors where the results are stored
+  std::vector<double> vec_drag;
   std::vector<double> vec_lift;
   std::vector<double> vec_drag_coeff;
   std::vector<double> vec_lift_coeff;
