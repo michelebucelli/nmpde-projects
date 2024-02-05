@@ -1,4 +1,5 @@
-#include "NavierStokes2D.hpp"
+#include "NavierStokes.hpp"
+#include "NavierStokes.cpp"
 
 // Main function.
 int main(int argc, char *argv[])
@@ -12,13 +13,13 @@ int main(int argc, char *argv[])
   const unsigned int degree_pressure = 1;
 
   const double T = 8;
-  const double deltat = 0.005;
+  const double deltat = 0.05;
 
   dealii::Timer timer;
   // Start the timer
   timer.restart();
 
-  NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat);
+  NavierStokes<2> problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat);
 
   problem.setup();
   problem.solve();
@@ -42,11 +43,11 @@ int main(int argc, char *argv[])
     }
     outputFile << "Iteration, Drag, Lift, Coeff Drag, CoeffLift, time prec, time solve" << std::endl;
 
-    for (size_t ite = 0; ite < problem.vec_drag.size(); ite++)
+    for (size_t ite = 0; ite < problem.get_result_size(); ite++)
     {
-      outputFile << ite * deltat << ", " << problem.vec_drag[ite] << ", " << problem.vec_lift_coeff[ite] << ", " 
-                << problem.vec_drag_coeff[ite] << ", " << problem.vec_lift_coeff[ite] << ", "
-                << problem.time_prec[ite] << ", " << problem.time_solve[ite]
+      outputFile << ite * deltat << ", " << problem.get_drag(ite) << ", " << problem.get_lift(ite) << ", " 
+                << problem.get_drag_coeff(ite) << ", " << problem.get_lift_coeff(ite) << ", "
+                << problem.get_time_prec(ite) << ", " << problem.get_time_solve(ite)
                 << std::endl;
     }
     outputFile.close();

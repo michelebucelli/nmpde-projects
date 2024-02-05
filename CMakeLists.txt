@@ -3,8 +3,8 @@ project(project_title LANGUAGES CXX C)
 
 include(cmake-common.cmake)
 
-add_executable(navier_stokes3D src/main3D.cpp src/NavierStokes3D.cpp)
+add_executable(navier_stokes3D src/main3D.cpp src/NavierStokes.cpp)
 deal_ii_setup_target(navier_stokes3D)
 
-add_executable(navier_stokes2D src/main2D.cpp src/NavierStokes2D.cpp)
+add_executable(navier_stokes2D src/main2D.cpp src/NavierStokes.cpp)
 deal_ii_setup_target(navier_stokes2D)
