@@ -1,0 +1,32 @@
+#!/bin/bash
+#PBS -S /bin/bash
+
+#PBS -l nodes=1:ppn=CORES,walltime=12:00:00 -q gigat
+#PBS -N matrix_free_CORES
+
+source ~/.bashrc
+
+# Load the modules that you need:
+module load gcc-glibc/11.2.0
+module load dealii/9.5.1
+
+# Clean previous build
+current_dir="/u/archive/laureandi1/derosso/PDEProject/build"
+mkdir -p "$current_dir"
+cd "$current_dir"
+
+# Compile
+cmake ..
+make
+
+# Create the machinefile to be passed to mpirun.
+sort "${PBS_NODEFILE}" | uniq -c | awk '{printf("%s\n", $2);}' > mpd.CORES.nodes
+
+# Actually run the simulation. The arguments to -n and -npernode should
+# be consistent with the resources requested at the top of the script.
+mpirun -machinefile mpd.CORES.nodes -n CORES -npernode CORES ./PDEProject &> "$current_dir/stdout_CORES.txt"
+
+mkdir -p ../result/CORES
+cp -rf solution_classicCORES_* ../result/CORES
+cp -rf solutionCORES_* ../result/CORES
+cp -rf stdout_CORES.txt ../result/CORES

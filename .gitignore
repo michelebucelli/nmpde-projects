@@ -34,3 +34,13 @@
 *.app
 
 */build/*
+
+# VScode folder
+.vscode
+
+# Build and result folders
+build
+result
+
+# .sub scripts
+runs
