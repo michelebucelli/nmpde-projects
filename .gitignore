@@ -33,4 +33,15 @@
 *.out
 *.app
 
-*/build/*
+# Build directory
+build/
+
+# Mesh directory
+mesh/
+
+# Lift and drag outputs directory
+lift_drag_outputs/
+
+.DS_Store
+
+.vscode
