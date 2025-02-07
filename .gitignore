@@ -43,3 +43,5 @@ mesh/
 lift_drag_outputs/
 
 .DS_Store
+
+.vscode
