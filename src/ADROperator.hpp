@@ -1,16 +1,28 @@
 #ifndef ADR_OPERATOR_HPP
 #define ADR_OPERATOR_HPP
 
+#include <deal.II/base/point.h>
+#include <deal.II/base/vectorization.h>
+
 #include <deal.II/lac/la_parallel_vector.h>
 
 #include <deal.II/matrix_free/matrix_free.h>
 #include <deal.II/matrix_free/operators.h>
 #include <deal.II/matrix_free/fe_evaluation.h>
 
+#include <functional>
+
 using namespace dealii;
 
 template<typename number>
 using DistributedVector = LinearAlgebra::distributed::Vector<number>;
+
+template<int dim, typename number>
+using VectorizedPoint = Point<dim, VectorizedArray<number>>;
+
+template<int dim, typename number>
+using VectorizedFunction = std::function<
+    VectorizedArray<number>(const VectorizedPoint<dim, number> &)>;
 
 // NOTE: I could probably remove the template on the number
 
@@ -19,7 +31,7 @@ class ADROperator :
     public MatrixFreeOperators::Base<dim, DistributedVector<number>>
 {
 public:
-    ADROperator();
+    ADROperator(const VectorizedFunction<dim, number> &diffusion_coeff);
 
     virtual void compute_diagonal() override;
 
@@ -38,11 +50,16 @@ private:
     void local_compute_diagonal(
         FEEvaluation<dim, fe_degree,
                           fe_degree + 1, 1, number> &integrator) const;
+
+    VectorizedFunction<dim, number> diffusion_coeff;
 };
 
 template<int dim, int fe_degree, typename number>
-ADROperator<dim, fe_degree, number>::ADROperator()
+ADROperator<dim, fe_degree, number>::ADROperator(
+    const VectorizedFunction<dim, number> &diffusion_coeff_
+)
     : MatrixFreeOperators::Base<dim, DistributedVector<number>>()
+    , diffusion_coeff(diffusion_coeff_)
 {}
 
 template<int dim, int fe_degree, typename number>
@@ -81,7 +98,8 @@ void ADROperator<dim, fe_degree, number>::local_compute_diagonal(
     phi.evaluate(EvaluationFlags::gradients);
 
     for (const unsigned int q : phi.quadrature_point_indices()) {
-        phi.submit_gradient(phi.get_gradient(q), q);
+        phi.submit_gradient(diffusion_coeff(phi.quadrature_point(q)) *
+                            phi.get_gradient(q), q);
     }
 
     phi.integrate(EvaluationFlags::gradients);
@@ -134,7 +152,8 @@ void ADROperator<dim, fe_degree, number>::local_apply(
             // while submit_gradients() multiplies by J_cell^-1 and JxW.
 
             // TLDR: we're preparing to compute B_cell^T * D_cell * B_cell
-            phi.submit_gradient(phi.get_gradient(q), q);
+            phi.submit_gradient(diffusion_coeff(phi.quadrature_point(q)) *
+                                phi.get_gradient(q), q);
         }
         // Multiplies the values stored at the quadrature points by the
         // gradient of each basis function, and sums up the result for all

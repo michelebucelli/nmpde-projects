@@ -1,6 +1,6 @@
+#include "ADROperator.hpp"
 #include "MatrixFreeADR.hpp"
 
-#include <functional>
 #include <iostream>
 
 #include <deal.II/base/convergence_table.h>
@@ -15,7 +15,7 @@ public:
     virtual double value(const Point<dim> &p,
                          const unsigned int = 0) const override
     {
-        return sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1] - M_PI / 2);
+        return sin(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
     }
 
     virtual Tensor<1, dim> gradient(const Point<dim> &p,
@@ -23,11 +23,8 @@ public:
     {
         Tensor<1, dim> res;
 
-        res[0] = 2 * M_PI * cos(2 * M_PI * p[0])
-                          * cos(2 * M_PI * p[1] - M_PI / 2);
-
-        res[1] = -2 * M_PI * sin(2 * M_PI * p[0])
-                           * sin(2 * M_PI * p[1] - M_PI / 2);
+        res[0] = 2 * M_PI * cos(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
+        res[1] = 2 * M_PI * sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
 
         return res;
     }
@@ -35,28 +32,33 @@ public:
 
 /* TODO: Figure out how to enable AVX2 when compiling. */
 
-int main(int argc, char *argv[]) {
-
+int main(int argc, char *argv[])
+{
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
     const unsigned int n_vec_doubles = VectorizedArray<double>::size();
     std::cout << "n_vec_doubles=" << n_vec_doubles << std::endl;
 
     const unsigned int fe_degree = 1;
-    const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
-    ExactSolution exact_solution;
 
-    typename MatrixFreeADR<dim, fe_degree>::VecFunction forcing =
-        [](const MatrixFreeADR<dim, fe_degree>::VecPointArray &p)
+    VectorizedFunction<dim, double> mu =
+        [](const VectorizedPoint<dim, double> &p) { return p[0]; };
+
+    VectorizedFunction<dim, double> f =
+        [](const VectorizedPoint<dim, double> &p)
     {
-        return 8 * M_PI * M_PI * sin(2 * M_PI * p[0])
-                               * cos(2 * M_PI * p[1] - M_PI / 2);
+        return 8 * M_PI * M_PI * p[0] * sin(2 * M_PI * p[0])
+                                      * sin(2 * M_PI * p[1]) -
+               2 * M_PI * cos(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
     };
 
     ConvergenceTable table;
+    ExactSolution exact_solution;
+
+    const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
 
     for (const unsigned int N : Ns) {
-        MatrixFreeADR<dim, fe_degree> mf_adr(N, forcing);
+        MatrixFreeADR<dim, fe_degree> mf_adr(N, mu, f);
 
         mf_adr.setup();
         mf_adr.assemble_rhs();

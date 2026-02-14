@@ -1,7 +1,6 @@
 #ifndef MATRIX_FREE_ADR
 #define MATRIX_FREE_ADR
 
-#include <deal.II/base/vectorization.h>
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/conditional_ostream.h>
 
@@ -32,12 +31,9 @@ template<int dim, int fe_degree>
 class MatrixFreeADR
 {
 public:
-    using VecPointArray = Point<dim, VectorizedArray<double>>;
-    using VecFunction =
-        std::function<VectorizedArray<double>(const VecPointArray &)>;
-
     MatrixFreeADR(const unsigned int N_,
-                  const VecFunction &forcing_);
+                  const VectorizedFunction<dim, double> &diffusion_coeff_,
+                  const VectorizedFunction<dim, double> &forcing_term_);
 
     void setup();
     void assemble_rhs();
@@ -51,8 +47,13 @@ private:
     const unsigned int mpi_rank;
     const unsigned int mpi_size;
 
+    // Number of elements for each dimension
     const unsigned int N;
-    const VecFunction forcing;
+
+    // Diffusion coefficient
+    const VectorizedFunction<dim, double> diffusion_coeff;
+    // Forcing term
+    const VectorizedFunction<dim, double> forcing_term;
 
     // TODO: Can I use fullydistributed?
     parallel::distributed::Triangulation<dim> mesh;
@@ -76,14 +77,17 @@ private:
 template<int dim, int fe_degree>
 MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(
     const unsigned int N_,
-    const MatrixFreeADR<dim, fe_degree>::VecFunction &forcing_
+    const VectorizedFunction<dim, double> &diffusion_coeff_,
+    const VectorizedFunction<dim, double> &forcing_term_
 )
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , N(N_)
-    , forcing(forcing_)
+    , diffusion_coeff(diffusion_coeff_)
+    , forcing_term(forcing_term_)
     , mesh(MPI_COMM_WORLD)
     , fe(fe_degree)
+    , system_matrix(diffusion_coeff_)
     , pcout(std::cout, mpi_rank == 0)
 {}
 
@@ -148,7 +152,7 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
 
         phi.reinit(cell);
         for (const unsigned int q : phi.quadrature_point_indices()) {
-            phi.submit_value(forcing(phi.quadrature_point(q)), q);
+            phi.submit_value(forcing_term(phi.quadrature_point(q)), q);
         }
         phi.integrate(EvaluationFlags::values);
         phi.distribute_local_to_global(system_rhs);
