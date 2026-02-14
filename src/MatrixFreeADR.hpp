@@ -1,6 +1,7 @@
 #ifndef MATRIX_FREE_ADR
 #define MATRIX_FREE_ADR
 
+#include <deal.II/base/vectorization.h>
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/conditional_ostream.h>
 
@@ -31,17 +32,27 @@ template<int dim, int fe_degree>
 class MatrixFreeADR
 {
 public:
-    MatrixFreeADR(const unsigned int N_);
+    using VecPointArray = Point<dim, VectorizedArray<double>>;
+    using VecFunction =
+        std::function<VectorizedArray<double>(const VecPointArray &)>;
+
+    MatrixFreeADR(const unsigned int N_,
+                  const VecFunction &forcing_);
+
     void setup();
     void assemble_rhs();
     void solve();
     void output();
+
+    double compute_error(const VectorTools::NormType &norm_type,
+                         const Function<dim> &exact_solution) const;
 
 private:
     const unsigned int mpi_rank;
     const unsigned int mpi_size;
 
     const unsigned int N;
+    const VecFunction forcing;
 
     // TODO: Can I use fullydistributed?
     parallel::distributed::Triangulation<dim> mesh;
@@ -63,10 +74,14 @@ private:
 };
 
 template<int dim, int fe_degree>
-MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(const unsigned int N_)
+MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(
+    const unsigned int N_,
+    const MatrixFreeADR<dim, fe_degree>::VecFunction &forcing_
+)
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , N(N_)
+    , forcing(forcing_)
     , mesh(MPI_COMM_WORLD)
     , fe(fe_degree)
     , pcout(std::cout, mpi_rank == 0)
@@ -91,6 +106,7 @@ void MatrixFreeADR<dim, fe_degree>::setup()
                                                  dof_handler,
                                                  0,
                                                  Functions::ZeroFunction<dim>(),
+                                                 constraints);
         constraints.close();
     }
 
@@ -112,7 +128,7 @@ void MatrixFreeADR<dim, fe_degree>::setup()
                                   constraints,
                                   // dim=1 since basis functions are decomposed
                                   // as tensor products of 1D functions
-                                  QGauss<1>(fe.degree + 1),
+                                  QGauss<1>(fe_degree + 1),
                                   additional_data);
         system_matrix.initialize(system_mf_storage);
 
@@ -132,8 +148,7 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
 
         phi.reinit(cell);
         for (const unsigned int q : phi.quadrature_point_indices()) {
-            // Constant forcing term f=1
-            phi.submit_value(make_vectorized_array<double>(1.0), q);
+            phi.submit_value(forcing(phi.quadrature_point(q)), q);
         }
         phi.integrate(EvaluationFlags::values);
         phi.distribute_local_to_global(system_rhs);
@@ -166,10 +181,33 @@ void MatrixFreeADR<dim, fe_degree>::output()
     data_out.add_data_vector(dof_handler, solution, "solution");
     data_out.build_patches(mapping);
 
-    std::ofstream output_file("solution.vtk");
+    const std::string output_file_name =
+        "solution-" + std::to_string(N) + ".vtk";
+    std::ofstream output_file(output_file_name);
     data_out.write_vtk(output_file);
 
-    pcout << "Output saved to solution.vtk" << std::endl;
+    pcout << "Output saved to " << output_file_name << std::endl;
+}
+
+template<int dim, int fe_degree>
+double MatrixFreeADR<dim, fe_degree>::
+    compute_error(const VectorTools::NormType &norm_type,
+                  const Function<dim> &exact_solution) const
+{
+    Vector<double> error_per_cell(mesh.n_active_cells());
+
+    VectorTools::integrate_difference(mapping,
+                                      dof_handler,
+                                      solution,
+                                      exact_solution,
+                                      error_per_cell,
+                                      QGauss<dim>(fe_degree + 2), 
+                                      norm_type);
+
+    const double error =
+        VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
+
+    return error;
 }
 
 #endif
