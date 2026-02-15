@@ -33,7 +33,8 @@ class MatrixFreeADR
 public:
     MatrixFreeADR(const unsigned int N_,
                   const VectorizedFunction<dim, double> &diffusion_coeff_,
-                  const VectorizedFunction<dim, double> &forcing_term_);
+                  const VectorizedFunction<dim, double> &forcing_term_,
+                  const Function<dim> &dirichlet_bc_);
 
     void setup();
     void assemble_rhs();
@@ -47,13 +48,11 @@ private:
     const unsigned int mpi_rank;
     const unsigned int mpi_size;
 
-    // Number of elements for each dimension
     const unsigned int N;
 
-    // Diffusion coefficient
     const VectorizedFunction<dim, double> diffusion_coeff;
-    // Forcing term
     const VectorizedFunction<dim, double> forcing_term;
+    const Function<dim> &dirichlet_bc;
 
     // TODO: Can I use fullydistributed?
     parallel::distributed::Triangulation<dim> mesh;
@@ -70,6 +69,7 @@ private:
 
     DistributedVector<double> system_rhs;
     DistributedVector<double> solution;
+    DistributedVector<double> solution_update;
 
     ConditionalOStream pcout;
 };
@@ -78,13 +78,15 @@ template<int dim, int fe_degree>
 MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(
     const unsigned int N_,
     const VectorizedFunction<dim, double> &diffusion_coeff_,
-    const VectorizedFunction<dim, double> &forcing_term_
+    const VectorizedFunction<dim, double> &forcing_term_,
+    const Function<dim> &dirichlet_bc_
 )
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , N(N_)
     , diffusion_coeff(diffusion_coeff_)
     , forcing_term(forcing_term_)
+    , dirichlet_bc(dirichlet_bc_)
     , mesh(MPI_COMM_WORLD)
     , fe(fe_degree)
     , system_matrix(diffusion_coeff_)
@@ -109,7 +111,7 @@ void MatrixFreeADR<dim, fe_degree>::setup()
         VectorTools::interpolate_boundary_values(mapping,
                                                  dof_handler,
                                                  0,
-                                                 Functions::ZeroFunction<dim>(),
+                                                 dirichlet_bc,
                                                  constraints);
         constraints.close();
     }
@@ -138,12 +140,16 @@ void MatrixFreeADR<dim, fe_degree>::setup()
 
         system_matrix.initialize_dof_vector(system_rhs);
         system_matrix.initialize_dof_vector(solution);
+        system_matrix.initialize_dof_vector(solution_update);
     }
 }
 
 template<int dim, int fe_degree>
 void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
 {
+    solution = 0;
+    constraints.distribute(solution);
+    solution.update_ghost_values();
     system_rhs = 0;
 
     FEEvaluation<dim, fe_degree> phi(*system_matrix.get_matrix_free());
@@ -151,10 +157,17 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
          cell < system_matrix.get_matrix_free()->n_cell_batches(); ++cell) {
 
         phi.reinit(cell);
+        // Ignores constraints on solution, reading all DoFs
+        phi.read_dof_values_plain(solution);
+        phi.evaluate(EvaluationFlags::gradients);
         for (const unsigned int q : phi.quadrature_point_indices()) {
-            phi.submit_value(forcing_term(phi.quadrature_point(q)), q);
+            const VectorizedPoint<dim, double> &q_p = phi.quadrature_point(q);
+
+            phi.submit_value(forcing_term(q_p), q);
+            phi.submit_gradient(-diffusion_coeff(q_p) *
+                                phi.get_gradient(q), q);
         }
-        phi.integrate(EvaluationFlags::values);
+        phi.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
         phi.distribute_local_to_global(system_rhs);
     }
     system_rhs.compress(VectorOperation::add);
@@ -168,10 +181,9 @@ void MatrixFreeADR<dim, fe_degree>::solve()
 
     PreconditionIdentity preconditioner;
 
-    constraints.set_zero(solution); // Is this needed?
-    solver.solve(system_matrix, solution, system_rhs, preconditioner);
-    // Solve for the constrained DoFs
-    constraints.distribute(solution);
+    // No constraints stuff here?
+    solver.solve(system_matrix, solution_update, system_rhs, preconditioner);
+    solution += solution_update;
 
     pcout << solver_control.last_step() << " CG iterations" << std::endl;
 }
@@ -185,12 +197,10 @@ void MatrixFreeADR<dim, fe_degree>::output()
     data_out.add_data_vector(dof_handler, solution, "solution");
     data_out.build_patches(mapping);
 
-    const std::string output_file_name =
-        "solution-" + std::to_string(N) + ".vtk";
-    std::ofstream output_file(output_file_name);
-    data_out.write_vtk(output_file);
-
-    pcout << "Output saved to " << output_file_name << std::endl;
+    data_out.write_vtu_with_pvtu_record("./",
+                                       "solution-" + std::to_string(N),
+                                        0,
+                                        MPI_COMM_WORLD);
 }
 
 template<int dim, int fe_degree>

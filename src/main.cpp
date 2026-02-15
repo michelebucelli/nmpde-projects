@@ -15,7 +15,7 @@ public:
     virtual double value(const Point<dim> &p,
                          const unsigned int = 0) const override
     {
-        return sin(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
+        return sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
     }
 
     virtual Tensor<1, dim> gradient(const Point<dim> &p,
@@ -23,8 +23,8 @@ public:
     {
         Tensor<1, dim> res;
 
-        res[0] = 2 * M_PI * cos(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
-        res[1] = 2 * M_PI * sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
+        res[0] = 2 * M_PI * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
+        res[1] = -2 * M_PI * sin(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
 
         return res;
     }
@@ -48,8 +48,8 @@ int main(int argc, char *argv[])
         [](const VectorizedPoint<dim, double> &p)
     {
         return 8 * M_PI * M_PI * p[0] * sin(2 * M_PI * p[0])
-                                      * sin(2 * M_PI * p[1]) -
-               2 * M_PI * cos(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
+                                      * cos(2 * M_PI * p[1]) -
+               2 * M_PI * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
     };
 
     ConvergenceTable table;
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
 
     for (const unsigned int N : Ns) {
-        MatrixFreeADR<dim, fe_degree> mf_adr(N, mu, f);
+        MatrixFreeADR<dim, fe_degree> mf_adr(N, mu, f, exact_solution);
 
         mf_adr.setup();
         mf_adr.assemble_rhs();
@@ -80,7 +80,10 @@ int main(int argc, char *argv[])
 
     table.set_scientific("eL2", true);
     table.set_scientific("eH1", true);
-    table.write_text(std::cout);
+
+    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
+        table.write_text(std::cout);
+    }
 
     return 0;
 }
