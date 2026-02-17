@@ -31,10 +31,16 @@ template<int dim, int fe_degree>
 class MatrixFreeADR
 {
 public:
+
     MatrixFreeADR(const unsigned int N_,
                   const VectorizedFunction<dim, double> &diffusion_coeff_,
-                  const VectorizedFunction<dim, double> &forcing_term_,
-                  const Function<dim> &dirichlet_bc_);
+                  const VectorizedFunction<dim, double> &forcing_term_);
+
+    void set_dirichlet_bc(const types::boundary_id boundary_id,
+                          const std::shared_ptr<Function<dim>> &bc_function);
+
+    void set_neumann_bc(const types::boundary_id boundary_id,
+                        const VectorizedFunction<dim, double> &bc_function);
 
     void setup();
     void assemble_rhs();
@@ -52,7 +58,12 @@ private:
 
     const VectorizedFunction<dim, double> diffusion_coeff;
     const VectorizedFunction<dim, double> forcing_term;
-    const Function<dim> &dirichlet_bc;
+
+    std::map<types::boundary_id, std::shared_ptr<Function<dim>>>
+    dirichlet_bcs;
+
+    std::map<types::boundary_id, VectorizedFunction<dim, double>>
+    neumann_bcs;
 
     // TODO: Can I use fullydistributed?
     parallel::distributed::Triangulation<dim> mesh;
@@ -78,27 +89,48 @@ template<int dim, int fe_degree>
 MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(
     const unsigned int N_,
     const VectorizedFunction<dim, double> &diffusion_coeff_,
-    const VectorizedFunction<dim, double> &forcing_term_,
-    const Function<dim> &dirichlet_bc_
+    const VectorizedFunction<dim, double> &forcing_term_
 )
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , N(N_)
     , diffusion_coeff(diffusion_coeff_)
     , forcing_term(forcing_term_)
-    , dirichlet_bc(dirichlet_bc_)
     , mesh(MPI_COMM_WORLD)
     , fe(fe_degree)
     , system_matrix(diffusion_coeff_)
     , pcout(std::cout, mpi_rank == 0)
-{}
+{
+    //for (unsigned int b_id = 0; b_id < dim * 2; ++b_id) {
+    //    dirichlet_bcs[b_id] =
+    //        std::make_shared<Functions::ZeroFunction<dim>>();
+    //}
+}
+
+template<int dim, int fe_degree>
+void MatrixFreeADR<dim, fe_degree>::set_dirichlet_bc(
+    const types::boundary_id boundary_id,
+    const std::shared_ptr<Function<dim>> &bc_function)
+{
+    dirichlet_bcs[boundary_id] = bc_function;
+    neumann_bcs.erase(boundary_id);
+}
+
+template<int dim, int fe_degree>
+void MatrixFreeADR<dim, fe_degree>::set_neumann_bc(
+    const types::boundary_id boundary_id,
+    const VectorizedFunction<dim, double> &bc_function)
+{
+    neumann_bcs[boundary_id] = bc_function;
+    dirichlet_bcs.erase(boundary_id);
+}
 
 template<int dim, int fe_degree>
 void MatrixFreeADR<dim, fe_degree>::setup()
 {
     {
         // TODO: Check matrix-free simplex mesh support
-        GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, false);
+        GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
 
         dof_handler.reinit(mesh);
         // TODO: Check DoFRenumbering::matrix_free_data_locality()
@@ -108,11 +140,17 @@ void MatrixFreeADR<dim, fe_degree>::setup()
             DoFTools::extract_locally_relevant_dofs(dof_handler);
 
         constraints.reinit(locally_relevant_dofs);
+
+        std::map<types::boundary_id, const Function<dim> *> bc_functions;
+        for (const auto &entry : dirichlet_bcs) {
+            bc_functions[entry.first] = entry.second.get();
+        }
+
         VectorTools::interpolate_boundary_values(mapping,
                                                  dof_handler,
-                                                 0,
-                                                 dirichlet_bc,
+                                                 bc_functions,
                                                  constraints);
+
         constraints.close();
     }
 
@@ -126,6 +164,8 @@ void MatrixFreeADR<dim, fe_degree>::setup()
         // Specifies what should be computed (and cached) on cells
         additional_data.mapping_update_flags =
             (update_gradients | update_JxW_values | update_quadrature_points);
+        additional_data.mapping_update_flags_boundary_faces =
+            (update_values | update_JxW_values | update_quadrature_points);
 
         std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(
             new MatrixFree<dim, double>());
@@ -147,12 +187,19 @@ void MatrixFreeADR<dim, fe_degree>::setup()
 template<int dim, int fe_degree>
 void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
 {
+    /* NOTE: There's another method to handle inhomogeneous dirichlet
+     * bcs which should be faster for high-order elements with hanging-nodes.
+     * See https://dealii.org/current/doxygen/deal.II/group__matrixfree.html */
+
     solution = 0;
     constraints.distribute(solution);
     solution.update_ghost_values();
     system_rhs = 0;
 
     FEEvaluation<dim, fe_degree> phi(*system_matrix.get_matrix_free());
+    FEFaceEvaluation<dim, fe_degree> phi_face(
+        *system_matrix.get_matrix_free());
+
     for (unsigned int cell = 0;
          cell < system_matrix.get_matrix_free()->n_cell_batches(); ++cell) {
 
@@ -164,12 +211,40 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
             const VectorizedPoint<dim, double> &q_p = phi.quadrature_point(q);
 
             phi.submit_value(forcing_term(q_p), q);
-            phi.submit_gradient(-diffusion_coeff(q_p) *
-                                phi.get_gradient(q), q);
+            phi.submit_gradient(-diffusion_coeff(q_p) * phi.get_gradient(q),
+                                q);
         }
         phi.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
         phi.distribute_local_to_global(system_rhs);
     }
+
+    const unsigned int n_inner_face_batches =
+        system_matrix.get_matrix_free()->n_inner_face_batches();
+    const unsigned int n_boundary_face_batches =
+        system_matrix.get_matrix_free()->n_boundary_face_batches();
+
+    for (unsigned int face = n_inner_face_batches;
+         face < n_inner_face_batches + n_boundary_face_batches;
+         ++face) {
+
+        phi_face.reinit(face);
+        /* WARNING: Am I sure that faces in the same
+         * batch are on the same boundary? */
+        const types::boundary_id b_id = phi_face.boundary_id();
+
+        if (neumann_bcs.count(b_id)) {
+            for (const unsigned int q : phi_face.quadrature_point_indices()) {
+
+                const VectorizedFunction<dim, double> &bc_function =
+                    neumann_bcs[b_id];
+
+                phi_face.submit_value(
+                    bc_function(phi_face.quadrature_point(q)), q);
+            }
+            phi_face.integrate_scatter(EvaluationFlags::values, system_rhs);
+        }
+    }
+
     system_rhs.compress(VectorOperation::add);
 }
 
