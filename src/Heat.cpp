@@ -186,7 +186,7 @@ Heat::solve_linear_system()
     system_matrix, TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
 
   ReductionControl solver_control(/* maxiter = */ 10000,
-                                  /* tolerance = */ 1.0e-16,
+                                  /* tolerance = */ 1.0e-12,
                                   /* reduce = */ 1.0e-6);
                                   // /* reduce = */ 1.0e-12);
 
