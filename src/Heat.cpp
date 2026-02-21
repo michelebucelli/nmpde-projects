@@ -17,8 +17,32 @@ void Heat::init_mesh() {
   mesh.create_triangulation(construction_data);
 }
 
+void Heat::setup_system() {
 
+  if (!fe) {
+    fe = std::make_unique<FE_SimplexP<dim>>(r);
+    quadrature = std::make_unique<QGaussSimplex<dim>>(r + 1);
+    dof_handler.reinit(mesh); 
+  }
 
+  
+  dof_handler.distribute_dofs(*fe);
+
+  const IndexSet locally_owned_dofs = dof_handler.locally_owned_dofs();
+  const IndexSet locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
+
+  // Ricostruzione dello sparsity pattern
+  TrilinosWrappers::SparsityPattern sparsity(locally_owned_dofs, MPI_COMM_WORLD);
+  DoFTools::make_sparsity_pattern(dof_handler, sparsity);
+  sparsity.compress();
+
+  // Re-inizializzazione di matrice e vettori
+  system_matrix.reinit(sparsity);
+  system_rhs.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+  solution_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+  solution_owned_old.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+  solution.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+}
 
 void Heat::setup_system() {
 
@@ -97,12 +121,9 @@ Heat::assemble()
         {
           const double mu_loc = mu(fe_values.quadrature_point(q));
 
-          // time Ã¨ il tempo "vecchio" (t_n), time + delta_t Ã¨ il tempo "nuovo" (t_{n+1})
+          // time è il tempo "vecchio" (t_n), time + delta_t è il tempo "nuovo" (t_{n+1})
           const double f_old_loc = f(fe_values.quadrature_point(q), time);
           const double f_new_loc = f(fe_values.quadrature_point(q), time + delta_t);
-
-          const double sigma_loc = sigma(fe_values.quadrature_point(q));
-          const Tensor<1, dim> b_loc = b(fe_values.quadrature_point(q));
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
@@ -120,17 +141,6 @@ Heat::assemble()
                                    fe_values.shape_grad(j, q)) * //
                     fe_values.JxW(q);
 
-                  // Reaction.
-                  cell_matrix(i, j) += theta * sigma_loc * //
-                                       fe_values.shape_value(i, q) *                 //
-                                       fe_values.shape_value(j, q) *                 //
-                                       fe_values.JxW(q);
-
-                  // Advection.
-                  cell_matrix(i, j) += theta * scalar_product(b_loc,     //
-                                        fe_values.shape_grad(j, q)) * // 
-                                        fe_values.shape_value(i, q) *
-                                        fe_values.JxW(q);
                 }
 
               // Time derivative.
@@ -147,21 +157,6 @@ Heat::assemble()
                                             solution_old_grads[q]) *    //
                              fe_values.JxW(q);
 
-
-                          
-
-              // Reaction.
-              cell_rhs(i) -= (1.0 - theta) * sigma_loc * //
-                             fe_values.shape_value(i, q) *  //
-                             solution_old_values[q] *   //
-                             fe_values.JxW(q);
-                
-              // Advection.
-              cell_rhs(i) -= (1.0 - theta) * scalar_product(b_loc,     //
-                             solution_old_grads[q]) *
-                             fe_values.shape_value(i, q) * //
-                             fe_values.JxW(q);
-
               // Forcing term.
               cell_rhs(i) +=
                 (theta * f_new_loc + (1.0 - theta) * f_old_loc) * //
@@ -169,8 +164,6 @@ Heat::assemble()
                 fe_values.JxW(q);
             }
         }
-
-
         
       cell->get_dof_indices(dof_indices);
 
@@ -229,7 +222,7 @@ void Heat::refine_mesh() {
   // FIX CRITICO: Salviamo il vecchio vettore prima che setup_system lo distrugga!
   TrilinosWrappers::MPI::Vector old_solution_owned = solution_owned;
 
-  // Ricostruzione sistema (questo riempirÃ  solution_owned di zeri)
+  // Ricostruzione sistema (questo riempirà solution_owned di zeri)
   setup_system(); 
 
   TrilinosWrappers::MPI::Vector interpolated_sol;
@@ -307,7 +300,7 @@ void Heat::run() {
       }
     }
 
-    // Dopo uno step accettato, gestiamo l'adattivitÃ  spaziale
+    // Dopo uno step accettato, gestiamo l'adattività spaziale
     if (timestep_number % 5 == 0) {
       refine_mesh();
     }

@@ -47,6 +47,7 @@ public:
   // Physical dimension (1D, 2D, 3D)
   static constexpr unsigned int dim = 3;
 
+  
   // Initial condition.
   class FunctionU0 : public Function<dim>
   {
@@ -62,7 +63,6 @@ public:
       return 0;
     }
   };
-
 
   class g_function : public Function<dim>
   {
@@ -103,9 +103,7 @@ public:
       const double                                    &theta_,
       const double                                    &delta_t_,
       const std::function<double(const Point<dim> &)> &mu_,
-      const std::function<double(const Point<dim> &)> &sigma_,
-      const std::function<double(const Point<dim> &, const double &)> &f_,
-      const std::function<Tensor<1, dim>(const Point<dim> &)> &b_)
+      const std::function<double(const Point<dim> &, const double &)> &f_)
     : mesh_file_name(mesh_file_name_)
     , r(r_)
     , T(T_)
@@ -148,7 +146,7 @@ protected:
 
   void setup_system(); // Ex setup(), ora gestisce solo matrici/DoF
   void init_mesh();    // Nuova funzione per leggere la mesh solo una volta
-  void refine_mesh();  // La funzione core per l'adattivitÃ 
+  void refine_mesh();  // La funzione core per l'adattività
 
   // Output.
   void
