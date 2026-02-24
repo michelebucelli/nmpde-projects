@@ -15,7 +15,7 @@ public:
     virtual double value(const Point<dim> &p,
                          const unsigned int = 0) const override
     {
-        return p[0] + p[1];//sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
+        return sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
     }
 
     virtual Tensor<1, dim> gradient(const Point<dim> &p,
@@ -41,21 +41,36 @@ int main(int argc, char *argv[])
 
     const unsigned int fe_degree = 1;
 
-    VectorizedFunction<dim, double> mu =
-        [](const VectorizedPoint<dim, double> &p) { return 1.0; };
+    VectorArrayFunction<dim, double> beta =
+        [](const ArrayPoint<dim, double> &p) {
+            Tensor<1, dim, VectorizedArray<double>> res;
+            res[0] = p[1];
+            res[1] = p[0];
+            return res;
+        };
 
-    VectorizedFunction<dim, double> f =
-        [](const VectorizedPoint<dim, double> &p)
+    ScalarArrayFunction<dim, double> mu =
+        [](const ArrayPoint<dim, double> &p) { return p[0]; };
+
+    ScalarArrayFunction<dim, double> gamma =
+        [](const ArrayPoint<dim, double> &p) { return p[1]; };
+
+    ScalarArrayFunction<dim, double> f =
+        [](const ArrayPoint<dim, double> &p)
     {
-        //return 8 * M_PI * M_PI * p[0] * sin(2 * M_PI * p[0])
-        //                              * cos(2 * M_PI * p[1]) -
-        //       2 * M_PI * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
-
-        return -5;
+               // Diffusion term
+        return 8 * M_PI * M_PI * p[0] * sin(2 * M_PI * p[0])
+                                      * cos(2 * M_PI * p[1]) -
+               2 * M_PI * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) +
+               // Reaction term
+               p[1] * sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) +
+               // Advection term
+               2 * M_PI * p[1] * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) -
+               2 * M_PI * p[0] * sin(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
     };
 
-    VectorizedFunction<dim, double> n_bc =
-        [](const VectorizedPoint<dim, double> &p){ return p[1]; };
+    ScalarArrayFunction<dim, double> n_bc =
+        [](const ArrayPoint<dim, double> &){ return 0; };
 
     auto exact_solution = std::make_shared<ExactSolution>();
 
@@ -63,10 +78,12 @@ int main(int argc, char *argv[])
     const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
 
     for (const unsigned int N : Ns) {
-        MatrixFreeADR<dim, fe_degree> mf_adr(N, mu, f);
+        MatrixFreeADR<dim, fe_degree> mf_adr(N, beta, mu, gamma, f);
 
         mf_adr.set_dirichlet_bc(0, exact_solution);
         mf_adr.set_dirichlet_bc(1, exact_solution);
+        //mf_adr.set_dirichlet_bc(2, exact_solution);
+        //mf_adr.set_dirichlet_bc(3, exact_solution);
 
         mf_adr.set_neumann_bc(2, n_bc);
         mf_adr.set_neumann_bc(3, n_bc);

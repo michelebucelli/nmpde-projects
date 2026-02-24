@@ -14,7 +14,7 @@
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
 
-#include <deal.II/lac/solver_cg.h>
+#include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/precondition.h>
 
 #include <deal.II/numerics/data_out.h>
@@ -33,14 +33,16 @@ class MatrixFreeADR
 public:
 
     MatrixFreeADR(const unsigned int N_,
-                  const VectorizedFunction<dim, double> &diffusion_coeff_,
-                  const VectorizedFunction<dim, double> &forcing_term_);
+                  const VectorArrayFunction<dim, double> &advection_coeff,
+                  const ScalarArrayFunction<dim, double> &diffusion_coeff,
+                  const ScalarArrayFunction<dim, double> &reaction_coeff,
+                  const ScalarArrayFunction<dim, double> &forcing_term_);
 
     void set_dirichlet_bc(const types::boundary_id boundary_id,
                           const std::shared_ptr<Function<dim>> &bc_function);
 
     void set_neumann_bc(const types::boundary_id boundary_id,
-                        const VectorizedFunction<dim, double> &bc_function);
+                        const ScalarArrayFunction<dim, double> &bc_function);
 
     void setup();
     void assemble_rhs();
@@ -56,14 +58,10 @@ private:
 
     const unsigned int N;
 
-    const VectorizedFunction<dim, double> diffusion_coeff;
-    const VectorizedFunction<dim, double> forcing_term;
+    const ScalarArrayFunction<dim, double> forcing_term;
 
     std::map<types::boundary_id, std::shared_ptr<Function<dim>>>
     dirichlet_bcs;
-
-    std::map<types::boundary_id, VectorizedFunction<dim, double>>
-    neumann_bcs;
 
     // TODO: Can I use fullydistributed?
     parallel::distributed::Triangulation<dim> mesh;
@@ -88,17 +86,18 @@ private:
 template<int dim, int fe_degree>
 MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(
     const unsigned int N_,
-    const VectorizedFunction<dim, double> &diffusion_coeff_,
-    const VectorizedFunction<dim, double> &forcing_term_
+    const VectorArrayFunction<dim, double> &advection_coeff,
+    const ScalarArrayFunction<dim, double> &diffusion_coeff,
+    const ScalarArrayFunction<dim, double> &reaction_coeff,
+    const ScalarArrayFunction<dim, double> &forcing_term_
 )
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , N(N_)
-    , diffusion_coeff(diffusion_coeff_)
     , forcing_term(forcing_term_)
     , mesh(MPI_COMM_WORLD)
     , fe(fe_degree)
-    , system_matrix(diffusion_coeff_)
+    , system_matrix(advection_coeff, diffusion_coeff, reaction_coeff)
     , pcout(std::cout, mpi_rank == 0)
 {
     //for (unsigned int b_id = 0; b_id < dim * 2; ++b_id) {
@@ -113,15 +112,15 @@ void MatrixFreeADR<dim, fe_degree>::set_dirichlet_bc(
     const std::shared_ptr<Function<dim>> &bc_function)
 {
     dirichlet_bcs[boundary_id] = bc_function;
-    neumann_bcs.erase(boundary_id);
+    system_matrix.neumann_bcs.erase(boundary_id);
 }
 
 template<int dim, int fe_degree>
 void MatrixFreeADR<dim, fe_degree>::set_neumann_bc(
     const types::boundary_id boundary_id,
-    const VectorizedFunction<dim, double> &bc_function)
+    const ScalarArrayFunction<dim, double> &bc_function)
 {
-    neumann_bcs[boundary_id] = bc_function;
+    system_matrix.neumann_bcs[boundary_id] = bc_function;
     dirichlet_bcs.erase(boundary_id);
 }
 
@@ -187,9 +186,9 @@ void MatrixFreeADR<dim, fe_degree>::setup()
 template<int dim, int fe_degree>
 void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
 {
-    /* NOTE: There's another method to handle inhomogeneous dirichlet
-     * bcs which should be faster for high-order elements with hanging-nodes.
-     * See https://dealii.org/current/doxygen/deal.II/group__matrixfree.html */
+    // NOTE: There's another method to handle inhomogeneous dirichlet
+    // bcs which should be faster for high-order elements with hanging-nodes.
+    // See https://dealii.org/current/doxygen/deal.II/group__matrixfree.html
 
     solution = 0;
     constraints.distribute(solution);
@@ -206,13 +205,19 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
         phi.reinit(cell);
         // Ignores constraints on solution, reading all DoFs
         phi.read_dof_values_plain(solution);
-        phi.evaluate(EvaluationFlags::gradients);
+        phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
         for (const unsigned int q : phi.quadrature_point_indices()) {
-            const VectorizedPoint<dim, double> &q_p = phi.quadrature_point(q);
+            const ArrayPoint<dim, double> q_p = phi.quadrature_point(q);
+            const VectorizedArray<double> q_val = phi.get_value(q);
 
-            phi.submit_value(forcing_term(q_p), q);
-            phi.submit_gradient(-diffusion_coeff(q_p) * phi.get_gradient(q),
-                                q);
+            phi.submit_gradient(
+                system_matrix.advection_coeff(q_p) * q_val +
+                -system_matrix.diffusion_coeff(q_p) * phi.get_gradient(q), q);
+
+            phi.submit_value(
+                forcing_term(q_p) +
+                -system_matrix.reaction_coeff(q_p) * q_val, q);
+
         }
         phi.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
         phi.distribute_local_to_global(system_rhs);
@@ -228,18 +233,22 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
          ++face) {
 
         phi_face.reinit(face);
-        /* WARNING: Am I sure that faces in the same
-         * batch are on the same boundary? */
+
+        /* Faces in the same batch are on the same boundary. */
         const types::boundary_id b_id = phi_face.boundary_id();
 
-        if (neumann_bcs.count(b_id)) {
-            for (const unsigned int q : phi_face.quadrature_point_indices()) {
+        if (system_matrix.neumann_bcs.count(b_id)) {
+            const ScalarArrayFunction<dim, double> &bc_function =
+                system_matrix.neumann_bcs[b_id];
 
-                const VectorizedFunction<dim, double> &bc_function =
-                    neumann_bcs[b_id];
+            phi_face.gather_evaluate(solution, EvaluationFlags::values);
+            for (const unsigned int q : phi_face.quadrature_point_indices()) {
+                const ArrayPoint<dim, double> q_p = phi_face.quadrature_point(q);
 
                 phi_face.submit_value(
-                    bc_function(phi_face.quadrature_point(q)), q);
+                    -system_matrix.advection_coeff(q_p) *
+                    phi_face.normal_vector(q) * phi_face.get_value(q) +
+                    bc_function(q_p), q);
             }
             phi_face.integrate_scatter(EvaluationFlags::values, system_rhs);
         }
@@ -251,16 +260,17 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
 template<int dim, int fe_degree>
 void MatrixFreeADR<dim, fe_degree>::solve()
 {
-    SolverControl solver_control(1000, 1e-12 * system_rhs.l2_norm());
-    SolverCG<DistributedVector<double>> solver(solver_control);
+    SolverControl solver_control(5000, 1e-12 * system_rhs.l2_norm());
+    SolverGMRES<DistributedVector<double>> solver(solver_control);
 
+    // TODO: Figure out how to use other preconditioners
     PreconditionIdentity preconditioner;
 
     // No constraints stuff here?
     solver.solve(system_matrix, solution_update, system_rhs, preconditioner);
     solution += solution_update;
 
-    pcout << solver_control.last_step() << " CG iterations" << std::endl;
+    pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
 }
 
 template<int dim, int fe_degree>
