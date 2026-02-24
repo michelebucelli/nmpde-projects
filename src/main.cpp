@@ -44,6 +44,8 @@ int main(int argc, char *argv[])
     VectorArrayFunction<dim, double> beta =
         [](const ArrayPoint<dim, double> &p) {
             Tensor<1, dim, VectorizedArray<double>> res;
+            // TODO: Test convergence using a coefficient with
+            // non-const divergence
             res[0] = p[1];
             res[1] = p[0];
             return res;

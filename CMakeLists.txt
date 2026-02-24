@@ -35,9 +35,6 @@ deal_ii_initialize_cached_variables()
 # Add useful compiler flags.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfloat-conversion -Wmissing-braces -Wnon-virtual-dtor")
 
-add_library(MatrixFreeADR STATIC src/MatrixFreeADR.cpp)
-deal_ii_setup_target(MatrixFreeADR)
-
 add_executable(main src/main.cpp)
-target_link_libraries(main MatrixFreeADR)
+target_link_libraries(main)
 deal_ii_setup_target(main)

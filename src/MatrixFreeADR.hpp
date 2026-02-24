@@ -162,9 +162,13 @@ void MatrixFreeADR<dim, fe_degree>::setup()
             MatrixFree<dim, double>::AdditionalData::none;
         // Specifies what should be computed (and cached) on cells
         additional_data.mapping_update_flags =
-            (update_gradients | update_JxW_values | update_quadrature_points);
+            (update_values | update_gradients | update_JxW_values |
+             update_quadrature_points);
+        // TODO: Investigate these flags, if for example, update_normal_vector
+        // is omitted, the code still converges
         additional_data.mapping_update_flags_boundary_faces =
-            (update_values | update_JxW_values | update_quadrature_points);
+            (update_values | update_JxW_values | update_quadrature_points |
+             update_normal_vectors);
 
         std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(
             new MatrixFree<dim, double>());
