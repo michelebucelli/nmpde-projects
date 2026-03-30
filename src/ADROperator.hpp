@@ -42,6 +42,8 @@ public:
 
     virtual void compute_diagonal() override;
 
+    // TODO: Not the best for performance.. find a way to inline
+    // these function calls when benchmarking
     const VectorArrayFunction<dim, number> advection_coeff;
     const ScalarArrayFunction<dim, number> diffusion_coeff;
     const ScalarArrayFunction<dim, number> reaction_coeff;

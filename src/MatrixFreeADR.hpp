@@ -1,6 +1,7 @@
 #ifndef MATRIX_FREE_ADR
 #define MATRIX_FREE_ADR
 
+#include <deal.II/base/timer.h>
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/conditional_ostream.h>
 
@@ -138,7 +139,8 @@ void MatrixFreeADR<dim, fe_degree>::setup()
         const IndexSet locally_relevant_dofs =
             DoFTools::extract_locally_relevant_dofs(dof_handler);
 
-        constraints.reinit(locally_relevant_dofs);
+        constraints.reinit(dof_handler.locally_owned_dofs(),
+                           locally_relevant_dofs);
 
         std::map<types::boundary_id, const Function<dim> *> bc_functions;
         for (const auto &entry : dirichlet_bcs) {
@@ -193,6 +195,10 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
     // NOTE: There's another method to handle inhomogeneous dirichlet
     // bcs which should be faster for high-order elements with hanging-nodes.
     // See https://dealii.org/current/doxygen/deal.II/group__matrixfree.html
+
+#ifdef LOG_TIMERS
+    Timer time;
+#endif
 
     solution = 0;
     constraints.distribute(solution);
@@ -259,11 +265,20 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
     }
 
     system_rhs.compress(VectorOperation::add);
+
+#ifdef LOG_TIMERS
+    pcout << std::setw(20) << std::left << "assemble_rhs()"
+          << std::fixed << time.wall_time() << "s" << std::endl;
+#endif
 }
 
 template<int dim, int fe_degree>
 void MatrixFreeADR<dim, fe_degree>::solve()
 {
+#ifdef LOG_TIMERS
+    Timer time;
+#endif
+
     SolverControl solver_control(5000, 1e-12 * system_rhs.l2_norm());
     SolverGMRES<DistributedVector<double>> solver(solver_control);
 
@@ -274,7 +289,16 @@ void MatrixFreeADR<dim, fe_degree>::solve()
     solver.solve(system_matrix, solution_update, system_rhs, preconditioner);
     solution += solution_update;
 
-    pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
+    //pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
+
+#ifdef LOG_TIMERS
+    const double elapsed = time.wall_time();
+    const double elapsed_per_iter = elapsed / solver_control.last_step();
+
+    pcout << std::setw(20) << std::left << "solve() [tot/iter]"
+          << std::fixed << elapsed << "s/" << elapsed_per_iter
+          << "s" << std::endl;
+#endif
 }
 
 template<int dim, int fe_degree>
