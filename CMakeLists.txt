@@ -19,16 +19,11 @@ endif()
 find_package(MPI REQUIRED)
 set(CMAKE_CXX_COMPILER "${MPI_CXX_COMPILER}")
 
-# Locate Boost.
-find_package(Boost 1.72.0 REQUIRED
-  COMPONENTS filesystem iostreams serialization
-  HINTS ${BOOST_DIR} $ENV{BOOST_DIR} $ENV{mkBoostPrefix})
-message(STATUS "Using the Boost-${Boost_VERSION} configuration found at ${Boost_DIR}")
-message(STATUS)
-include_directories(${Boost_INCLUDE_DIRS})
+# Locate Kokkos
+find_package(Kokkos 4.2 REQUIRED CONFIG)
 
 # Locate deal.II and initialize its variables.
-find_package(deal.II 9.3.1 REQUIRED
+find_package(deal.II 9.7.1 REQUIRED
   HINTS ${DEAL_II_DIR} $ENV{DEAL_II_DIR} $ENV{mkDealiiPrefix})
 deal_ii_initialize_cached_variables()
 
@@ -36,5 +31,5 @@ deal_ii_initialize_cached_variables()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLOG_TIMERS -Wfloat-conversion -Wmissing-braces -Wnon-virtual-dtor")
 
 add_executable(main src/main.cpp)
-target_link_libraries(main)
+target_link_libraries(main Kokkos::kokkos)
 deal_ii_setup_target(main)

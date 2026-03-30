@@ -10,6 +10,7 @@
 #include <deal.II/grid/grid_tools.h>
 
 #include <deal.II/fe/fe_q.h>
+#include <deal.II/fe/fe_values.h>
 #include <deal.II/fe/mapping_q1.h>
 
 #include <deal.II/dofs/dof_handler.h>
@@ -33,17 +34,7 @@ class MatrixFreeADR
 {
 public:
 
-    MatrixFreeADR(const unsigned int N_,
-                  const VectorArrayFunction<dim, double> &advection_coeff,
-                  const ScalarArrayFunction<dim, double> &diffusion_coeff,
-                  const ScalarArrayFunction<dim, double> &reaction_coeff,
-                  const ScalarArrayFunction<dim, double> &forcing_term_);
-
-    void set_dirichlet_bc(const types::boundary_id boundary_id,
-                          const std::shared_ptr<Function<dim>> &bc_function);
-
-    void set_neumann_bc(const types::boundary_id boundary_id,
-                        const ScalarArrayFunction<dim, double> &bc_function);
+    MatrixFreeADR(const unsigned int N_);
 
     void setup();
     void assemble_rhs();
@@ -59,11 +50,6 @@ private:
 
     const unsigned int N;
 
-    const ScalarArrayFunction<dim, double> forcing_term;
-
-    std::map<types::boundary_id, std::shared_ptr<Function<dim>>>
-    dirichlet_bcs;
-
     // TODO: Can I use fullydistributed?
     parallel::distributed::Triangulation<dim> mesh;
 
@@ -73,198 +59,126 @@ private:
     // TODO: What's the purpose of this?
     const MappingQ1<dim> mapping;
 
-    ADROperator<dim, fe_degree, double> system_matrix;
+    std::unique_ptr<ADROperator<dim, fe_degree, double>> system_matrix_dev;
 
     AffineConstraints<double> constraints;
 
-    DistributedVector<double> system_rhs;
-    DistributedVector<double> solution;
-    DistributedVector<double> solution_update;
+    IndexSet locally_owned_dofs;
+    IndexSet locally_relevant_dofs;
+
+    // TODO: Make sure DEAL_II_MPI_WITH_DEVICE_SUPPORT is defined
+    DistributedDeviceVector<double> system_rhs_dev;
+    DistributedDeviceVector<double> solution_dev;
+    DistributedVector<double> ghost_solution_host;
 
     ConditionalOStream pcout;
 };
 
 template<int dim, int fe_degree>
-MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(
-    const unsigned int N_,
-    const VectorArrayFunction<dim, double> &advection_coeff,
-    const ScalarArrayFunction<dim, double> &diffusion_coeff,
-    const ScalarArrayFunction<dim, double> &reaction_coeff,
-    const ScalarArrayFunction<dim, double> &forcing_term_
-)
+MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(const unsigned int N_)
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , N(N_)
-    , forcing_term(forcing_term_)
     , mesh(MPI_COMM_WORLD)
     , fe(fe_degree)
-    , system_matrix(advection_coeff, diffusion_coeff, reaction_coeff)
     , pcout(std::cout, mpi_rank == 0)
-{
-    //for (unsigned int b_id = 0; b_id < dim * 2; ++b_id) {
-    //    dirichlet_bcs[b_id] =
-    //        std::make_shared<Functions::ZeroFunction<dim>>();
-    //}
-}
-
-template<int dim, int fe_degree>
-void MatrixFreeADR<dim, fe_degree>::set_dirichlet_bc(
-    const types::boundary_id boundary_id,
-    const std::shared_ptr<Function<dim>> &bc_function)
-{
-    dirichlet_bcs[boundary_id] = bc_function;
-    system_matrix.neumann_bcs.erase(boundary_id);
-}
-
-template<int dim, int fe_degree>
-void MatrixFreeADR<dim, fe_degree>::set_neumann_bc(
-    const types::boundary_id boundary_id,
-    const ScalarArrayFunction<dim, double> &bc_function)
-{
-    system_matrix.neumann_bcs[boundary_id] = bc_function;
-    dirichlet_bcs.erase(boundary_id);
-}
+{}
 
 template<int dim, int fe_degree>
 void MatrixFreeADR<dim, fe_degree>::setup()
 {
-    {
-        // TODO: Check matrix-free simplex mesh support
-        GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
+    // TODO: Check matrix-free simplex mesh support
+    GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, false);
 
-        dof_handler.reinit(mesh);
-        // TODO: Check DoFRenumbering::matrix_free_data_locality()
-        dof_handler.distribute_dofs(fe);
+    dof_handler.reinit(mesh);
+    // TODO: Check DoFRenumbering::matrix_free_data_locality()
+    dof_handler.distribute_dofs(fe);
 
-        const IndexSet locally_relevant_dofs =
-            DoFTools::extract_locally_relevant_dofs(dof_handler);
+    locally_owned_dofs = dof_handler.locally_owned_dofs();
+    locally_relevant_dofs =
+        DoFTools::extract_locally_relevant_dofs(dof_handler);
 
-        constraints.reinit(dof_handler.locally_owned_dofs(),
-                           locally_relevant_dofs);
+    constraints.clear();
+    constraints.reinit(locally_owned_dofs, locally_relevant_dofs);
 
-        std::map<types::boundary_id, const Function<dim> *> bc_functions;
-        for (const auto &entry : dirichlet_bcs) {
-            bc_functions[entry.first] = entry.second.get();
-        }
+    VectorTools::interpolate_boundary_values(mapping,
+                                             dof_handler,
+                                             0,
+                                             Functions::ZeroFunction<dim>(),
+                                             constraints);
 
-        VectorTools::interpolate_boundary_values(mapping,
-                                                 dof_handler,
-                                                 bc_functions,
-                                                 constraints);
+    constraints.close();
 
-        constraints.close();
-    }
+    system_matrix_dev.reset(new ADROperator<dim, fe_degree, double>(
+        dof_handler, mapping, constraints));
 
-    {
-        system_matrix.clear();
+    ghost_solution_host.reinit(locally_owned_dofs,
+                               locally_relevant_dofs,
+                               MPI_COMM_WORLD);
 
-        typename MatrixFree<dim, double>::AdditionalData additional_data;
-        // TODO: Allow threading within each MPI process
-        additional_data.tasks_parallel_scheme =
-            MatrixFree<dim, double>::AdditionalData::none;
-        // Specifies what should be computed (and cached) on cells
-        additional_data.mapping_update_flags =
-            (update_values | update_gradients | update_JxW_values |
-             update_quadrature_points);
-        // TODO: Investigate these flags, if for example, update_normal_vector
-        // is omitted, the code still converges
-        additional_data.mapping_update_flags_boundary_faces =
-            (update_values | update_JxW_values | update_quadrature_points |
-             update_normal_vectors);
-
-        std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(
-            new MatrixFree<dim, double>());
-        system_mf_storage->reinit(mapping,
-                                  dof_handler,
-                                  constraints,
-                                  // dim=1 since basis functions are decomposed
-                                  // as tensor products of 1D functions
-                                  QGauss<1>(fe_degree + 1),
-                                  additional_data);
-        system_matrix.initialize(system_mf_storage);
-
-        system_matrix.initialize_dof_vector(system_rhs);
-        system_matrix.initialize_dof_vector(solution);
-        system_matrix.initialize_dof_vector(solution_update);
-    }
+    system_matrix_dev->initialize_dof_vector(solution_dev);
+    system_rhs_dev.reinit(solution_dev);
 }
 
 template<int dim, int fe_degree>
 void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
 {
-    // NOTE: There's another method to handle inhomogeneous dirichlet
-    // bcs which should be faster for high-order elements with hanging-nodes.
-    // See https://dealii.org/current/doxygen/deal.II/group__matrixfree.html
-
 #ifdef LOG_TIMERS
     Timer time;
 #endif
 
-    solution = 0;
-    constraints.distribute(solution);
-    solution.update_ghost_values();
-    system_rhs = 0;
+    // TODO: Assemble rhs directly on device using cell_loop,
+    // since Portable::FEEvaluation::read_dof_values_plain()
+    // is missing, use two set of constraints to handle
+    // inhomogeneous dirichlet boundary conditions
 
-    FEEvaluation<dim, fe_degree> phi(*system_matrix.get_matrix_free());
-    FEFaceEvaluation<dim, fe_degree> phi_face(
-        *system_matrix.get_matrix_free());
+    DistributedVector<double> system_rhs_host(locally_owned_dofs,
+                                              locally_relevant_dofs,
+                                              MPI_COMM_WORLD);
 
-    for (unsigned int cell = 0;
-         cell < system_matrix.get_matrix_free()->n_cell_batches(); ++cell) {
+    const QGauss<dim> quadrature(fe_degree + 1);
 
-        phi.reinit(cell);
-        // Ignores constraints on solution, reading all DoFs
-        phi.read_dof_values_plain(solution);
-        phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
-        for (const unsigned int q : phi.quadrature_point_indices()) {
-            const ArrayPoint<dim, double> q_p = phi.quadrature_point(q);
-            const VectorizedArray<double> q_val = phi.get_value(q);
+    FEValues<dim> fe_values(fe,
+                            quadrature,
+                            update_values | update_JxW_values |
+                            update_quadrature_points);
 
-            phi.submit_gradient(
-                system_matrix.advection_coeff(q_p) * q_val +
-                -system_matrix.diffusion_coeff(q_p) * phi.get_gradient(q), q);
+    const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
+    const unsigned int n_q = quadrature.size();
 
-            phi.submit_value(
-                forcing_term(q_p) +
-                -system_matrix.reaction_coeff(q_p) * q_val, q);
+    Vector<double> cell_rhs(dofs_per_cell);
 
-        }
-        phi.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
-        phi.distribute_local_to_global(system_rhs);
-    }
+    std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
-    const unsigned int n_inner_face_batches =
-        system_matrix.get_matrix_free()->n_inner_face_batches();
-    const unsigned int n_boundary_face_batches =
-        system_matrix.get_matrix_free()->n_boundary_face_batches();
+    for (const auto &cell : dof_handler.active_cell_iterators()) {
+        if (cell->is_locally_owned()) {
 
-    for (unsigned int face = n_inner_face_batches;
-         face < n_inner_face_batches + n_boundary_face_batches;
-         ++face) {
+            cell_rhs = 0;
+            fe_values.reinit(cell);
 
-        phi_face.reinit(face);
+            for (unsigned int q = 0; q < n_q; ++q) {
+                const double f_loc = 1.0;
 
-        /* Faces in the same batch are on the same boundary. */
-        const types::boundary_id b_id = phi_face.boundary_id();
-
-        if (system_matrix.neumann_bcs.count(b_id)) {
-            const ScalarArrayFunction<dim, double> &bc_function =
-                system_matrix.neumann_bcs[b_id];
-
-            phi_face.gather_evaluate(solution, EvaluationFlags::values);
-            for (const unsigned int q : phi_face.quadrature_point_indices()) {
-                const ArrayPoint<dim, double> q_p = phi_face.quadrature_point(q);
-
-                phi_face.submit_value(
-                    -system_matrix.advection_coeff(q_p) *
-                    phi_face.normal_vector(q) * phi_face.get_value(q) +
-                    bc_function(q_p), q);
+                for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                    cell_rhs(i) += f_loc *
+                                   fe_values.shape_value(i, q) *
+                                   fe_values.JxW(q);
+                }
             }
-            phi_face.integrate_scatter(EvaluationFlags::values, system_rhs);
+
+            cell->get_dof_indices(local_dof_indices);
+            constraints.distribute_local_to_global(cell_rhs,
+                                                   local_dof_indices,
+                                                   system_rhs_host);
         }
     }
 
-    system_rhs.compress(VectorOperation::add);
+    system_rhs_host.compress(VectorOperation::add);
+
+    // Copy rhs to device memory
+    LinearAlgebra::ReadWriteVector<double> rw_vector(locally_owned_dofs);
+    rw_vector.import_elements(system_rhs_host, VectorOperation::insert);
+    system_rhs_dev.import_elements(rw_vector, VectorOperation::insert);
 
 #ifdef LOG_TIMERS
     pcout << std::setw(20) << std::left << "assemble_rhs()"
@@ -279,17 +193,28 @@ void MatrixFreeADR<dim, fe_degree>::solve()
     Timer time;
 #endif
 
-    SolverControl solver_control(5000, 1e-12 * system_rhs.l2_norm());
-    SolverGMRES<DistributedVector<double>> solver(solver_control);
+    // Not really needed currently
+    system_matrix_dev->compute_diagonal();
+
+    SolverControl solver_control(5000, 1e-12 * system_rhs_dev.l2_norm());
+    SolverGMRES<DistributedDeviceVector<double>> solver(solver_control);
 
     // TODO: Figure out how to use other preconditioners
     PreconditionIdentity preconditioner;
 
-    // No constraints stuff here?
-    solver.solve(system_matrix, solution_update, system_rhs, preconditioner);
-    solution += solution_update;
+    solver.solve(
+        *system_matrix_dev, solution_dev, system_rhs_dev, preconditioner);
 
-    //pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
+    pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
+
+    // Copy solution to host
+    LinearAlgebra::ReadWriteVector<double> rw_vector(locally_owned_dofs);
+    rw_vector.import_elements(solution_dev, VectorOperation::insert);
+    ghost_solution_host.import_elements(rw_vector, VectorOperation::insert);
+
+    constraints.distribute(ghost_solution_host);
+
+    ghost_solution_host.update_ghost_values();
 
 #ifdef LOG_TIMERS
     const double elapsed = time.wall_time();
@@ -306,8 +231,7 @@ void MatrixFreeADR<dim, fe_degree>::output()
 {
     DataOut<dim> data_out;
 
-    solution.update_ghost_values();
-    data_out.add_data_vector(dof_handler, solution, "solution");
+    data_out.add_data_vector(dof_handler, ghost_solution_host, "solution");
     data_out.build_patches(mapping);
 
     data_out.write_vtu_with_pvtu_record("./",
@@ -325,10 +249,10 @@ double MatrixFreeADR<dim, fe_degree>::
 
     VectorTools::integrate_difference(mapping,
                                       dof_handler,
-                                      solution,
+                                      ghost_solution_host,
                                       exact_solution,
                                       error_per_cell,
-                                      QGauss<dim>(fe_degree + 2), 
+                                      QGauss<dim>(fe_degree + 2),
                                       norm_type);
 
     const double error =
