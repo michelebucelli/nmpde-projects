@@ -24,6 +24,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <functional>
 
 #include "ADROperator.hpp"
 
@@ -34,7 +35,8 @@ class MatrixFreeADR
 {
 public:
 
-    MatrixFreeADR(const unsigned int N_);
+    MatrixFreeADR(const unsigned int N_,
+                  const std::function<double(const Point<dim> &)> &f_);
 
     void setup();
     void assemble_rhs();
@@ -49,6 +51,8 @@ private:
     const unsigned int mpi_size;
 
     const unsigned int N;
+
+    const std::function<double(const Point<dim> &)> &f;
 
     // TODO: Can I use fullydistributed?
     parallel::distributed::Triangulation<dim> mesh;
@@ -75,10 +79,14 @@ private:
 };
 
 template<int dim, int fe_degree>
-MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(const unsigned int N_)
+MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(
+    const unsigned int N_,
+    const std::function<double(const Point<dim> &)> &f_
+)
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , N(N_)
+    , f(f_)
     , mesh(MPI_COMM_WORLD)
     , fe(fe_degree)
     , pcout(std::cout, mpi_rank == 0)
@@ -157,7 +165,7 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
             fe_values.reinit(cell);
 
             for (unsigned int q = 0; q < n_q; ++q) {
-                const double f_loc = 1.0;
+                const double f_loc = f(fe_values.quadrature_point(q));
 
                 for (unsigned int i = 0; i < dofs_per_cell; ++i) {
                     cell_rhs(i) += f_loc *
