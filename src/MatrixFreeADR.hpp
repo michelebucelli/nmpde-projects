@@ -30,13 +30,12 @@
 
 using namespace dealii;
 
-template<int dim, int fe_degree>
+template<int dim, int fe_degree, typename ForcingTerm>
 class MatrixFreeADR
 {
 public:
 
-    MatrixFreeADR(const unsigned int N_,
-                  const std::function<double(const Point<dim> &)> &f_);
+    MatrixFreeADR(const unsigned int N_);
 
     void setup();
     void assemble_rhs();
@@ -51,8 +50,6 @@ private:
     const unsigned int mpi_size;
 
     const unsigned int N;
-
-    const std::function<double(const Point<dim> &)> &f;
 
     // TODO: Can I use fullydistributed?
     parallel::distributed::Triangulation<dim> mesh;
@@ -78,22 +75,20 @@ private:
     ConditionalOStream pcout;
 };
 
-template<int dim, int fe_degree>
-MatrixFreeADR<dim, fe_degree>::MatrixFreeADR(
-    const unsigned int N_,
-    const std::function<double(const Point<dim> &)> &f_
+template<int dim, int fe_degree, typename ForcingTerm>
+MatrixFreeADR<dim, fe_degree, ForcingTerm>::MatrixFreeADR(
+    const unsigned int N_
 )
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , N(N_)
-    , f(f_)
     , mesh(MPI_COMM_WORLD)
     , fe(fe_degree)
     , pcout(std::cout, mpi_rank == 0)
 {}
 
-template<int dim, int fe_degree>
-void MatrixFreeADR<dim, fe_degree>::setup()
+template<int dim, int fe_degree, typename ForcingTerm>
+void MatrixFreeADR<dim, fe_degree, ForcingTerm>::setup()
 {
     // TODO: Check matrix-free simplex mesh support
     GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, false);
@@ -120,6 +115,8 @@ void MatrixFreeADR<dim, fe_degree>::setup()
     system_matrix_dev.reset(new ADROperator<dim, fe_degree, double>(
         dof_handler, mapping, constraints));
 
+    system_matrix_dev->template precompute_coefs<ForcingTerm>(dof_handler);
+
     ghost_solution_host.reinit(locally_owned_dofs,
                                locally_relevant_dofs,
                                MPI_COMM_WORLD);
@@ -128,65 +125,14 @@ void MatrixFreeADR<dim, fe_degree>::setup()
     system_rhs_dev.reinit(solution_dev);
 }
 
-template<int dim, int fe_degree>
-void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
+template<int dim, int fe_degree, typename ForcingTerm>
+void MatrixFreeADR<dim, fe_degree, ForcingTerm>::assemble_rhs()
 {
 #ifdef LOG_TIMERS
     Timer time;
 #endif
 
-    // TODO: Assemble rhs directly on device using cell_loop,
-    // since Portable::FEEvaluation::read_dof_values_plain()
-    // is missing, use two set of constraints to handle
-    // inhomogeneous dirichlet boundary conditions
-
-    DistributedVector<double> system_rhs_host(locally_owned_dofs,
-                                              locally_relevant_dofs,
-                                              MPI_COMM_WORLD);
-
-    const QGauss<dim> quadrature(fe_degree + 1);
-
-    FEValues<dim> fe_values(fe,
-                            quadrature,
-                            update_values | update_JxW_values |
-                            update_quadrature_points);
-
-    const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
-    const unsigned int n_q = quadrature.size();
-
-    Vector<double> cell_rhs(dofs_per_cell);
-
-    std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-
-    for (const auto &cell : dof_handler.active_cell_iterators()) {
-        if (cell->is_locally_owned()) {
-
-            cell_rhs = 0;
-            fe_values.reinit(cell);
-
-            for (unsigned int q = 0; q < n_q; ++q) {
-                const double f_loc = f(fe_values.quadrature_point(q));
-
-                for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                    cell_rhs(i) += f_loc *
-                                   fe_values.shape_value(i, q) *
-                                   fe_values.JxW(q);
-                }
-            }
-
-            cell->get_dof_indices(local_dof_indices);
-            constraints.distribute_local_to_global(cell_rhs,
-                                                   local_dof_indices,
-                                                   system_rhs_host);
-        }
-    }
-
-    system_rhs_host.compress(VectorOperation::add);
-
-    // Copy rhs to device memory
-    LinearAlgebra::ReadWriteVector<double> rw_vector(locally_owned_dofs);
-    rw_vector.import_elements(system_rhs_host, VectorOperation::insert);
-    system_rhs_dev.import_elements(rw_vector, VectorOperation::insert);
+    system_matrix_dev->compute_rhs(system_rhs_dev);
 
 #ifdef LOG_TIMERS
     pcout << std::setw(20) << std::left << "assemble_rhs()"
@@ -194,8 +140,8 @@ void MatrixFreeADR<dim, fe_degree>::assemble_rhs()
 #endif
 }
 
-template<int dim, int fe_degree>
-void MatrixFreeADR<dim, fe_degree>::solve()
+template<int dim, int fe_degree, typename ForcingTerm>
+void MatrixFreeADR<dim, fe_degree, ForcingTerm>::solve()
 {
 #ifdef LOG_TIMERS
     Timer time;
@@ -216,6 +162,7 @@ void MatrixFreeADR<dim, fe_degree>::solve()
     pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
 
     // Copy solution to host
+    // TODO: Time d2h copy
     LinearAlgebra::ReadWriteVector<double> rw_vector(locally_owned_dofs);
     rw_vector.import_elements(solution_dev, VectorOperation::insert);
     ghost_solution_host.import_elements(rw_vector, VectorOperation::insert);
@@ -234,8 +181,8 @@ void MatrixFreeADR<dim, fe_degree>::solve()
 #endif
 }
 
-template<int dim, int fe_degree>
-void MatrixFreeADR<dim, fe_degree>::output()
+template<int dim, int fe_degree, typename ForcingTerm>
+void MatrixFreeADR<dim, fe_degree, ForcingTerm>::output()
 {
     DataOut<dim> data_out;
 
@@ -248,8 +195,8 @@ void MatrixFreeADR<dim, fe_degree>::output()
                                         MPI_COMM_WORLD);
 }
 
-template<int dim, int fe_degree>
-double MatrixFreeADR<dim, fe_degree>::
+template<int dim, int fe_degree, typename ForcingTerm>
+double MatrixFreeADR<dim, fe_degree, ForcingTerm>::
     compute_error(const VectorTools::NormType &norm_type,
                   const Function<dim> &exact_solution) const
 {

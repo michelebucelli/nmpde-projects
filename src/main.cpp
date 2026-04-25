@@ -30,6 +30,18 @@ public:
     }
 };
 
+class ForcingTerm
+{
+public:
+    ForcingTerm() {}
+
+    DEAL_II_HOST_DEVICE double operator()(const Point<dim> &p) const
+    {
+        return 8 * M_PI * M_PI * std::sin(2 * M_PI * p[0])
+                               * std::cos(2 * M_PI * p[1] - M_PI / 2);
+    }
+};
+
 int main(int argc, char *argv[]) {
 
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
@@ -38,17 +50,10 @@ int main(int argc, char *argv[]) {
     const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
     ExactSolution exact_solution;
 
-    std::function<double(const Point<dim> &)> forcing =
-        [](const Point<dim> &p)
-    {
-        return 8 * M_PI * M_PI * sin(2 * M_PI * p[0])
-                               * cos(2 * M_PI * p[1] - M_PI / 2);
-    };
-
     ConvergenceTable table;
 
     for (const unsigned int N : Ns) {
-        MatrixFreeADR<dim, fe_degree> mf_adr(N, forcing);
+        MatrixFreeADR<dim, fe_degree, ForcingTerm> mf_adr(N);
 
         mf_adr.setup();
         mf_adr.assemble_rhs();
