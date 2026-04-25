@@ -9,3 +9,11 @@
 - https://dealii.org/current/doxygen/deal.II/classMatrixFreeOperators_1_1Base.html
 - https://dealii.org/current/doxygen/deal.II/classMatrixFree.html
 - https://dealii.org/current/doxygen/deal.II/classFEEvaluation.html
+
+### TODO
+
+- [ ] various TODOs in the code
+- [ ] generic preconditioners
+- [ ] multigrid
+- [ ] benchmark pipeline
+- [ ] convergence test suite
