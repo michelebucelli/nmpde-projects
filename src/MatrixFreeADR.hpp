@@ -112,10 +112,10 @@ void MatrixFreeADR<dim, fe_degree, A, D, R, F>::setup()
     dof_handler.distribute_dofs(fe);
     
     // CRITICAL: Cache locality for matrix-free vector operations
-    DoFRenumbering::matrix_free_data_locality(dof_handler);
+    DoFRenumbering::Cuthill_McKee(dof_handler);
 
     const IndexSet locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
-    constraints.reinit(dof_handler.locally_owned_dofs(), locally_relevant_dofs);
+    constraints.reinit(locally_relevant_dofs);
 
     std::map<types::boundary_id, const Function<dim> *> bc_functions;
     for (const auto &entry : dirichlet_bcs) {

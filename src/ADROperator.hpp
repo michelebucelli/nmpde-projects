@@ -40,6 +40,11 @@ private:
                      const DistributedVector<number> &src,
                      const std::pair<unsigned int, unsigned int> &cell_range) const;
 
+    void empty_face_apply(const MatrixFree<dim, number> &,
+                          DistributedVector<number> &,
+                          const DistributedVector<number> &,
+                          const std::pair<unsigned int, unsigned int> &) const {}
+
     void local_compute_diagonal(
         FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number> &integrator) const;
 };
@@ -105,8 +110,8 @@ void ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionF
     // Inner and boundary faces are empty because we are using Continuous Galerkin 
     // and standard weak form (no upwinding or IBP surface terms).
     this->data->loop(&ADROperator::local_apply,
-                     [](const auto&, auto&, const auto&, const auto&){}, 
-                     [](const auto&, auto&, const auto&, const auto&){},
+                     &ADROperator::empty_face_apply,
+                     &ADROperator::empty_face_apply,
                      this, dst, src);
 }
 
