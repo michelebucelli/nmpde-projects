@@ -23,49 +23,13 @@ template<typename number>
 using DistributedDeviceVector =
     LinearAlgebra::distributed::Vector<number, MemorySpace::Default>;
 
-template<int dim, int fe_degree, typename number, typename PointFunctor>
-class ForcingEvaluator
-{
-    // TODO: Try to find a way to compute the forcing
-    // coefficient on the fly (while computing the rhs)
-    // and compare the performances
-public:
-    ForcingEvaluator(number *coefs_) :
-        coefs(coefs_)
-    {}
-
-    DEAL_II_HOST_DEVICE void operator()(
-        const typename Portable::MatrixFree<dim, number>::Data *data,
-        const unsigned int cell,
-        const unsigned int q) const;
-
-    static constexpr unsigned int n_q_points =
-        Utilities::pow(fe_degree + 1, dim);
-
-private:
-    number *coefs;
-};
-
-template<int dim, int fe_degree, typename number, typename PointFunctor>
-DEAL_II_HOST_DEVICE void
-ForcingEvaluator<dim, fe_degree, number, PointFunctor>::operator()(
-    const typename Portable::MatrixFree<dim, number>::Data *data,
-    const unsigned int cell,
-    const unsigned int q) const
-{
-    const unsigned int q_idx = data->local_q_point_id(cell, n_q_points, q);
-    const Point<dim> q_point = data->get_quadrature_point(cell, q);
-
-    const PointFunctor forcing_functor;
-    // forcing_functor call can be inlined
-    coefs[q_idx] = forcing_functor(q_point);
-}
+#include <iostream>
 
 template<int dim, int fe_degree, typename number>
-class ADROperatorQuad
+class QuadADROperator
 {
 public:
-    DEAL_II_HOST_DEVICE ADROperatorQuad() {}
+    DEAL_II_HOST_DEVICE QuadADROperator() {}
 
     DEAL_II_HOST_DEVICE void operator()(
         Portable::FEEvaluation<
@@ -74,7 +38,7 @@ public:
 };
 
 template<int dim, int fe_degree, typename number> DEAL_II_HOST_DEVICE
-void ADROperatorQuad<dim, fe_degree, number>::operator()(
+void QuadADROperator<dim, fe_degree, number>::operator()(
     Portable::FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
     const int q_point) const
 {
@@ -83,28 +47,24 @@ void ADROperatorQuad<dim, fe_degree, number>::operator()(
     fe_eval->submit_gradient(q_grad, q_point);
 }
 
-template<int dim, int fe_degree, typename number>
+template<int dim, int fe_degree, typename number, typename ForcingFunctor>
 class QuadRhsEvaluator
 {
 public:
-    DEAL_II_HOST_DEVICE QuadRhsEvaluator(number *forcing_) :
-        forcing(forcing_)
-    {}
+    DEAL_II_HOST_DEVICE QuadRhsEvaluator() {}
 
     DEAL_II_HOST_DEVICE void operator()(
         Portable::FEEvaluation<
             dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
-        const int q_point) const;
+        const int q_idx) const;
 
     static constexpr unsigned int n_q_points =
         Utilities::pow(fe_degree + 1, dim);
-
-private:
-    number *forcing;
 };
 
-template<int dim, int fe_degree, typename number> DEAL_II_HOST_DEVICE
-void QuadRhsEvaluator<dim, fe_degree, number>::operator()(
+template<int dim, int fe_degree, typename number, typename ForcingFunctor>
+DEAL_II_HOST_DEVICE void
+QuadRhsEvaluator<dim, fe_degree, number, ForcingFunctor>::operator()(
     Portable::FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
     const int q_point) const
 {
@@ -112,10 +72,11 @@ void QuadRhsEvaluator<dim, fe_degree, number>::operator()(
     const typename Portable::MatrixFree<dim, number>::Data *data =
         fe_eval->get_matrix_free_data();
 
-    const unsigned int q_idx =
-        data->local_q_point_id(cell_idx, n_q_points, q_point);
+    const Point<dim> p = data->get_quadrature_point(cell_idx, q_point);
 
-    fe_eval->submit_value(forcing[q_idx], q_point);
+    const ForcingFunctor forcing_functor;
+    // forcing_functor call will be inlined
+    fe_eval->submit_value(forcing_functor(p), q_point);
 }
 
 template<int dim, int fe_degree, typename number>
@@ -147,18 +108,16 @@ DEAL_II_HOST_DEVICE void LocalADROperator<dim, fe_degree, number>::operator()(
     fe_eval.read_dof_values(src);
     fe_eval.evaluate(EvaluationFlags::gradients);
     fe_eval.apply_for_each_quad_point(
-        ADROperatorQuad<dim, fe_degree, number>());
+        QuadADROperator<dim, fe_degree, number>());
     fe_eval.integrate(EvaluationFlags::gradients);
     fe_eval.distribute_local_to_global(dst);
 }
 
-template<int dim, int fe_degree, typename number>
+template<int dim, int fe_degree, typename number, typename ForcingFunctor>
 class LocalRhsEvaluator
 {
 public:
-    LocalRhsEvaluator(number *forcing_) :
-        forcing(forcing_)
-    {}
+    LocalRhsEvaluator() {}
 
     DEAL_II_HOST_DEVICE void operator()(
         const typename Portable::MatrixFree<dim, number>::Data *data,
@@ -169,13 +128,11 @@ public:
         Utilities::pow(fe_degree + 1, dim);
 
     static constexpr unsigned int n_local_dofs = n_q_points;
-
-private:
-    number *forcing;
 };
 
-template<int dim, int fe_degree, typename number>
-DEAL_II_HOST_DEVICE void LocalRhsEvaluator<dim, fe_degree, number>::operator()(
+template<int dim, int fe_degree, typename number, typename ForcingFunctor>
+DEAL_II_HOST_DEVICE void
+LocalRhsEvaluator<dim, fe_degree, number, ForcingFunctor>::operator()(
     const typename Portable::MatrixFree<dim, number>::Data *data,
     const Portable::DeviceVector<number> &src,
     Portable::DeviceVector<number> &dst) const
@@ -184,17 +141,8 @@ DEAL_II_HOST_DEVICE void LocalRhsEvaluator<dim, fe_degree, number>::operator()(
         dim, fe_degree, fe_degree + 1, 1, number> fe_eval(data);
 
     fe_eval.apply_for_each_quad_point(
-        QuadRhsEvaluator<dim, fe_degree, number>(forcing));
+        QuadRhsEvaluator<dim, fe_degree, number, ForcingFunctor>());
     fe_eval.integrate(EvaluationFlags::values);
-    // FIX: I getting slightly worse convergence rates when
-    // computing the rhs on the device (only for fe_degree=1)
-    // Could distribute_local_to_global be the issue? This
-    // call is supposed to also apply constraints, which is
-    // not something we care about when building the rhs.
-    // Perhaps building the rhs with cell_loop is not the
-    // best option? I could try using evaluate_coefficients
-    // or two sets of constraints (which is anyway needed for
-    // inhomogeneous constraints)
     fe_eval.distribute_local_to_global(dst);
 }
 
@@ -206,7 +154,6 @@ public:
                 const MappingQ<dim> &mapping,
                 const AffineConstraints<number> &constraints);
 
-    template<typename ForcingPointFunctor>
     void precompute_coefs(const DoFHandler<dim> &dof_handler);
 
     void vmult(DistributedDeviceVector<number> &dst,
@@ -214,6 +161,7 @@ public:
 
     void initialize_dof_vector(DistributedDeviceVector<number> &vec) const;
 
+    template<typename ForcingFunctor>
     void compute_rhs(DistributedDeviceVector<number> &dst) const;
 
     void compute_diagonal();
@@ -255,13 +203,14 @@ ADROperator<dim, fe_degree, number>::ADROperator(
                    constraints,
                    QGauss<1>(fe_degree + 1),
                    additional_data);
+
 }
 
 template<int dim, int fe_degree, typename number>
-template<typename ForcingPointFunctor>
 void ADROperator<dim, fe_degree, number>::precompute_coefs(
     const DoFHandler<dim> &dof_handler)
 {
+    /*
     const unsigned int n_owned_cells =
         dynamic_cast<const parallel::TriangulationBase<dim> *>(
             &dof_handler.get_triangulation())->n_locally_owned_active_cells();
@@ -273,6 +222,7 @@ void ADROperator<dim, fe_degree, number>::precompute_coefs(
     forcing_eval(forcing_coefs.get_values());
 
     mf_data.evaluate_coefficients(forcing_eval);
+    */
 }
 
 template<int dim, int fe_degree, typename number>
@@ -294,16 +244,19 @@ void ADROperator<dim, fe_degree, number>::initialize_dof_vector(
 }
 
 template<int dim, int fe_degree, typename number>
+template<typename ForcingFunctor>
 void ADROperator<dim, fe_degree, number>::compute_rhs(
     DistributedDeviceVector<number> &dst) const
 {
     // TODO: Since Portable::FEEvaluation::read_dof_values_plain()
     // is missing, use two set of constraints to handle
     // inhomogeneous dirichlet boundary conditions
+    // update: Portable::MatrixFree does not support multiple
+    // constraints objects..
 
     dst = 0;
-    LocalRhsEvaluator<dim, fe_degree, number> loc_rhs_operator(
-        forcing_coefs.get_values());
+    LocalRhsEvaluator<
+        dim, fe_degree, number, ForcingFunctor> loc_rhs_operator;
     mf_data.cell_loop(loc_rhs_operator, dst, dst);
 }
 
@@ -323,7 +276,7 @@ void ADROperator<dim, fe_degree, number>::compute_diagonal()
     compute_diagonal<dim, fe_degree, fe_degree + 1, 1, number>(
         mf_data,
         inverse_diagonal,
-        ADROperatorQuad<dim, fe_degree, number>(),
+        QuadADROperator<dim, fe_degree, number>(),
         EvaluationFlags::gradients,
         EvaluationFlags::gradients);
 

@@ -37,8 +37,8 @@ public:
 
     DEAL_II_HOST_DEVICE double operator()(const Point<dim> &p) const
     {
-        return 8 * M_PI * M_PI * std::sin(2 * M_PI * p[0])
-                               * std::cos(2 * M_PI * p[1] - M_PI / 2);
+        return 8 * M_PI * M_PI * sin(2 * M_PI * p[0])
+                               * cos(2 * M_PI * p[1] - M_PI / 2);
     }
 };
 
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
 
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-    const unsigned int fe_degree = 1;
+    const unsigned int fe_degree = 2;
     const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
     ExactSolution exact_solution;
 
@@ -55,9 +55,21 @@ int main(int argc, char *argv[]) {
     for (const unsigned int N : Ns) {
         MatrixFreeADR<dim, fe_degree, ForcingTerm> mf_adr(N);
 
+        const ConditionalOStream &pcout = mf_adr.get_pcout();
+        pcout << "dim=" << dim << " fe_degree=" << fe_degree
+              << " N=" << N << std::endl;
+
+#ifdef LOG_TIMERS
+        Timer time;
+#endif
         mf_adr.setup();
         mf_adr.assemble_rhs();
         mf_adr.solve();
+#ifdef LOG_TIMERS
+        pcout << std::setw(20) << std::left << "total" << std::fixed
+              << time.wall_time() << "s" << std::endl << std::endl;
+#endif
+
         mf_adr.output();
 
         const double error_L2 =
@@ -75,7 +87,10 @@ int main(int argc, char *argv[]) {
 
     table.set_scientific("eL2", true);
     table.set_scientific("eH1", true);
-    table.write_text(std::cout);
+
+    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
+        table.write_text(std::cout);
+    }
 
     return 0;
 }

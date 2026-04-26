@@ -42,6 +42,8 @@ public:
     void solve();
     void output();
 
+    const ConditionalOStream &get_pcout() { return pcout; }
+
     double compute_error(const VectorTools::NormType &norm_type,
                          const Function<dim> &exact_solution) const;
 
@@ -90,6 +92,10 @@ MatrixFreeADR<dim, fe_degree, ForcingTerm>::MatrixFreeADR(
 template<int dim, int fe_degree, typename ForcingTerm>
 void MatrixFreeADR<dim, fe_degree, ForcingTerm>::setup()
 {
+#ifdef LOG_TIMERS
+    Timer time;
+#endif
+
     // TODO: Check matrix-free simplex mesh support
     GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, false);
 
@@ -115,7 +121,7 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::setup()
     system_matrix_dev.reset(new ADROperator<dim, fe_degree, double>(
         dof_handler, mapping, constraints));
 
-    system_matrix_dev->template precompute_coefs<ForcingTerm>(dof_handler);
+    //system_matrix_dev->template precompute_coefs<ForcingTerm>(dof_handler);
 
     ghost_solution_host.reinit(locally_owned_dofs,
                                locally_relevant_dofs,
@@ -123,6 +129,11 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::setup()
 
     system_matrix_dev->initialize_dof_vector(solution_dev);
     system_rhs_dev.reinit(solution_dev);
+
+#ifdef LOG_TIMERS
+    pcout << std::setw(20) << std::left << "setup()"
+          << std::fixed << time.wall_time() << "s" << std::endl;
+#endif
 }
 
 template<int dim, int fe_degree, typename ForcingTerm>
@@ -132,7 +143,7 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::assemble_rhs()
     Timer time;
 #endif
 
-    system_matrix_dev->compute_rhs(system_rhs_dev);
+    system_matrix_dev->template compute_rhs<ForcingTerm>(system_rhs_dev);
 
 #ifdef LOG_TIMERS
     pcout << std::setw(20) << std::left << "assemble_rhs()"
@@ -159,7 +170,7 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::solve()
     solver.solve(
         *system_matrix_dev, solution_dev, system_rhs_dev, preconditioner);
 
-    pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
+    //pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
 
     // Copy solution to host
     // TODO: Time d2h copy
