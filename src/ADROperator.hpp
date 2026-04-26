@@ -58,6 +58,7 @@ public:
             dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
         const int q_idx) const;
 
+    // TODO: Remove this if not used
     static constexpr unsigned int n_q_points =
         Utilities::pow(fe_degree + 1, dim);
 };
@@ -77,6 +78,7 @@ QuadRhsEvaluator<dim, fe_degree, number, ForcingFunctor>::operator()(
     const ForcingFunctor forcing_functor;
     // forcing_functor call will be inlined
     fe_eval->submit_value(forcing_functor(p), q_point);
+    fe_eval->submit_gradient(-fe_eval->get_gradient(q_point), q_point);
 }
 
 template<int dim, int fe_degree, typename number>
@@ -140,9 +142,14 @@ LocalRhsEvaluator<dim, fe_degree, number, ForcingFunctor>::operator()(
     Portable::FEEvaluation<
         dim, fe_degree, fe_degree + 1, 1, number> fe_eval(data);
 
+    // NOTE: I guess there's no need for read_dof_values_plain()
+    // since constraints are not applied with the Portable version of
+    // read_dof_values(). That's why copy_constrained_values() is used, right?
+    fe_eval.read_dof_values(src);
+    fe_eval.evaluate(EvaluationFlags::gradients);
     fe_eval.apply_for_each_quad_point(
         QuadRhsEvaluator<dim, fe_degree, number, ForcingFunctor>());
-    fe_eval.integrate(EvaluationFlags::values);
+    fe_eval.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
     fe_eval.distribute_local_to_global(dst);
 }
 
@@ -162,7 +169,8 @@ public:
     void initialize_dof_vector(DistributedDeviceVector<number> &vec) const;
 
     template<typename ForcingFunctor>
-    void compute_rhs(DistributedDeviceVector<number> &dst) const;
+    void compute_rhs(DistributedDeviceVector<number> &dst,
+                     const DistributedDeviceVector<number> &src) const;
 
     void compute_diagonal();
 
@@ -181,8 +189,6 @@ private:
 
     std::shared_ptr<DiagonalMatrix<DistributedDeviceVector<number>>>
     inverse_diagonal_entries;
-
-    DistributedDeviceVector<number> forcing_coefs;
 };
 
 template<int dim, int fe_degree, typename number>
@@ -233,6 +239,9 @@ void ADROperator<dim, fe_degree, number>::vmult(
     dst = 0;
     LocalADROperator<dim, fe_degree, number> loc_adr_operator;
     mf_data.cell_loop(loc_adr_operator, src, dst);
+    // cell_loop is evaluated for all dofs, but for constrained
+    // ones, we want the action of the operator to be the identity,
+    // we thus copy the constrained src values into the dst
     mf_data.copy_constrained_values(src, dst);
 }
 
@@ -246,18 +255,23 @@ void ADROperator<dim, fe_degree, number>::initialize_dof_vector(
 template<int dim, int fe_degree, typename number>
 template<typename ForcingFunctor>
 void ADROperator<dim, fe_degree, number>::compute_rhs(
-    DistributedDeviceVector<number> &dst) const
+    DistributedDeviceVector<number> &dst,
+    const DistributedDeviceVector<number> &src) const
 {
-    // TODO: Since Portable::FEEvaluation::read_dof_values_plain()
-    // is missing, use two set of constraints to handle
-    // inhomogeneous dirichlet boundary conditions
-    // update: Portable::MatrixFree does not support multiple
-    // constraints objects..
-
     dst = 0;
     LocalRhsEvaluator<
         dim, fe_degree, number, ForcingFunctor> loc_rhs_operator;
-    mf_data.cell_loop(loc_rhs_operator, dst, dst);
+    mf_data.cell_loop(loc_rhs_operator, src, dst);
+
+    DistributedDeviceVector<number> zero;
+    zero.reinit(dst);
+    zero = 0;
+    // This function copies only the constrained dofs values
+    // from zero_vec to dst, making sure that rhs is zeroed
+    // out for constrained dofs (we want solution_update = 0 there,
+    // since the initial solution has already the inhomogeneous
+    // dirichlet values)
+    mf_data.copy_constrained_values(zero, dst);
 }
 
 template<int dim, int fe_degree, typename number>

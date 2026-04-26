@@ -12,7 +12,7 @@ public:
     virtual double value(const Point<dim> &p,
                          const unsigned int = 0) const override
     {
-        return sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1] - M_PI / 2);
+        return sin(M_PI * p[0]) * cos(M_PI * p[1]);
     }
 
     virtual Tensor<1, dim> gradient(const Point<dim> &p,
@@ -20,11 +20,11 @@ public:
     {
         Tensor<1, dim> res;
 
-        res[0] = 2 * M_PI * cos(2 * M_PI * p[0])
-                          * cos(2 * M_PI * p[1] - M_PI / 2);
+        res[0] =  M_PI * cos(M_PI * p[0])
+                       * cos(M_PI * p[1]);
 
-        res[1] = -2 * M_PI * sin(2 * M_PI * p[0])
-                           * sin(2 * M_PI * p[1] - M_PI / 2);
+        res[1] = -M_PI * sin(M_PI * p[0])
+                       * sin(M_PI * p[1]);
 
         return res;
     }
@@ -37,8 +37,8 @@ public:
 
     DEAL_II_HOST_DEVICE double operator()(const Point<dim> &p) const
     {
-        return 8 * M_PI * M_PI * sin(2 * M_PI * p[0])
-                               * cos(2 * M_PI * p[1] - M_PI / 2);
+        return 2 * M_PI * M_PI * sin(M_PI * p[0])
+                               * cos(M_PI * p[1]);
     }
 };
 
@@ -46,14 +46,15 @@ int main(int argc, char *argv[]) {
 
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-    const unsigned int fe_degree = 2;
+    const unsigned int fe_degree = 1;
     const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
     ExactSolution exact_solution;
 
     ConvergenceTable table;
 
     for (const unsigned int N : Ns) {
-        MatrixFreeADR<dim, fe_degree, ForcingTerm> mf_adr(N);
+        MatrixFreeADR<dim, fe_degree, ForcingTerm> mf_adr(
+            N, std::make_unique<ExactSolution>());
 
         const ConditionalOStream &pcout = mf_adr.get_pcout();
         pcout << "dim=" << dim << " fe_degree=" << fe_degree

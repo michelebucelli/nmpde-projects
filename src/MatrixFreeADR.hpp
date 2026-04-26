@@ -35,7 +35,8 @@ class MatrixFreeADR
 {
 public:
 
-    MatrixFreeADR(const unsigned int N_);
+    MatrixFreeADR(const unsigned int N_,
+                  std::unique_ptr<Function<dim>> dirichlet_bc_);
 
     void setup();
     void assemble_rhs();
@@ -52,6 +53,8 @@ private:
     const unsigned int mpi_size;
 
     const unsigned int N;
+
+    std::unique_ptr<Function<dim>> dirichlet_bc;
 
     // TODO: Can I use fullydistributed?
     parallel::distributed::Triangulation<dim> mesh;
@@ -72,6 +75,7 @@ private:
     // TODO: Make sure DEAL_II_MPI_WITH_DEVICE_SUPPORT is defined
     DistributedDeviceVector<double> system_rhs_dev;
     DistributedDeviceVector<double> solution_dev;
+    DistributedDeviceVector<double> solution_update_dev;
     DistributedVector<double> ghost_solution_host;
 
     ConditionalOStream pcout;
@@ -79,11 +83,13 @@ private:
 
 template<int dim, int fe_degree, typename ForcingTerm>
 MatrixFreeADR<dim, fe_degree, ForcingTerm>::MatrixFreeADR(
-    const unsigned int N_
+    const unsigned int N_,
+    std::unique_ptr<Function<dim>> dirichlet_bc_
 )
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , N(N_)
+    , dirichlet_bc(std::move(dirichlet_bc_))
     , mesh(MPI_COMM_WORLD)
     , fe(fe_degree)
     , pcout(std::cout, mpi_rank == 0)
@@ -113,7 +119,7 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::setup()
     VectorTools::interpolate_boundary_values(mapping,
                                              dof_handler,
                                              0,
-                                             Functions::ZeroFunction<dim>(),
+                                             *dirichlet_bc,
                                              constraints);
 
     constraints.close();
@@ -128,6 +134,7 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::setup()
                                MPI_COMM_WORLD);
 
     system_matrix_dev->initialize_dof_vector(solution_dev);
+    solution_update_dev.reinit(solution_dev);
     system_rhs_dev.reinit(solution_dev);
 
 #ifdef LOG_TIMERS
@@ -143,7 +150,17 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::assemble_rhs()
     Timer time;
 #endif
 
-    system_matrix_dev->template compute_rhs<ForcingTerm>(system_rhs_dev);
+    ghost_solution_host = 0;
+    constraints.distribute(ghost_solution_host);
+    ghost_solution_host.update_ghost_values();
+
+    // TODO: Can you avoid this transfer?
+    LinearAlgebra::ReadWriteVector<double> rw_vector(locally_owned_dofs);
+    rw_vector.import_elements(ghost_solution_host, VectorOperation::insert);
+    solution_dev.import_elements(rw_vector, VectorOperation::insert);
+
+    system_matrix_dev->template compute_rhs<ForcingTerm>(system_rhs_dev,
+                                                         solution_dev);
 
 #ifdef LOG_TIMERS
     pcout << std::setw(20) << std::left << "assemble_rhs()"
@@ -161,16 +178,20 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::solve()
     // Not really needed currently
     system_matrix_dev->compute_diagonal();
 
-    SolverControl solver_control(5000, 1e-12 * system_rhs_dev.l2_norm());
-    SolverGMRES<DistributedDeviceVector<double>> solver(solver_control);
+    SolverControl solver_control(10000, 1e-12 * system_rhs_dev.l2_norm());
+    SolverCG<DistributedDeviceVector<double>> solver(solver_control);
 
     // TODO: Figure out how to use other preconditioners
     PreconditionIdentity preconditioner;
 
-    solver.solve(
-        *system_matrix_dev, solution_dev, system_rhs_dev, preconditioner);
+    solver.solve(*system_matrix_dev,
+                 solution_update_dev,
+                 system_rhs_dev,
+                 preconditioner);
 
-    //pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
+    solution_dev += solution_update_dev;
+
+    pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
 
     // Copy solution to host
     // TODO: Time d2h copy
