@@ -1,92 +1,69 @@
-#include "ADROperator.hpp"
 #include "MatrixFreeADR.hpp"
-
 #include <iostream>
-
 #include <deal.II/base/convergence_table.h>
+
+using namespace dealii;
 
 static const unsigned int dim = 2;
 
 class ExactSolution : public Function<dim>
 {
 public:
-    ExactSolution() {}
-
-    virtual double value(const Point<dim> &p,
-                         const unsigned int = 0) const override
+    virtual double value(const Point<dim> &p, const unsigned int = 0) const override
     {
         return sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
     }
 
-    virtual Tensor<1, dim> gradient(const Point<dim> &p,
-                                    const unsigned int = 0) const override
+    virtual Tensor<1, dim> gradient(const Point<dim> &p, const unsigned int = 0) const override
     {
         Tensor<1, dim> res;
-
         res[0] = 2 * M_PI * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
         res[1] = -2 * M_PI * sin(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
-
         return res;
     }
 };
-
-/* TODO: Figure out how to enable AVX2 when compiling. */
 
 int main(int argc, char *argv[])
 {
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-    const unsigned int n_vec_doubles = VectorizedArray<double>::size();
-    std::cout << "n_vec_doubles=" << n_vec_doubles << std::endl;
+    // Highly recommended to set fe_degree to at least 2 or 3 to see the true 
+    // performance benefit of Matrix-Free over SparseMatrix assemblies.
+    const unsigned int fe_degree = 2; 
 
-    const unsigned int fe_degree = 1;
-
-    VectorArrayFunction<dim, double> beta =
-        [](const ArrayPoint<dim, double> &p) {
-            Tensor<1, dim, VectorizedArray<double>> res;
-            // TODO: Test convergence using a coefficient with
-            // non-const divergence
-            res[0] = p[1];
-            res[1] = p[0];
-            return res;
-        };
-
-    ScalarArrayFunction<dim, double> mu =
-        [](const ArrayPoint<dim, double> &p) { return p[0]; };
-
-    ScalarArrayFunction<dim, double> gamma =
-        [](const ArrayPoint<dim, double> &p) { return p[1]; };
-
-    ScalarArrayFunction<dim, double> f =
-        [](const ArrayPoint<dim, double> &p)
-    {
-               // Diffusion term
-        return 8 * M_PI * M_PI * p[0] * sin(2 * M_PI * p[0])
-                                      * cos(2 * M_PI * p[1]) -
-               2 * M_PI * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) +
-               // Reaction term
-               p[1] * sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) +
-               // Advection term
-               2 * M_PI * p[1] * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) -
-               2 * M_PI * p[0] * sin(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
+    // Define lambda functors. By passing these directly as template arguments,
+    // the compiler will completely inline them, ensuring AVX2 vectorization.
+    auto beta = [](const ArrayPoint<dim, double> &p) {
+        Tensor<1, dim, VectorizedArray<double>> res;
+        res[0] = p[1];
+        res[1] = p[0];
+        return res;
     };
 
-    ScalarArrayFunction<dim, double> n_bc =
-        [](const ArrayPoint<dim, double> &){ return 0; };
+    auto mu = [](const ArrayPoint<dim, double> &p) { return p[0]; };
+    auto gamma = [](const ArrayPoint<dim, double> &p) { return p[1]; };
+
+    auto f = [](const ArrayPoint<dim, double> &p) {
+        return 8 * M_PI * M_PI * p[0] * sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) 
+               - 2 * M_PI * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) 
+               + p[1] * sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) 
+               + 2 * M_PI * p[1] * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) 
+               - 2 * M_PI * p[0] * sin(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
+    };
+
+    ScalarFunc<dim> n_bc = [](const Point<dim> &) { return 0.0; };
 
     auto exact_solution = std::make_shared<ExactSolution>();
-
     ConvergenceTable table;
     const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
 
     for (const unsigned int N : Ns) {
-        MatrixFreeADR<dim, fe_degree> mf_adr(N, beta, mu, gamma, f);
+        // Instantiate using decltype to push the lambda types to the templates
+        MatrixFreeADR<dim, fe_degree, decltype(beta), decltype(mu), decltype(gamma), decltype(f)> 
+            mf_adr(N, beta, mu, gamma, f);
 
         mf_adr.set_dirichlet_bc(0, exact_solution);
         mf_adr.set_dirichlet_bc(1, exact_solution);
-        //mf_adr.set_dirichlet_bc(2, exact_solution);
-        //mf_adr.set_dirichlet_bc(3, exact_solution);
-
         mf_adr.set_neumann_bc(2, n_bc);
         mf_adr.set_neumann_bc(3, n_bc);
 
@@ -95,19 +72,15 @@ int main(int argc, char *argv[])
         mf_adr.solve();
         mf_adr.output();
 
-        const double error_L2 =
-            mf_adr.compute_error(VectorTools::L2_norm, *exact_solution);
-        const double error_H1 =
-            mf_adr.compute_error(VectorTools::H1_norm, *exact_solution);
+        const double error_L2 = mf_adr.compute_error(VectorTools::L2_norm, *exact_solution);
+        const double error_H1 = mf_adr.compute_error(VectorTools::H1_norm, *exact_solution);
 
         table.add_value("h", 1.0 / N);
         table.add_value("eL2", error_L2);
         table.add_value("eH1", error_H1);
     }
 
-    table.evaluate_all_convergence_rates(ConvergenceTable::
-                                         reduction_rate_log2);
-
+    table.evaluate_all_convergence_rates(ConvergenceTable::reduction_rate_log2);
     table.set_scientific("eL2", true);
     table.set_scientific("eH1", true);
 
