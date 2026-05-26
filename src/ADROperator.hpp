@@ -11,47 +11,53 @@
 #include <deal.II/matrix_free/fe_evaluation.h>
 
 #include <functional>
+#include "bench_config.h"
 
 using namespace dealii;
 
 template<typename number>
 using DistributedVector = LinearAlgebra::distributed::Vector<number>;
 
-template<int dim, typename number>
-using ArrayPoint = Point<dim, VectorizedArray<number>>;
+using VectorizedArrayType = VectorizedArray<BenchConfig::RealNumber, BenchConfig::simd_width>;
 
-template<int dim, typename number>
+template<int dim>
+using ArrayPoint = Point<dim, VectorizedArrayType>;
+
+template<int dim>
 using ScalarArrayFunction = std::function<
-    VectorizedArray<number>(const ArrayPoint<dim, number> &)>;
+    VectorizedArrayType(const ArrayPoint<dim> &)>;
 
-template<int dim, typename number>
+template<int dim>
 using VectorArrayFunction = std::function<
-    Tensor<1, dim, VectorizedArray<number>>(
-        const ArrayPoint<dim, number> &)>;
+    Tensor<1, dim, VectorizedArrayType>(
+        const ArrayPoint<dim> &)>;
+
+template<int dim>
+using MatrixFreeType = MatrixFree<dim, BenchConfig::RealNumber, VectorizedArrayType>;
 
 // NOTE: I could probably remove the template on the number
 
 template<int dim, int fe_degree, typename number>
 class ADROperator :
-    public MatrixFreeOperators::Base<dim, DistributedVector<number>>
+    public MatrixFreeOperators::Base<dim, DistributedVector<number>, VectorizedArrayType>
 {
 public:
-    ADROperator(const VectorArrayFunction<dim, number> &advection_coeff_,
-                const ScalarArrayFunction<dim, number> &diffusion_coeff_,
-                const ScalarArrayFunction<dim, number> &reaction_coeff_);
+    ADROperator(const VectorArrayFunction<dim> &advection_coeff_,
+                const ScalarArrayFunction<dim> &diffusion_coeff_,
+                const ScalarArrayFunction<dim> &reaction_coeff_);
 
     virtual void compute_diagonal() override;
 
     // TODO: Not the best for performance.. find a way to inline
     // these function calls when benchmarking
-    const VectorArrayFunction<dim, number> advection_coeff;
-    const ScalarArrayFunction<dim, number> diffusion_coeff;
-    const ScalarArrayFunction<dim, number> reaction_coeff;
+    const VectorArrayFunction<dim> advection_coeff;
+    const ScalarArrayFunction<dim> diffusion_coeff;
+    const ScalarArrayFunction<dim> reaction_coeff;
 
     // TODO: I don't really like this one here, since dirichlet
     // function map is defined inside MatrixFreeADR. Moreover
     // it would be better to define a getter
-    std::map<types::boundary_id, ScalarArrayFunction<dim, number>>
+    std::map<types::boundary_id, ScalarArrayFunction<dim>>
     neumann_bcs;
 
 private:
@@ -60,36 +66,36 @@ private:
               const DistributedVector<number> &src) const override;
 
     void
-    local_apply(const MatrixFree<dim, number> &data,
+    local_apply(const MatrixFreeType<dim> &data,
                 DistributedVector<number> &dst,
                 const DistributedVector<number> &src,
                 const std::pair<unsigned int,
                                 unsigned int> &cell_range) const;
 
     void local_apply_inner_faces(
-        const MatrixFree<dim, number> &data,
+        const MatrixFreeType<dim> &data,
         DistributedVector<number> &dst,
         const DistributedVector<number> &src,
         const std::pair<unsigned int, unsigned int> &face_range) const;
 
     void local_apply_boundary_faces(
-        const MatrixFree<dim, number> &data,
+        const MatrixFreeType<dim> &data,
         DistributedVector<number> &dst,
         const DistributedVector<number> &src,
         const std::pair<unsigned int, unsigned int> &face_range) const;
 
     void local_compute_diagonal(
         FEEvaluation<dim, fe_degree,
-                          fe_degree + 1, 1, number> &integrator) const;
+                          fe_degree + 1, 1, number, VectorizedArrayType> &integrator) const;
 };
 
 template<int dim, int fe_degree, typename number>
 ADROperator<dim, fe_degree, number>::ADROperator(
-    const VectorArrayFunction<dim, number> &advection_coeff_,
-    const ScalarArrayFunction<dim, number> &diffusion_coeff_,
-    const ScalarArrayFunction<dim, number> &reaction_coeff_
+    const VectorArrayFunction<dim> &advection_coeff_,
+    const ScalarArrayFunction<dim> &diffusion_coeff_,
+    const ScalarArrayFunction<dim> &reaction_coeff_
 )
-    : MatrixFreeOperators::Base<dim, DistributedVector<number>>()
+    : MatrixFreeOperators::Base<dim, DistributedVector<number>, VectorizedArrayType>()
     , advection_coeff(advection_coeff_)
     , diffusion_coeff(diffusion_coeff_)
     , reaction_coeff(reaction_coeff_)
@@ -100,7 +106,7 @@ void ADROperator<dim, fe_degree, number>::compute_diagonal()
 {
     this->inverse_diagonal_entries.reset(
         new DiagonalMatrix<DistributedVector<number>>());
-    DistributedVector<double> &inverse_diagonal =
+    DistributedVector<number> &inverse_diagonal =
         this->inverse_diagonal_entries->get_vector();
     // Resizes inverse_diagonal to the number of DoFs
     this->data->initialize_dof_vector(inverse_diagonal);
@@ -122,13 +128,14 @@ void ADROperator<dim, fe_degree, number>::compute_diagonal()
 
     for (unsigned int i = 0; i < inverse_diagonal.locally_owned_size(); ++i) {
         inverse_diagonal.local_element(i) =
-            1. / inverse_diagonal.local_element(i);
+            //cast to avoid warning
+            static_cast<number>(1.) / inverse_diagonal.local_element(i);
     }
 }
 
 template<int dim, int fe_degree, typename number>
 void ADROperator<dim, fe_degree, number>::local_compute_diagonal(
-    FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number> &) const
+    FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number, VectorizedArrayType> &) const
 {
     // NOTE: The MS converges even if this function is not implemented
     // so I guess it's only needed with multigrid
@@ -173,12 +180,12 @@ void ADROperator<dim, fe_degree, number>::
 
 template<int dim, int fe_degree, typename number>
 void ADROperator<dim, fe_degree, number>::local_apply(
-    const MatrixFree<dim, number> &data,
+    const MatrixFreeType<dim> &data,
     DistributedVector<number> &dst,
     const DistributedVector<number> &src,
     const std::pair<unsigned int, unsigned int> &cell_range) const
 {
-    FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number> phi(data);
+    FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number, VectorizedArrayType> phi(data);
 
     // WARNING: Make sure to compile with -march=native to vectorize
     // this loop. Additionally, any coefficient evaluation function
@@ -209,8 +216,8 @@ void ADROperator<dim, fe_degree, number>::local_apply(
             // while submit_gradients() multiplies by J_cell^-1 and JxW.
             // TLDR: we're preparing to compute B_cell^T * D_cell * B_cell
 
-            const ArrayPoint<dim, number> q_p = phi.quadrature_point(q);
-            const VectorizedArray<double> q_val = phi.get_value(q);
+            const ArrayPoint<dim> q_p = phi.quadrature_point(q);
+            const VectorizedArrayType q_val = phi.get_value(q);
 
             // NOTE: The advection term in the weak formulation is split
             // using integration by parts into a domain integral and a
@@ -235,7 +242,7 @@ void ADROperator<dim, fe_degree, number>::local_apply(
 
 template<int dim, int fe_degree, typename number>
 void ADROperator<dim, fe_degree, number>::local_apply_inner_faces(
-    const MatrixFree<dim, number> &,
+    const MatrixFreeType<dim> &,
     DistributedVector<number> &,
     const DistributedVector<number> &,
     const std::pair<unsigned int, unsigned int> &) const
@@ -246,12 +253,12 @@ void ADROperator<dim, fe_degree, number>::local_apply_inner_faces(
 
 template<int dim, int fe_degree, typename number>
 void ADROperator<dim, fe_degree, number>::local_apply_boundary_faces(
-    const MatrixFree<dim, number> &data,
+    const MatrixFreeType<dim> &data,
     DistributedVector<number> &dst,
     const DistributedVector<number> &src,
     const std::pair<unsigned int, unsigned int> &face_range) const
 {
-    FEFaceEvaluation<dim, fe_degree, fe_degree + 1, 1, number> phi_face(data);
+    FEFaceEvaluation<dim, fe_degree, fe_degree + 1, 1, number, VectorizedArrayType> phi_face(data);
 
     // Accounting for the contribution of the boundary component
     // of the advection term (split using integration by parts)
@@ -263,13 +270,13 @@ void ADROperator<dim, fe_degree, number>::local_apply_boundary_faces(
         const types::boundary_id b_id = phi_face.boundary_id();
 
         if (neumann_bcs.count(b_id)) {
-            const ScalarArrayFunction<dim, double> &bc_function =
+            const ScalarArrayFunction<dim> &bc_function =
                 neumann_bcs.at(b_id);
 
             phi_face.gather_evaluate(src, EvaluationFlags::values);
 
             for (const unsigned int q : phi_face.quadrature_point_indices()) {
-                const ArrayPoint<dim, double> q_p = phi_face.quadrature_point(q);
+                const ArrayPoint<dim> q_p = phi_face.quadrature_point(q);
 
                 phi_face.submit_value(
                     advection_coeff(q_p) *
