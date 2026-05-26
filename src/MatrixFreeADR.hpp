@@ -25,9 +25,9 @@ using namespace dealii;
 
 // Neumann BCs evaluate purely to scalars, so std::function is fine for boundary (RHS)
 template<int dim>
-using ScalarFunc = std::function<double(const Point<dim> &)>;
+using ScalarFunc = std::function<BenchConfig::RealNumber(const Point<dim> &)>;
 
-template<int dim, int fe_degree, 
+template<int dim, int fe_degree, typename number, 
          typename AdvectionFunc, typename DiffusionFunc, typename ReactionFunc, typename ForcingFunc>
 class MatrixFreeADR
 {
@@ -39,7 +39,7 @@ public:
                   const ForcingFunc &forcing_term_);
 
     void set_dirichlet_bc(const types::boundary_id boundary_id,
-                          const std::shared_ptr<Function<dim>> &bc_function);
+                          const std::shared_ptr<Function<dim, number>> &bc_function);
 
     void set_neumann_bc(const types::boundary_id boundary_id,
                         const ScalarFunc<dim> &bc_function);
@@ -50,7 +50,7 @@ public:
     void output();
 
     double compute_error(const VectorTools::NormType &norm_type,
-                         const Function<dim> &exact_solution) const;
+                         const Function<dim, number> &exact_solution) const;
 
 private:
     const unsigned int mpi_rank;
@@ -58,7 +58,7 @@ private:
 
     const ForcingFunc forcing_term;
 
-    std::map<types::boundary_id, std::shared_ptr<Function<dim>>> dirichlet_bcs;
+    std::map<types::boundary_id, std::shared_ptr<Function<dim, number>>> dirichlet_bcs;
     std::map<types::boundary_id, ScalarFunc<dim>> neumann_bcs;
 
     parallel::distributed::Triangulation<dim> mesh;
@@ -66,18 +66,18 @@ private:
     DoFHandler<dim> dof_handler;
     const MappingQ1<dim> mapping;
 
-    ADROperator<dim, fe_degree, double, AdvectionFunc, DiffusionFunc, ReactionFunc> system_matrix;
-    AffineConstraints<double> constraints;
+    ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionFunc> system_matrix;
+    AffineConstraints<number> constraints;
 
-    DistributedVector<double> system_rhs;
-    DistributedVector<double> solution;
-    DistributedVector<double> solution_update;
+    DistributedVector<number> system_rhs;
+    DistributedVector<number> solution;
+    DistributedVector<number> solution_update;
 
     ConditionalOStream pcout;
 };
 
-template<int dim, int fe_degree, typename A, typename D, typename R, typename F>
-MatrixFreeADR<dim, fe_degree, A, D, R, F>::MatrixFreeADR(
+template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
+MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::MatrixFreeADR(
     const unsigned int N_, const A &adv, const D &diff, const R &react, const F &forc)
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , N(N_)
@@ -88,24 +88,24 @@ MatrixFreeADR<dim, fe_degree, A, D, R, F>::MatrixFreeADR(
     , pcout(std::cout, mpi_rank == 0)
 {}
 
-template<int dim, int fe_degree, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, A, D, R, F>::set_dirichlet_bc(
-    const types::boundary_id boundary_id, const std::shared_ptr<Function<dim>> &bc_function)
+template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
+void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::set_dirichlet_bc(
+    const types::boundary_id boundary_id, const std::shared_ptr<Function<dim, number>> &bc_function)
 {
     dirichlet_bcs[boundary_id] = bc_function;
     neumann_bcs.erase(boundary_id);
 }
 
-template<int dim, int fe_degree, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, A, D, R, F>::set_neumann_bc(
+template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
+void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::set_neumann_bc(
     const types::boundary_id boundary_id, const ScalarFunc<dim> &bc_function)
 {
     neumann_bcs[boundary_id] = bc_function;
     dirichlet_bcs.erase(boundary_id);
 }
 
-template<int dim, int fe_degree, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, A, D, R, F>::setup()
+template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
+void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::setup()
 {
     GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
     dof_handler.reinit(mesh);
@@ -115,25 +115,25 @@ void MatrixFreeADR<dim, fe_degree, A, D, R, F>::setup()
     DoFRenumbering::Cuthill_McKee(dof_handler);
 
     const IndexSet locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
-    constraints.reinit(locally_relevant_dofs);
+    constraints.reinit(dof_handler.locally_owned_dofs(), locally_relevant_dofs);
 
-    std::map<types::boundary_id, const Function<dim> *> bc_functions;
-    for (const auto &entry : dirichlet_bcs) {
-        bc_functions[entry.first] = entry.second.get();
-    }
+        std::map<types::boundary_id, const Function<dim, number> *> bc_functions;
+        for (const auto &entry : dirichlet_bcs) {
+            bc_functions[entry.first] = entry.second.get();
+        }
 
     VectorTools::interpolate_boundary_values(mapping, dof_handler, bc_functions, constraints);
     constraints.close();
 
     system_matrix.clear();
 
-    typename MatrixFree<dim, double>::AdditionalData additional_data;
-    additional_data.tasks_parallel_scheme = MatrixFree<dim, double>::AdditionalData::none;
+    typename MatrixFreeType<dim>::AdditionalData additional_data;
+    additional_data.tasks_parallel_scheme = MatrixFreeType<dim>::AdditionalData::none;
     additional_data.mapping_update_flags = (update_values | update_gradients | update_JxW_values | update_quadrature_points);
     // Boundary faces only need JxW and quadrature points for Neumann RHS (no normal vector needed now)
     additional_data.mapping_update_flags_boundary_faces = (update_values | update_JxW_values | update_quadrature_points);
 
-    std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(new MatrixFree<dim, double>());
+    std::shared_ptr<MatrixFreeType<dim>> system_mf_storage(new MatrixFreeType<dim>());
     system_mf_storage->reinit(mapping, dof_handler, constraints, QGauss<1>(fe_degree + 1), additional_data);
     system_matrix.initialize(system_mf_storage);
 
@@ -142,16 +142,17 @@ void MatrixFreeADR<dim, fe_degree, A, D, R, F>::setup()
     system_matrix.initialize_dof_vector(solution_update);
 }
 
-template<int dim, int fe_degree, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, A, D, R, F>::assemble_rhs()
+template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
+void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::assemble_rhs()
 {
     solution = 0;
     constraints.distribute(solution);
     solution.update_ghost_values();
     system_rhs = 0;
 
-    FEEvaluation<dim, fe_degree> phi(*system_matrix.get_matrix_free());
-    FEFaceEvaluation<dim, fe_degree> phi_face(*system_matrix.get_matrix_free());
+    FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number, VectorizedArrayType> phi(*system_matrix.get_matrix_free());
+    FEFaceEvaluation<dim, fe_degree, fe_degree + 1, 1, number, VectorizedArrayType> phi_face(
+        *system_matrix.get_matrix_free());
 
     for (unsigned int cell = 0; cell < system_matrix.get_matrix_free()->n_cell_batches(); ++cell) {
         phi.reinit(cell);
@@ -159,8 +160,8 @@ void MatrixFreeADR<dim, fe_degree, A, D, R, F>::assemble_rhs()
         phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
         
         for (const unsigned int q : phi.quadrature_point_indices()) {
-            const ArrayPoint<dim, double> q_p = phi.quadrature_point(q);
-            const VectorizedArray<double> q_val = phi.get_value(q);
+            const ArrayPoint<dim> q_p = phi.quadrature_point(q);
+            const VectorizedArrayType q_val = phi.get_value(q);
 
             // Compute residual: f - A(u)
             phi.submit_gradient(-system_matrix.diffusion_coeff(q_p) * phi.get_gradient(q), q);
@@ -191,7 +192,7 @@ void MatrixFreeADR<dim, fe_degree, A, D, R, F>::assemble_rhs()
                 Point<dim> p;
                 for(unsigned int d=0; d<dim; ++d) p[d] = phi_face.quadrature_point(q)[d][0];
                 
-                phi_face.submit_value(make_vectorized_array(bc_function(p)), q);
+                phi_face.submit_value(make_vectorized_array<number, BenchConfig::simd_width>(bc_function(p)), q);
             }
             phi_face.integrate_scatter(EvaluationFlags::values, system_rhs);
         }
@@ -199,26 +200,28 @@ void MatrixFreeADR<dim, fe_degree, A, D, R, F>::assemble_rhs()
     system_rhs.compress(VectorOperation::add);
 }
 
-template<int dim, int fe_degree, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, A, D, R, F>::solve()
+template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
+void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::solve()
 {
     // Ensure diagonal is ready for the preconditioner
     system_matrix.compute_diagonal();
 
-    SolverControl solver_control(5000, 1e-12 * system_rhs.l2_norm());
-    SolverGMRES<DistributedVector<double>> solver(solver_control);
+    static constexpr number tolerance_factor = std::is_same_v<number, float> ? 1e-6f : 1e-12;
+    SolverControl solver_control(5000, tolerance_factor * system_rhs.l2_norm());
+    SolverGMRES<DistributedVector<number>> solver(solver_control);
 
     // Apply Jacobi preconditioning to massively speed up GMRES
-    PreconditionJacobi<ADROperator<dim, fe_degree, double, A, D, R>> preconditioner;
+    PreconditionJacobi<ADROperator<dim, fe_degree, number, A, D, R>> preconditioner;
     preconditioner.initialize(system_matrix, 1.0); 
 
     solver.solve(system_matrix, solution_update, system_rhs, preconditioner);
     constraints.distribute(solution_update);
     solution += solution_update;
+
 }
 
-template<int dim, int fe_degree, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, A, D, R, F>::output()
+template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
+void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::output()
 {
     DataOut<dim> data_out;
     solution.update_ghost_values();
@@ -227,11 +230,12 @@ void MatrixFreeADR<dim, fe_degree, A, D, R, F>::output()
     data_out.write_vtu_with_pvtu_record("./", "solution-" + std::to_string(N), 0, MPI_COMM_WORLD);
 }
 
-template<int dim, int fe_degree, typename A, typename D, typename R, typename F>
-double MatrixFreeADR<dim, fe_degree, A, D, R, F>::compute_error(
-    const VectorTools::NormType &norm_type, const Function<dim> &exact_solution) const
+template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
+double MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::
+    compute_error(const VectorTools::NormType &norm_type,
+                  const Function<dim, number> &exact_solution) const
 {
-    Vector<double> error_per_cell(mesh.n_active_cells());
+    Vector<number> error_per_cell(mesh.n_active_cells());
     VectorTools::integrate_difference(mapping, dof_handler, solution, exact_solution,
                                       error_per_cell, QGauss<dim>(fe_degree + 2), norm_type);
     return VectorTools::compute_global_error(mesh, error_per_cell, norm_type);

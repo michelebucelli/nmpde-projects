@@ -1,0 +1,59 @@
+#pragma once
+#include <deal.II/base/point.h>
+#include <deal.II/base/function.h>
+#include <functional>
+
+
+namespace BenchConfig{
+    inline constexpr unsigned int fe_degree = @FE_DEGREE@;
+    inline constexpr unsigned int dim = @PROBLEM_DIMENSIONS@;
+    inline constexpr unsigned int simd_width = @SIMD_WIDTH@;
+    using RealNumber = @NUMBER_TYPE@;
+
+    static_assert(dim == 2 || dim == 3);
+    static_assert(std::is_floating_point_v<RealNumber>,
+                  "\n\n[CONFIG ERROR] The specified type NUMBER_TYPE "
+                  "IS NOT a valid Real Number type!\n");
+
+    inline constexpr RealNumber pi = static_cast<RealNumber>(M_PI);
+
+    static_assert(simd_width <= dealii::VectorizedArray<RealNumber>::size(),
+                  "\n\n[CONFIG ERROR] The requested SIMD_WIDTH exceeds the maximum "
+                  "vectorization capabilities of this deal.II build!\n");
+
+    inline constexpr unsigned int register_size_bytes = sizeof(RealNumber) * simd_width;
+
+    static_assert(simd_width == 1 || 
+                  register_size_bytes == 16 || 
+                  register_size_bytes == 32 || 
+                  register_size_bytes == 64,
+                  "\n\n[CONFIG ERROR] Invalid hardware configuration! "
+                  "The requested SIMD_WIDTH and NUMBER_TYPE do not map to a valid 128-bit, 256-bit, or 512-bit CPU register. "
+                  "Valid widths for float: 4, 8, 16. Valid widths for double: 2, 4, 8.\n");
+
+    
+    class ExactSolution : public dealii::Function<dim, RealNumber>
+    {
+    
+    public:
+        ExactSolution() {}
+
+        virtual RealNumber value(const dealii::Point<dim> &p,
+                            const unsigned int = 0) const override
+        {
+            return sin(2 * pi * p[0]) * cos(2 * pi * p[1]);
+        }
+
+        virtual dealii::Tensor<1, dim, RealNumber> gradient(const dealii::Point<dim> &p,
+                                        const unsigned int = 0) const override
+        {
+            dealii::Tensor<1, dim> res;
+
+            res[0] = 2 * pi * cos(2 * pi * p[0]) * cos(2 * pi * p[1]);
+            res[1] = -2 * pi * sin(2 * pi * p[0]) * sin(2 * pi * p[1]);
+
+            return res;
+        }
+    };
+
+}
