@@ -75,6 +75,8 @@ QuadRhsEvaluator<dim, fe_degree, number, ForcingFunctor>::operator()(
 
     const Point<dim> p = data->get_quadrature_point(cell_idx, q_point);
 
+    // TODO: How do I get the boundary id here?
+
     const ForcingFunctor forcing_functor;
     // forcing_functor call will be inlined
     fe_eval->submit_value(forcing_functor(p), q_point);
@@ -209,7 +211,6 @@ ADROperator<dim, fe_degree, number>::ADROperator(
                    constraints,
                    QGauss<1>(fe_degree + 1),
                    additional_data);
-
 }
 
 template<int dim, int fe_degree, typename number>
@@ -262,16 +263,10 @@ void ADROperator<dim, fe_degree, number>::compute_rhs(
     LocalRhsEvaluator<
         dim, fe_degree, number, ForcingFunctor> loc_rhs_operator;
     mf_data.cell_loop(loc_rhs_operator, src, dst);
-
-    DistributedDeviceVector<number> zero;
-    zero.reinit(dst);
-    zero = 0;
-    // This function copies only the constrained dofs values
-    // from zero_vec to dst, making sure that rhs is zeroed
-    // out for constrained dofs (we want solution_update = 0 there,
-    // since the initial solution has already the inhomogeneous
-    // dirichlet values)
-    mf_data.copy_constrained_values(zero, dst);
+    // Making sure that rhs is zeroed out for constrained dofs
+    // (we want solution_update = 0 there, since the initial solution
+    // has already the inhomogeneous dirichlet values)
+    mf_data.set_constrained_values(0, dst);
 }
 
 template<int dim, int fe_degree, typename number>
