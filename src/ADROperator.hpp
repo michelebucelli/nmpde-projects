@@ -9,7 +9,6 @@
 #include <deal.II/matrix_free/fe_evaluation.h>
 
 #include <functional>
-// #include "bench_config.h"
 
 using namespace dealii;
 
@@ -33,10 +32,23 @@ using MatrixFreeType = MatrixFree<dim, BenchConfig::RealNumber, VectorizedArrayT
 
 
 
-template<int dim, int fe_degree, typename number, 
-         typename AdvectionFunc, typename DiffusionFunc, typename ReactionFunc>
-class ADROperator : public MatrixFreeOperators::Base<dim, DistributedVector<number>, VectorizedArrayType>
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc
+>
+class ADROperator : public MatrixFreeOperators::Base<
+    dim,
+    DistributedVector<number>,
+    VectorizedArray<number, simd_width>
+>
 {
+    using VectorizedArrayType = VectorizedArray<number, simd_width>;
+
 public:
     ADROperator(const AdvectionFunc &advection_coeff_,
                 const DiffusionFunc &diffusion_coeff_,
@@ -69,9 +81,17 @@ private:
                           fe_degree + 1, 1, number, VectorizedArrayType> &integrator) const;
 };
 
-template<int dim, int fe_degree, typename number, 
-         typename AdvectionFunc, typename DiffusionFunc, typename ReactionFunc>
-ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionFunc>::ADROperator(
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc
+>
+ADROperator<dim, fe_degree, number, simd_width, AdvectionFunc, DiffusionFunc, ReactionFunc>::ADROperator(
     const AdvectionFunc &advection_coeff_,
     const DiffusionFunc &diffusion_coeff_,
     const ReactionFunc &reaction_coeff_
@@ -82,9 +102,22 @@ ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionFunc>:
     , reaction_coeff(reaction_coeff_)
 {}
 
-template<int dim, int fe_degree, typename number, 
-         typename AdvectionFunc, typename DiffusionFunc, typename ReactionFunc>
-void ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionFunc>::compute_diagonal()
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc
+>
+void ADROperator<
+    dim,
+    fe_degree,
+    number,
+    simd_width,
+    AdvectionFunc, DiffusionFunc, ReactionFunc>::compute_diagonal()
 {
     this->inverse_diagonal_entries.reset(
         new DiagonalMatrix<DistributedVector<number>>());
@@ -105,9 +138,16 @@ void ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionF
     }
 }
 
-template<int dim, int fe_degree, typename number, 
-         typename AdvectionFunc, typename DiffusionFunc, typename ReactionFunc>
-void ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionFunc>::local_compute_diagonal(
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc
+>
+void ADROperator<dim, fe_degree, number, simd_width, AdvectionFunc, DiffusionFunc, ReactionFunc>::local_compute_diagonal(
     FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number, VectorizedArrayType> &phi) const
 {
     // Evaluates against unit vectors implicitly handled by compute_diagonal
@@ -127,9 +167,21 @@ void ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionF
     phi.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
 }
 
-template<int dim, int fe_degree, typename number, 
-         typename AdvectionFunc, typename DiffusionFunc, typename ReactionFunc>
-void ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionFunc>::apply_add(
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc
+>
+void ADROperator<
+    dim,
+    fe_degree,
+    number,
+    simd_width,
+    AdvectionFunc, DiffusionFunc, ReactionFunc>::apply_add(
     DistributedVector<number> &dst, const DistributedVector<number> &src) const
 {
     // Inner and boundary faces are empty because we are using Continuous Galerkin 
@@ -140,9 +192,21 @@ void ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionF
                      this, dst, src);
 }
 
-template<int dim, int fe_degree, typename number, 
-         typename AdvectionFunc, typename DiffusionFunc, typename ReactionFunc>
-void ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionFunc>::local_apply(
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc
+>
+void ADROperator<
+    dim,
+    fe_degree,
+    number,
+    simd_width,
+    AdvectionFunc, DiffusionFunc, ReactionFunc>::local_apply(
     const MatrixFreeType<dim> &data,
     DistributedVector<number> &dst,
     const DistributedVector<number> &src,

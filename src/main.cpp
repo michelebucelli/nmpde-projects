@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
                - 2 * M_PI * p[0] * sin(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
     };
 
-    ScalarFunc<dim> n_bc = [](const Point<dim> &) { return 0.0; };
+    ScalarFunc<dim, double> n_bc = [](const Point<dim> &) { return 0.0; };
 
     auto exact_solution = std::make_shared<ExactSolution>();
     ConvergenceTable table;
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 
     for (const unsigned int N : Ns) {
         // Instantiate using decltype to push the lambda types to the templates
-        MatrixFreeADR<dim, fe_degree, double, decltype(beta), decltype(mu), decltype(gamma), decltype(f)>
+        MatrixFreeADR<dim, fe_degree, double, 1, decltype(beta), decltype(mu), decltype(gamma), decltype(f)>
             mf_adr(N, beta, mu, gamma, f);
 
         mf_adr.set_dirichlet_bc(0, exact_solution);

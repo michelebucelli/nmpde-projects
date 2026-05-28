@@ -24,14 +24,26 @@
 using namespace dealii;
 
 // Neumann BCs evaluate purely to scalars, so std::function is fine for boundary (RHS)
-template<int dim>
-using ScalarFunc = std::function<BenchConfig::RealNumber(const Point<dim> &)>;
+template<int dim, typename number>
+using ScalarFunc = std::function<number(const Point<dim> &)>;
 
-template<int dim, int fe_degree, typename number, 
-         typename AdvectionFunc, typename DiffusionFunc, typename ReactionFunc, typename ForcingFunc>
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc,
+    typename ForcingFunc
+>
 class MatrixFreeADR
 {
 public:
+    // if those are functors, then it makes no sense to pass them in
+    // the constructor since the class would have an instance of
+    // the stateless functor
     MatrixFreeADR(const unsigned int N_,
                   const AdvectionFunc &advection_coeff,
                   const DiffusionFunc &diffusion_coeff,
@@ -42,7 +54,7 @@ public:
                           const std::shared_ptr<Function<dim, number>> &bc_function);
 
     void set_neumann_bc(const types::boundary_id boundary_id,
-                        const ScalarFunc<dim> &bc_function);
+                        const ScalarFunc<dim, number> &bc_function);
 
     void setup();
     void assemble_rhs();
@@ -59,14 +71,14 @@ private:
     const ForcingFunc forcing_term;
 
     std::map<types::boundary_id, std::shared_ptr<Function<dim, number>>> dirichlet_bcs;
-    std::map<types::boundary_id, ScalarFunc<dim>> neumann_bcs;
+    std::map<types::boundary_id, ScalarFunc<dim, number>> neumann_bcs;
 
     parallel::distributed::Triangulation<dim> mesh;
     const FE_Q<dim> fe;
     DoFHandler<dim> dof_handler;
     const MappingQ1<dim> mapping;
 
-    ADROperator<dim, fe_degree, number, AdvectionFunc, DiffusionFunc, ReactionFunc> system_matrix;
+    ADROperator<dim, fe_degree, number, simd_width, AdvectionFunc, DiffusionFunc, ReactionFunc> system_matrix;
     AffineConstraints<number> constraints;
 
     DistributedVector<number> system_rhs;
@@ -76,9 +88,25 @@ private:
     ConditionalOStream pcout;
 };
 
-template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
-MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::MatrixFreeADR(
-    const unsigned int N_, const A &adv, const D &diff, const R &react, const F &forc)
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc,
+    typename ForcingFunc
+>
+MatrixFreeADR<
+   dim,
+   fe_degree,
+   number,
+   simd_width,
+   AdvectionFunc, DiffusionFunc, ReactionFunc, ForcingFunc
+>::MatrixFreeADR(
+    const unsigned int N_, const AdvectionFunc &adv, const DiffusionFunc &diff, const ReactionFunc &react, const ForcingFunc &forc)
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , N(N_)
     , forcing_term(forc)
@@ -88,29 +116,77 @@ MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::MatrixFreeADR(
     , pcout(std::cout, mpi_rank == 0)
 {}
 
-template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::set_dirichlet_bc(
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc,
+    typename ForcingFunc
+>
+void MatrixFreeADR<
+    dim,
+    fe_degree,
+    number,
+    simd_width,
+    AdvectionFunc, DiffusionFunc, ReactionFunc, ForcingFunc
+>::set_dirichlet_bc(
     const types::boundary_id boundary_id, const std::shared_ptr<Function<dim, number>> &bc_function)
 {
     dirichlet_bcs[boundary_id] = bc_function;
     neumann_bcs.erase(boundary_id);
 }
 
-template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::set_neumann_bc(
-    const types::boundary_id boundary_id, const ScalarFunc<dim> &bc_function)
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc,
+    typename ForcingFunc
+>
+void MatrixFreeADR<
+    dim,
+    fe_degree,
+    number,
+    simd_width,
+    AdvectionFunc, DiffusionFunc, ReactionFunc, ForcingFunc
+>::set_neumann_bc(
+    const types::boundary_id boundary_id, const ScalarFunc<dim, number> &bc_function)
 {
     neumann_bcs[boundary_id] = bc_function;
     dirichlet_bcs.erase(boundary_id);
 }
 
-template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::setup()
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc,
+    typename ForcingFunc
+>
+void MatrixFreeADR<
+    dim,
+    fe_degree,
+    number,
+    simd_width,
+    AdvectionFunc, DiffusionFunc, ReactionFunc, ForcingFunc
+>::setup()
 {
     GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
     dof_handler.reinit(mesh);
     dof_handler.distribute_dofs(fe);
-    
+
     // CRITICAL: Cache locality for matrix-free vector operations
     DoFRenumbering::Cuthill_McKee(dof_handler);
 
@@ -148,8 +224,24 @@ void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::setup()
     system_matrix.initialize_dof_vector(solution_update);
 }
 
-template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::assemble_rhs()
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename AdvectionFunc,
+    typename DiffusionFunc,
+    typename ReactionFunc,
+    typename ForcingFunc
+>
+void MatrixFreeADR<
+    dim,
+    fe_degree,
+    number,
+    simd_width,
+    AdvectionFunc, DiffusionFunc, ReactionFunc, ForcingFunc
+>::assemble_rhs()
 {
     solution = 0;
     constraints.distribute(solution);
@@ -206,8 +298,24 @@ void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::assemble_rhs()
     system_rhs.compress(VectorOperation::add);
 }
 
-template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::solve()
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename A,
+    typename D,
+    typename R,
+    typename F
+>
+void MatrixFreeADR<
+    dim,
+    fe_degree,
+    number,
+    simd_width,
+    A, D, R, F
+>::solve()
 {
     // Ensure diagonal is ready for the preconditioner
     system_matrix.compute_diagonal();
@@ -217,7 +325,7 @@ void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::solve()
     SolverGMRES<DistributedVector<number>> solver(solver_control);
 
     // Apply Jacobi preconditioning to massively speed up GMRES
-    PreconditionJacobi<ADROperator<dim, fe_degree, number, A, D, R>> preconditioner;
+    PreconditionJacobi<ADROperator<dim, fe_degree, number, simd_width, A, D, R>> preconditioner;
     preconditioner.initialize(system_matrix, 1.0); 
 
     solver.solve(system_matrix, solution_update, system_rhs, preconditioner);
@@ -226,8 +334,18 @@ void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::solve()
 
 }
 
-template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
-void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::output()
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename A,
+    typename D,
+    typename R,
+    typename F
+>
+void MatrixFreeADR<dim, fe_degree, number, simd_width, A, D, R, F>::output()
 {
     DataOut<dim> data_out;
     solution.update_ghost_values();
@@ -236,8 +354,18 @@ void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::output()
     data_out.write_vtu_with_pvtu_record("./", "solution-" + std::to_string(N), 0, MPI_COMM_WORLD);
 }
 
-template<int dim, int fe_degree, typename number, typename A, typename D, typename R, typename F>
-double MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::
+
+template<
+    int dim,
+    int fe_degree,
+    typename number,
+    unsigned int simd_width,
+    typename A,
+    typename D,
+    typename R,
+    typename F
+>
+double MatrixFreeADR<dim, fe_degree, number, simd_width, A, D, R, F>::
     compute_error(const VectorTools::NormType &norm_type,
                   const Function<dim, number> &exact_solution) const
 {
@@ -247,4 +375,5 @@ double MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::
     return VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
 }
 
-#endif
+
+#endif // MATRIX_FREE_ADR_HPP
