@@ -115,7 +115,13 @@ void MatrixFreeADR<dim, fe_degree, number, A, D, R, F>::setup()
     DoFRenumbering::Cuthill_McKee(dof_handler);
 
     const IndexSet locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
-    constraints.reinit(dof_handler.locally_owned_dofs(), locally_relevant_dofs);
+
+    constraints.reinit(locally_relevant_dofs);
+
+    // this is the line that does not compile on 9.5.1
+    // we remove it for now, until the test passes and then we will use a define
+    // for selecting the right implementation
+    //   constraints.reinit(dof_handler.locally_owned_dofs(), locally_relevant_dofs);
 
         std::map<types::boundary_id, const Function<dim, number> *> bc_functions;
         for (const auto &entry : dirichlet_bcs) {
