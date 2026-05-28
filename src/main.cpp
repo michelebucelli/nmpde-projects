@@ -33,17 +33,17 @@ int main(int argc, char *argv[])
 
     // Define lambda functors. By passing these directly as template arguments,
     // the compiler will completely inline them, ensuring AVX2 vectorization.
-    auto beta = [](const ArrayPoint<dim, double> &p) {
+    auto beta = [](const ArrayPoint<dim> &p) {
         Tensor<1, dim, VectorizedArray<double>> res;
         res[0] = p[1];
         res[1] = p[0];
         return res;
     };
 
-    auto mu = [](const ArrayPoint<dim, double> &p) { return p[0]; };
-    auto gamma = [](const ArrayPoint<dim, double> &p) { return p[1]; };
+    auto mu = [](const ArrayPoint<dim> &p) { return p[0]; };
+    auto gamma = [](const ArrayPoint<dim> &p) { return p[1]; };
 
-    auto f = [](const ArrayPoint<dim, double> &p) {
+    auto f = [](const ArrayPoint<dim> &p) {
         return 8 * M_PI * M_PI * p[0] * sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) 
                - 2 * M_PI * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) 
                + p[1] * sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) 
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 
     for (const unsigned int N : Ns) {
         // Instantiate using decltype to push the lambda types to the templates
-        MatrixFreeADR<dim, fe_degree, decltype(beta), decltype(mu), decltype(gamma), decltype(f)> 
+        MatrixFreeADR<dim, fe_degree, double, decltype(beta), decltype(mu), decltype(gamma), decltype(f)>
             mf_adr(N, beta, mu, gamma, f);
 
         mf_adr.set_dirichlet_bc(0, exact_solution);

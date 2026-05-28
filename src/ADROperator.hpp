@@ -9,9 +9,16 @@
 #include <deal.II/matrix_free/fe_evaluation.h>
 
 #include <functional>
-#include "bench_config.h"
+// #include "bench_config.h"
 
 using namespace dealii;
+
+
+namespace BenchConfig {
+    using RealNumber = double;
+    constexpr unsigned int simd_width = 1;
+};
+
 
 template<typename number>
 using DistributedVector = LinearAlgebra::distributed::Vector<number>;

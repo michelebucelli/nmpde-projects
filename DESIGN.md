@@ -15,3 +15,9 @@ After a team discussion we decided to revert the changes such that the project c
 
         constraints.reinit(locally_relevant_dofs);
 ```
+
+
+# CMake shenanigans
+From a fresh CMake config, the project doesn't compile because it misses the `bench_config.h` file. From previous discussions that file is generated at config time by cmake based on config variables, but there is no mention of the generation in the root `CMakeLists.txt`.
+
+This is introducing some strange coupling between the benchmark infraastructure and the matrix free library. I propose to eliminate this complexity
