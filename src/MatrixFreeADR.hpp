@@ -2,6 +2,7 @@
 #define MATRIX_FREE_ADR_HPP
 
 #include <deal.II/base/timer.h>
+#include <deal.II/base/config.h>
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/grid/tria.h>
@@ -196,17 +197,16 @@ void MatrixFreeADR<
 
     const IndexSet locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
 
+#if DEAL_II_VERSION_GTE(9, 6, 0)
+    constraints.reinit(dof_handler.locally_owned_dofs(), locally_relevant_dofs);
+#else
     constraints.reinit(locally_relevant_dofs);
+#endif
 
-    // @TODO (Matteo): this is the line that does not compile on 9.5.1
-    // we remove it for now, until the test passes and then we will use a define
-    // for selecting the right implementation
-    //   constraints.reinit(dof_handler.locally_owned_dofs(), locally_relevant_dofs);
-
-        std::map<types::boundary_id, const Function<dim, number> *> bc_functions;
-        for (const auto &entry : dirichlet_bcs) {
-            bc_functions[entry.first] = entry.second.get();
-        }
+    std::map<types::boundary_id, const Function<dim, number> *> bc_functions;
+    for (const auto &entry : dirichlet_bcs) {
+        bc_functions[entry.first] = entry.second.get();
+    }
 
     VectorTools::interpolate_boundary_values(mapping, dof_handler, bc_functions, constraints);
     constraints.close();
