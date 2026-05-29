@@ -81,6 +81,10 @@ private:
     ADROperator<dim, fe_degree, number, simd_width, AdvectionFunc, DiffusionFunc, ReactionFunc> system_matrix;
     AffineConstraints<number> constraints;
 
+    using VectorizedArrayType = typename decltype(system_matrix)::VectorizedArrayType;
+    using ArrayPoint = typename decltype(system_matrix)::ArrayPoint;
+    using MatrixFreeType = typename decltype(system_matrix)::MatrixFreeType;
+
     DistributedVector<number> system_rhs;
     DistributedVector<number> solution;
     DistributedVector<number> solution_update;
@@ -194,7 +198,7 @@ void MatrixFreeADR<
 
     constraints.reinit(locally_relevant_dofs);
 
-    // this is the line that does not compile on 9.5.1
+    // @TODO (Matteo): this is the line that does not compile on 9.5.1
     // we remove it for now, until the test passes and then we will use a define
     // for selecting the right implementation
     //   constraints.reinit(dof_handler.locally_owned_dofs(), locally_relevant_dofs);
@@ -209,13 +213,13 @@ void MatrixFreeADR<
 
     system_matrix.clear();
 
-    typename MatrixFreeType<dim>::AdditionalData additional_data;
-    additional_data.tasks_parallel_scheme = MatrixFreeType<dim>::AdditionalData::none;
+    typename MatrixFreeType::AdditionalData additional_data;
+    additional_data.tasks_parallel_scheme = MatrixFreeType::AdditionalData::none;
     additional_data.mapping_update_flags = (update_values | update_gradients | update_JxW_values | update_quadrature_points);
     // Boundary faces only need JxW and quadrature points for Neumann RHS (no normal vector needed now)
     additional_data.mapping_update_flags_boundary_faces = (update_values | update_JxW_values | update_quadrature_points);
 
-    std::shared_ptr<MatrixFreeType<dim>> system_mf_storage(new MatrixFreeType<dim>());
+    std::shared_ptr<MatrixFreeType> system_mf_storage(new MatrixFreeType());
     system_mf_storage->reinit(mapping, dof_handler, constraints, QGauss<1>(fe_degree + 1), additional_data);
     system_matrix.initialize(system_mf_storage);
 
@@ -256,9 +260,9 @@ void MatrixFreeADR<
         phi.reinit(cell);
         phi.read_dof_values_plain(solution);
         phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
-        
+
         for (const unsigned int q : phi.quadrature_point_indices()) {
-            const ArrayPoint<dim> q_p = phi.quadrature_point(q);
+            const ArrayPoint q_p = phi.quadrature_point(q);
             const VectorizedArrayType q_val = phi.get_value(q);
 
             // Compute residual: f - A(u)
@@ -280,7 +284,7 @@ void MatrixFreeADR<
 
         if (neumann_bcs.count(b_id)) {
             const auto &bc_function = neumann_bcs[b_id];
-            
+
             // Just apply the standard Neumann RHS formulation: \int h * v ds
             for (const unsigned int q : phi_face.quadrature_point_indices()) {
                 // Notice we only need standard Point<dim> for std::function evaluation
@@ -289,8 +293,8 @@ void MatrixFreeADR<
                 // For fully deformed meshes, loop over VectorizedArray elements.
                 Point<dim> p;
                 for(unsigned int d=0; d<dim; ++d) p[d] = phi_face.quadrature_point(q)[d][0];
-                
-                phi_face.submit_value(make_vectorized_array<number, BenchConfig::simd_width>(bc_function(p)), q);
+
+                phi_face.submit_value(make_vectorized_array<number, simd_width>(bc_function(p)), q);
             }
             phi_face.integrate_scatter(EvaluationFlags::values, system_rhs);
         }

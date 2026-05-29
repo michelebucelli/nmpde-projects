@@ -13,23 +13,8 @@
 using namespace dealii;
 
 
-namespace BenchConfig {
-    using RealNumber = double;
-    constexpr unsigned int simd_width = 1;
-};
-
-
 template<typename number>
 using DistributedVector = LinearAlgebra::distributed::Vector<number>;
-
-using VectorizedArrayType = VectorizedArray<BenchConfig::RealNumber, BenchConfig::simd_width>;
-
-template<int dim>
-using ArrayPoint = Point<dim, VectorizedArrayType>;
-
-template<int dim>
-using MatrixFreeType = MatrixFree<dim, BenchConfig::RealNumber, VectorizedArrayType>;
-
 
 
 template<
@@ -47,9 +32,11 @@ class ADROperator : public MatrixFreeOperators::Base<
     VectorizedArray<number, simd_width>
 >
 {
-    using VectorizedArrayType = VectorizedArray<number, simd_width>;
-
 public:
+    using VectorizedArrayType = VectorizedArray<number, simd_width>;
+    using ArrayPoint = Point<dim, VectorizedArrayType>;
+    using MatrixFreeType = MatrixFree<dim, number, VectorizedArrayType>;
+
     ADROperator(const AdvectionFunc &advection_coeff_,
                 const DiffusionFunc &diffusion_coeff_,
                 const ReactionFunc &reaction_coeff_);
@@ -65,13 +52,13 @@ private:
                            const DistributedVector<number> &src) const override;
 
     void
-    local_apply(const MatrixFreeType<dim> &data,
+    local_apply(const MatrixFreeType &data,
                 DistributedVector<number> &dst,
                 const DistributedVector<number> &src,
                 const std::pair<unsigned int,
                                 unsigned int> &cell_range) const;
 
-    void empty_face_apply(const MatrixFreeType<dim> &,
+    void empty_face_apply(const MatrixFreeType &,
                           DistributedVector<number> &,
                           const DistributedVector<number> &,
                           const std::pair<unsigned int, unsigned int> &) const {}
@@ -138,6 +125,7 @@ void ADROperator<
     }
 }
 
+
 template<
     int dim,
     int fe_degree,
@@ -154,18 +142,19 @@ void ADROperator<dim, fe_degree, number, simd_width, AdvectionFunc, DiffusionFun
     phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
     for (const unsigned int q : phi.quadrature_point_indices()) {
-        const ArrayPoint<dim> q_p = phi.quadrature_point(q);
+        const ArrayPoint q_p = phi.quadrature_point(q);
         const VectorizedArrayType q_val = phi.get_value(q);
 
         // Standard Galerkin evaluation (no Integration By Parts for advection)
-        phi.submit_value(reaction_coeff(q_p) * q_val + 
+        phi.submit_value(reaction_coeff(q_p) * q_val +
                          advection_coeff(q_p) * phi.get_gradient(q), q);
-                         
+
         phi.submit_gradient(diffusion_coeff(q_p) * phi.get_gradient(q), q);
     }
 
     phi.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
 }
+
 
 template<
     int dim,
@@ -192,6 +181,7 @@ void ADROperator<
                      this, dst, src);
 }
 
+
 template<
     int dim,
     int fe_degree,
@@ -207,7 +197,7 @@ void ADROperator<
     number,
     simd_width,
     AdvectionFunc, DiffusionFunc, ReactionFunc>::local_apply(
-    const MatrixFreeType<dim> &data,
+    const MatrixFreeType &data,
     DistributedVector<number> &dst,
     const DistributedVector<number> &src,
     const std::pair<unsigned int, unsigned int> &cell_range) const
@@ -218,9 +208,9 @@ void ADROperator<
         phi.reinit(cell);
         phi.read_dof_values(src);
         phi.evaluate(EvaluationFlags::gradients | EvaluationFlags::values);
-        
+
         for (const unsigned int q : phi.quadrature_point_indices()) {
-            const ArrayPoint<dim> q_p = phi.quadrature_point(q);
+            const ArrayPoint q_p = phi.quadrature_point(q);
             const VectorizedArrayType q_val = phi.get_value(q);
 
             phi.submit_value(reaction_coeff(q_p) * q_val + 
@@ -233,4 +223,5 @@ void ADROperator<
     }
 }
 
-#endif
+
+#endif // ADR_OPERATOR_HPP

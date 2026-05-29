@@ -38,7 +38,12 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLOG_TIMERS -Wfloat-conversion -Wmissin
 #benchmark compiler flags
 set(FE_DEGREE 1 CACHE STRING "Polynomial degree of the Finite Elements used")
 set(PROBLEM_DIMENSIONS 2 CACHE STRING "Mesh space dimensions")
-set(SIMD_WIDTH 4 CACHE STRING "Size param for deal.II VectorizedArray")
+
+# TODO: this is problematic, we want to query the size of the vectorized array
+# at config time, so we need some CMake sophistication
+#
+# the last thing we want is that the config passes, but the build not
+set(SIMD_WIDTH 1 CACHE STRING "Size param for deal.II VectorizedArray")
 set(NUMBER_TYPE "double" CACHE STRING "Floating point type (float, double)")
 
 # Validate architectural register sizes (16=SSE, 32=AVX, 64=AVX512, or 1 for scalar)
