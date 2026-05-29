@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
     // Define lambda functors. By passing these directly as template arguments,
     // the compiler will completely inline them, ensuring AVX2 vectorization.
     auto beta = [](const ArrayPoint &p) {
-        Tensor<1, dim, VectorizedArray<double>> res;
+        Tensor<1, dim, VectorizedArrayType> res;
         res[0] = p[1];
         res[1] = p[0];
         return res;
