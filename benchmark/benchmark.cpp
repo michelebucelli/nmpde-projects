@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
 
         mf_adr.setup();
         mf_adr.assemble_rhs();
-        mf_adr.solve();
+        mf_adr.solve(5000, 1e-12, true);
 
         const double error_L2 =
             mf_adr.compute_error(VectorTools::L2_norm, *exact_solution);

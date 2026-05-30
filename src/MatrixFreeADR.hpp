@@ -42,14 +42,16 @@ template<
 class MatrixFreeADR
 {
 public:
-    // if those are functors, then it makes no sense to pass them in
-    // the constructor since the class would have an instance of
-    // the stateless functor
+    // the function objects are copied, but they could be
+    // constructed directly inside this class
+    //
+    // it makes sense to copy them in they have an internal
+    // state for example some parameters
     MatrixFreeADR(const unsigned int N_,
                   const AdvectionFunc &advection_coeff,
                   const DiffusionFunc &diffusion_coeff,
-                  const ReactionFunc &reaction_coeff,
-                  const ForcingFunc &forcing_term_);
+                  const ReactionFunc  &reaction_coeff,
+                  const ForcingFunc   &forcing_term_);
 
     void set_dirichlet_bc(const types::boundary_id boundary_id,
                           const std::shared_ptr<Function<dim, number>> &bc_function);
@@ -57,9 +59,29 @@ public:
     void set_neumann_bc(const types::boundary_id boundary_id,
                         const ScalarFunc<dim, number> &bc_function);
 
-    void setup();
+    // @DISCUSSION: in the setup function the mesh is initialized with
+    // a specific grid generator...
+    //
+    // As users of the benchmark we would like to swap at runtime, without
+    // recompilation, the type of mesh, which could be either generated or
+    // user supplied. The point was testing structured and unstructured meshes.
+    //
+    // So I would change this interface and add a mesh generator function
+    void setup(bool dof_reorder = true);
     void assemble_rhs();
-    void solve();
+
+    // @DISCUSSION: as users of the benchmark, we need some experiments:
+    //   1. measure the time per iteration MB vs. MF without any preconditioner
+    //   2. sweep the preconditioning strategies
+    //
+    // so this makes sense to have control parameters as function arguments
+    //
+    // As Tommaso pointed out, rtol should be specialized on number, otherwise
+    // on floating point runs, it won't converge. Let's make it a responsibility
+    // of the caller of this class
+    //
+    // Ideally this interface should be replicated for the matrix based solver
+    void solve(int nmax, number rtol, bool apply_preconditioner);
     void output();
 
     double compute_error(const VectorTools::NormType &norm_type,
@@ -186,14 +208,16 @@ void MatrixFreeADR<
     number,
     simd_width,
     AdvectionFunc, DiffusionFunc, ReactionFunc, ForcingFunc
->::setup()
+>::setup(bool dof_reorder)
 {
     GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
     dof_handler.reinit(mesh);
     dof_handler.distribute_dofs(fe);
 
     // CRITICAL: Cache locality for matrix-free vector operations
-    DoFRenumbering::Cuthill_McKee(dof_handler);
+    if (dof_reorder) {
+        DoFRenumbering::Cuthill_McKee(dof_handler);
+    }
 
     const IndexSet locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
 
@@ -319,23 +343,27 @@ void MatrixFreeADR<
     number,
     simd_width,
     A, D, R, F
->::solve()
+>::solve(int nmax, number rtol, bool apply_preconditioner)
 {
-    // Ensure diagonal is ready for the preconditioner
-    system_matrix.compute_diagonal();
 
-    static constexpr number tolerance_factor = std::is_same_v<number, float> ? 1e-6f : 1e-12;
-    SolverControl solver_control(5000, tolerance_factor * system_rhs.l2_norm());
+    // we can reuse somewhere this piece of code
+    // static constexpr number tolerance_factor = std::is_same_v<number, float> ? 1e-6f : 1e-12;
+    SolverControl solver_control(nmax, rtol * system_rhs.l2_norm());
     SolverGMRES<DistributedVector<number>> solver(solver_control);
 
-    // Apply Jacobi preconditioning to massively speed up GMRES
-    PreconditionJacobi<ADROperator<dim, fe_degree, number, simd_width, A, D, R>> preconditioner;
-    preconditioner.initialize(system_matrix, 1.0); 
+    // this should later be a switch based on an ENUM value of supported preconditioners
+    if (apply_preconditioner) {
+        // Ensure diagonal is ready for the preconditioner
+        system_matrix.compute_diagonal();
 
-    solver.solve(system_matrix, solution_update, system_rhs, preconditioner);
+        PreconditionJacobi<ADROperator<dim, fe_degree, number, simd_width, A, D, R>> preconditioner;
+        preconditioner.initialize(system_matrix, 1.0);
+        solver.solve(system_matrix, solution_update, system_rhs, preconditioner);
+    } else {
+    }
+
     constraints.distribute(solution_update);
     solution += solution_update;
-
 }
 
 

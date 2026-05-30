@@ -21,3 +21,10 @@ After a team discussion we decided to revert the changes such that the project c
 From a fresh CMake config, the project doesn't compile because it misses the `bench_config.h` file. From previous discussions that file is generated at config time by cmake based on config variables, but there is no mention of the generation in the root `CMakeLists.txt`.
 
 This is introducing some strange coupling between the benchmark infraastructure and the matrix free library. I propose to eliminate this complexity
+
+
+# SIMD_WIDTH
+We want the simd width to be specified by the user (why?)
+In any case, if we don't specify it deal.ii will provide the maximum width supported by the target.
+
+The case we want to absolutely avoid is when the user selects at compile time a config
