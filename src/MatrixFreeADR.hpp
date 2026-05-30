@@ -36,7 +36,8 @@ class MatrixFreeADR
 public:
 
     MatrixFreeADR(const unsigned int N_,
-                  std::unique_ptr<Function<dim>> dirichlet_bc_);
+                  std::unique_ptr<Function<dim>> dirichlet_bc_,
+                  std::function<double(const Point<dim> &)> neumann_bc_);
 
     void setup();
     void assemble_rhs();
@@ -55,6 +56,7 @@ private:
     const unsigned int N;
 
     std::unique_ptr<Function<dim>> dirichlet_bc;
+    std::function<double(const Point<dim> &)> neumann_bc;
 
     // TODO: Can I use fullydistributed?
     parallel::distributed::Triangulation<dim> mesh;
@@ -84,12 +86,14 @@ private:
 template<int dim, int fe_degree, typename ForcingTerm>
 MatrixFreeADR<dim, fe_degree, ForcingTerm>::MatrixFreeADR(
     const unsigned int N_,
-    std::unique_ptr<Function<dim>> dirichlet_bc_
+    std::unique_ptr<Function<dim>> dirichlet_bc_,
+    std::function<double(const Point<dim> &)> neumann_bc_
 )
     : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , N(N_)
     , dirichlet_bc(std::move(dirichlet_bc_))
+    , neumann_bc(neumann_bc_)
     , mesh(MPI_COMM_WORLD)
     , fe(fe_degree)
     , pcout(std::cout, mpi_rank == 0)
@@ -103,7 +107,7 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::setup()
 #endif
 
     // TODO: Check matrix-free simplex mesh support
-    GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, false);
+    GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
 
     dof_handler.reinit(mesh);
     // TODO: Check DoFRenumbering::matrix_free_data_locality()
@@ -116,10 +120,15 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::setup()
     constraints.clear();
     constraints.reinit(locally_owned_dofs, locally_relevant_dofs);
 
+    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+    // WARNING: Currently applying neumann bcs only on left face (x = 0)
+    for (types::boundary_id b_id = 1; b_id < dim * 2; ++b_id) {
+        boundary_functions[b_id] = dirichlet_bc.get();
+    }
+
     VectorTools::interpolate_boundary_values(mapping,
                                              dof_handler,
-                                             0,
-                                             *dirichlet_bc,
+                                             boundary_functions,
                                              constraints);
 
     constraints.close();
@@ -154,13 +163,78 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::assemble_rhs()
     constraints.distribute(ghost_solution_host);
     ghost_solution_host.update_ghost_values();
 
-    // TODO: Can you avoid this transfer?
+    // TODO: Can you avoid this transfer? I guess only if there's a way
+    // to interpolate constraints directly on the device
     LinearAlgebra::ReadWriteVector<double> rw_vector(locally_owned_dofs);
+    // TODO: Does this two-copy transfer have to do with the usage of
+    // non-pinned memory?
     rw_vector.import_elements(ghost_solution_host, VectorOperation::insert);
     solution_dev.import_elements(rw_vector, VectorOperation::insert);
 
     system_matrix_dev->template compute_rhs<ForcingTerm>(system_rhs_dev,
                                                          solution_dev);
+
+    // TODO: Neumann bcs rhs contribution is currently computed on the host.
+    // Check wether overlapping this computation with compute_rhs is possible.
+
+    DistributedVector<double> rhs_neumann_term(locally_owned_dofs,
+                                               locally_relevant_dofs,
+                                               MPI_COMM_WORLD);
+    rhs_neumann_term = 0;
+
+    const QGauss<dim - 1> quadrature_face(fe_degree + 1);
+
+    FEFaceValues<dim> fe_face_values(fe,
+                                     quadrature_face,
+                                     update_values | update_JxW_values |
+                                     update_quadrature_points);
+
+    const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
+    const unsigned int n_q_face = quadrature_face.size();
+
+    Vector<double> cell_neumann_term(dofs_per_cell);
+
+    std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+
+    // TODO: Manually use kokkos to dispatch this loop on the host
+    for (const auto &cell : dof_handler.active_cell_iterators()) {
+        if (cell->is_locally_owned() && cell->at_boundary()) {
+
+            cell_neumann_term = 0;
+
+            for (unsigned int face = 0; face < cell->n_faces(); ++face) {
+                if (cell->face(face)->at_boundary() &&
+                    // WARNING: Currently applying neumann
+                    // bcs only on left face (x = 0)
+                    cell->face(face)->boundary_id() == 0) {
+
+                    fe_face_values.reinit(cell, face);
+                    for (unsigned int q = 0; q < n_q_face; ++q) {
+                        const double neumann_loc =
+                            neumann_bc(fe_face_values.quadrature_point(q));
+
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                            cell_neumann_term(i) +=
+                                neumann_loc *
+                                fe_face_values.shape_value(i, q) *
+                                fe_face_values.JxW(q);
+                        }
+                    }
+                }
+            }
+
+            cell->get_dof_indices(local_dof_indices);
+            // TODO: We could avoid using constraints object, right?
+            constraints.distribute_local_to_global(cell_neumann_term,
+                                                   local_dof_indices,
+                                                   rhs_neumann_term);
+        }
+    }
+
+    rhs_neumann_term.compress(VectorOperation::add);
+
+    rw_vector.import_elements(rhs_neumann_term, VectorOperation::insert);
+    system_rhs_dev.import_elements(rw_vector, VectorOperation::add);
 
 #ifdef LOG_TIMERS
     pcout << std::setw(20) << std::left << "assemble_rhs()"
@@ -191,7 +265,7 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::solve()
 
     solution_dev += solution_update_dev;
 
-    pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
+    pcout << solver_control.last_step() << " CG iterations" << std::endl;
 
     // Copy solution to host
     // TODO: Time d2h copy

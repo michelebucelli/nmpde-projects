@@ -35,6 +35,7 @@ class ForcingTerm
 public:
     ForcingTerm() {}
 
+    // TODO: Make sure to use Kokkos portable ntrig functions
     DEAL_II_HOST_DEVICE double operator()(const Point<dim> &p) const
     {
         return 2 * M_PI * M_PI * sin(M_PI * p[0])
@@ -50,11 +51,17 @@ int main(int argc, char *argv[]) {
     const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
     ExactSolution exact_solution;
 
+    std::function<double(const Point<dim> &)> neumann_bc =
+        [](const Point<dim> &p) {
+            return -M_PI * cos(M_PI * p[0]) * cos(M_PI * p[1]);
+        };
+
     ConvergenceTable table;
 
     for (const unsigned int N : Ns) {
+        // Using ExactSolution as dirichlet bcs
         MatrixFreeADR<dim, fe_degree, ForcingTerm> mf_adr(
-            N, std::make_unique<ExactSolution>());
+            N, std::make_unique<ExactSolution>(), neumann_bc);
 
         const ConditionalOStream &pcout = mf_adr.get_pcout();
         pcout << "dim=" << dim << " fe_degree=" << fe_degree
