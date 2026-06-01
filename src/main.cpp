@@ -33,7 +33,7 @@ public:
 class ForcingTerm
 {
 public:
-    ForcingTerm() {}
+    DEAL_II_HOST_DEVICE ForcingTerm() {}
 
     // TODO: Make sure to use Kokkos portable ntrig functions
     DEAL_II_HOST_DEVICE double operator()(const Point<dim> &p) const

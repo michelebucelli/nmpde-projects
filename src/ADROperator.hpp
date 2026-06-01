@@ -78,6 +78,7 @@ QuadRhsEvaluator<dim, fe_degree, number, ForcingFunctor>::operator()(
     // TODO: How do I get the boundary id here?
 
     const ForcingFunctor forcing_functor;
+
     // forcing_functor call will be inlined
     fe_eval->submit_value(forcing_functor(p), q_point);
     fe_eval->submit_gradient(-fe_eval->get_gradient(q_point), q_point);
@@ -299,6 +300,8 @@ void ADROperator<dim, fe_degree, number>::compute_diagonal()
         inverse_diagonal.locally_owned_size(), KOKKOS_LAMBDA(int i) {
             raw_diagonal[i] = 1. / raw_diagonal[i];
         });
+
+    // Kokkos:fence() here?
 }
 
 template<int dim, int fe_degree, typename number>
