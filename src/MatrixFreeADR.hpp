@@ -57,7 +57,8 @@ public:
                           const std::shared_ptr<Function<dim, number>> &bc_function);
 
     void set_neumann_bc(const types::boundary_id boundary_id,
-                        const ScalarFunc<dim, number> &bc_function);
+                        const std::function<VectorizedArray<number, simd_width>(
+                            const Point<dim, VectorizedArray<number, simd_width>> &)> &bc_function);
 
     // @DISCUSSION: in the setup function the mesh is initialized with
     // a specific grid generator...
@@ -94,7 +95,8 @@ private:
     const ForcingFunc forcing_term;
 
     std::map<types::boundary_id, std::shared_ptr<Function<dim, number>>> dirichlet_bcs;
-    std::map<types::boundary_id, ScalarFunc<dim, number>> neumann_bcs;
+    std::map<types::boundary_id, std::function<VectorizedArray<number, simd_width>(
+        const Point<dim, VectorizedArray<number, simd_width>> &)>> neumann_bcs;
 
     parallel::distributed::Triangulation<dim> mesh;
     const FE_Q<dim> fe;
@@ -185,7 +187,9 @@ void MatrixFreeADR<
     simd_width,
     AdvectionFunc, DiffusionFunc, ReactionFunc, ForcingFunc
 >::set_neumann_bc(
-    const types::boundary_id boundary_id, const ScalarFunc<dim, number> &bc_function)
+    const types::boundary_id boundary_id,
+    const std::function<VectorizedArray<number, simd_width>(
+        const Point<dim, VectorizedArray<number, simd_width>> &)> &bc_function)
 {
     neumann_bcs[boundary_id] = bc_function;
     dirichlet_bcs.erase(boundary_id);
@@ -239,9 +243,11 @@ void MatrixFreeADR<
 
     typename MatrixFreeType::AdditionalData additional_data;
     additional_data.tasks_parallel_scheme = MatrixFreeType::AdditionalData::none;
-    additional_data.mapping_update_flags = (update_values | update_gradients | update_JxW_values | update_quadrature_points);
+    additional_data.mapping_update_flags =
+        (update_values | update_gradients | update_JxW_values | update_quadrature_points);
     // Boundary faces only need JxW and quadrature points for Neumann RHS (no normal vector needed now)
-    additional_data.mapping_update_flags_boundary_faces = (update_values | update_JxW_values | update_quadrature_points);
+    additional_data.mapping_update_flags_boundary_faces =
+        (update_values | update_JxW_values | update_quadrature_points);
 
     std::shared_ptr<MatrixFreeType> system_mf_storage(new MatrixFreeType());
     system_mf_storage->reinit(mapping, dof_handler, constraints, QGauss<1>(fe_degree + 1), additional_data);
@@ -276,31 +282,40 @@ void MatrixFreeADR<
     solution.update_ghost_values();
     system_rhs = 0;
 
-    FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number, VectorizedArrayType> phi(*system_matrix.get_matrix_free());
-    FEFaceEvaluation<dim, fe_degree, fe_degree + 1, 1, number, VectorizedArrayType> phi_face(
-        *system_matrix.get_matrix_free());
+    FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number, VectorizedArrayType>
+    phi(*system_matrix.get_matrix_free());
 
-    for (unsigned int cell = 0; cell < system_matrix.get_matrix_free()->n_cell_batches(); ++cell) {
+    FEFaceEvaluation<dim, fe_degree, fe_degree + 1, 1, number, VectorizedArrayType>
+    phi_face(*system_matrix.get_matrix_free());
+
+    for (unsigned int cell = 0;
+         cell < system_matrix.get_matrix_free()->n_cell_batches(); ++cell) {
+
         phi.reinit(cell);
         phi.read_dof_values_plain(solution);
         phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
         for (const unsigned int q : phi.quadrature_point_indices()) {
             const ArrayPoint q_p = phi.quadrature_point(q);
-            const VectorizedArrayType q_val = phi.get_value(q);
 
-            // Compute residual: f - A(u)
-            phi.submit_gradient(-system_matrix.diffusion_coeff(q_p) * phi.get_gradient(q), q);
-            phi.submit_value(forcing_term(q_p) 
-                             - system_matrix.reaction_coeff(q_p) * q_val 
-                             - system_matrix.advection_coeff(q_p) * phi.get_gradient(q), q);
+            const auto q_val = phi.get_value(q);
+            const auto q_grad = phi.get_gradient(q);
+
+            phi.submit_value(forcing_term(q_p) -
+                             system_matrix.reaction_coeff(q_p) * q_val -
+                             system_matrix.advection_coeff(q_p) * q_grad, q);
+
+            phi.submit_gradient(-system_matrix.diffusion_coeff(q_p) * q_grad, q);
         }
+
         phi.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
         phi.distribute_local_to_global(system_rhs);
     }
 
-    const unsigned int n_inner = system_matrix.get_matrix_free()->n_inner_face_batches();
-    const unsigned int n_bound = system_matrix.get_matrix_free()->n_boundary_face_batches();
+    const unsigned int n_inner =
+        system_matrix.get_matrix_free()->n_inner_face_batches();
+    const unsigned int n_bound =
+        system_matrix.get_matrix_free()->n_boundary_face_batches();
 
     for (unsigned int face = n_inner; face < n_inner + n_bound; ++face) {
         phi_face.reinit(face);
@@ -309,16 +324,13 @@ void MatrixFreeADR<
         if (neumann_bcs.count(b_id)) {
             const auto &bc_function = neumann_bcs[b_id];
 
-            // Just apply the standard Neumann RHS formulation: \int h * v ds
             for (const unsigned int q : phi_face.quadrature_point_indices()) {
-                // Notice we only need standard Point<dim> for std::function evaluation
-                // We extract element 0 because all vectorized array entries on the boundary 
-                // face batch have the same geometry for Cartesian grids. 
-                // For fully deformed meshes, loop over VectorizedArray elements.
-                Point<dim> p;
-                for(unsigned int d=0; d<dim; ++d) p[d] = phi_face.quadrature_point(q)[d][0];
+                const ArrayPoint q_p = phi_face.quadrature_point(q);
 
-                phi_face.submit_value(make_vectorized_array<number, simd_width>(bc_function(p)), q);
+                const VectorizedArrayType mu_val = system_matrix.diffusion_coeff(q_p);
+                const VectorizedArrayType h_val  = bc_function(q_p);
+
+                phi_face.submit_value(mu_val * h_val, q);
             }
             phi_face.integrate_scatter(EvaluationFlags::values, system_rhs);
         }
@@ -362,7 +374,6 @@ void MatrixFreeADR<
     } else {
     }
 
-    constraints.distribute(solution_update);
     solution += solution_update;
 }
 
