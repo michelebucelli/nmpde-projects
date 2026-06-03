@@ -115,9 +115,9 @@ assemble_system() {
 		for (const auto q_index : fe_values.quadrature_point_indices()) {
 			const Point<dim> &x_q = fe_values.quadrature_point(q_index);
 
-			const double         mu    = local_spec.mu(x_q);
-			const Tensor<1, dim> beta  = local_spec.beta(x_q);
-			const double         gamma = local_spec.gamma(x_q);
+			const double         mu    = local_spec.diffusion(x_q);
+			const Tensor<1, dim> beta  = local_spec.advection(x_q);
+			const double         gamma = local_spec.reaction(x_q);
 			const double         f     = local_spec.forcing(x_q);
 
 			for (const auto i : fe_values.dof_indices()) {
