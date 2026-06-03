@@ -24,6 +24,9 @@
 #include <iostream>
 
 
+using namespace dealii;
+
+
 template <int dim, typename AdrSpec>
 class MatrixBasedAdr {
 	public:
@@ -39,8 +42,8 @@ class MatrixBasedAdr {
 		                     const Triangulation<dim>    &mesh) const;
 
 	protected:
-		const FE_Q<dim>    fe;
 		const int          fe_degree;
+		const FE_Q<dim>    fe;
 		DoFHandler<dim>    dof_handler;
 
 		SparsityPattern      sparsity_pattern;
@@ -57,10 +60,10 @@ template <int dim, typename AdrSpec>
 MatrixBasedAdr<dim, AdrSpec>::
 MatrixBasedAdr(const Triangulation<dim>& mesh,
                int fe_degree_)
-	: dof_handler(mesh)
-	, fe(fe_degree_)
-	, fe_degree(fe_degree_) {
-}
+	: fe_degree(fe_degree_)
+	, fe(fe_degree)
+	, dof_handler(mesh)
+{}
 
 
 template <int dim, typename AdrSpec>
@@ -160,7 +163,7 @@ assemble_system() {
 
 	std::map<types::boundary_id, std::unique_ptr<Function<dim>>> tmp_dirichlet_map;
 	std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
-	local_spec->fill_dirichlet_map(tmp_dirichlet_map);
+	local_spec.fill_dirichlet_map(tmp_dirichlet_map);
 	for (const auto& [boundary_id, dirichlet_function] : tmp_dirichlet_map) {
 		dirichlet_map[boundary_id] = dirichlet_function.get();
 	}
@@ -181,10 +184,21 @@ MatrixBasedAdr<dim, AdrSpec>::
 solve(int nmax, double rtol, bool apply_preconditioner) {
 	SolverControl solver_control(nmax, rtol * system_rhs.l2_norm());
 	SolverGMRES<Vector<double>> solver(solver_control);
-	solver.solve(system_matrix,
-	             solution,
-	             system_rhs,
-	             PreconditionIdentity());
+
+	if (not apply_preconditioner) {
+		solver.solve(system_matrix,
+		             solution,
+		             system_rhs,
+		             PreconditionIdentity());
+	} else {
+		PreconditionJacobi preconditioner;
+		preconditioner.initialize(system_matrix, 1.0);
+
+		solver.solve(system_matrix,
+		             solution,
+		             system_rhs,
+		             preconditioner);
+	}
 
 	return solver_control.last_step();
 }
@@ -207,7 +221,6 @@ compute_error(const VectorTools::NormType &norm_type,
 
 	return VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
 }
-
 
 
 #endif // MATRIX_BASED_ADR_HPP
