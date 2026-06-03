@@ -23,6 +23,7 @@
 
 #include <iostream>
 
+#include "AdrSpec.hpp"
 
 using namespace dealii;
 
@@ -90,7 +91,9 @@ setup_system() {
 template <int dim, typename AdrSpec>
 void
 MatrixBasedAdr<dim, AdrSpec>::
-assemble_system() {
+assemble_system()
+{
+	// TODO: quadrature_formula could be a class member
 	const QGauss<dim> quadrature_formula(fe.degree + 1);
 	FEValues<dim> fe_values(fe,
 	                        quadrature_formula,
@@ -100,6 +103,7 @@ assemble_system() {
 	                        | update_quadrature_points ));
 
 	const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
+	const unsigned int n_q = quadrature_formula.size();
 
 	FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
 	Vector<double>     cell_rhs   (dofs_per_cell);
@@ -112,30 +116,31 @@ assemble_system() {
 		cell_matrix = 0;
 		cell_rhs = 0;
 
-		for (const auto q_index : fe_values.quadrature_point_indices()) {
-			const Point<dim> &x_q = fe_values.quadrature_point(q_index);
+		for (unsigned int q = 0; q < n_q; ++q) {
+			const Point<dim> &x_q = fe_values.quadrature_point(q);
 
 			const double         mu    = local_spec.diffusion(x_q);
 			const Tensor<1, dim> beta  = local_spec.advection(x_q);
 			const double         gamma = local_spec.reaction(x_q);
 			const double         f     = local_spec.forcing(x_q);
 
-			for (const auto i : fe_values.dof_indices()) {
-				for (const auto j : fe_values.dof_indices()) {
-					cell_matrix(i,j) += (
-						  mu * fe_values.shape_grad(i, q_index)
-						     * fe_values.shape_grad(j, q_index)
+			for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+				for (unsigned int j = 0; j < dofs_per_cell; ++j) {
 
-						+ (beta * fe_values.shape_grad(j, q_index))
-						        * fe_values.shape_value(i, q_index)
+					cell_matrix(i, j) += (
+						  mu * fe_values.shape_grad(i, q)
+						     * fe_values.shape_grad(j, q)
 
-						+ gamma * fe_values.shape_value(i, q_index)
-						        * fe_values.shape_value(j, q_index)
-					) * fe_values.JxW(q_index);
+						+ beta * fe_values.shape_grad(j, q)
+						       * fe_values.shape_value(i, q)
+
+						+ gamma * fe_values.shape_value(i, q)
+						        * fe_values.shape_value(j, q)
+					) * fe_values.JxW(q);
 				}
 
-				cell_rhs(i) += (f * fe_values.shape_value(i, q_index))
-				                * fe_values.JxW(q_index);
+				cell_rhs(i) += f * fe_values.shape_value(i, q)
+				                 * fe_values.JxW(q);
 			}
 		}
 
@@ -146,22 +151,14 @@ assemble_system() {
 		}
 
 		cell->get_dof_indices(local_dof_indices);
-
-		for (const auto i : fe_values.dof_indices()) {
-			for (const auto j : fe_values.dof_indices()) {
-				system_matrix.add(local_dof_indices[i],
-				                  local_dof_indices[j],
-				                  cell_matrix(i,j));
-			}
-
-			system_rhs(local_dof_indices[i]) += cell_rhs(i);
-		}
+		system_matrix.add(local_dof_indices, cell_matrix);
+		system_rhs.add(local_dof_indices, cell_rhs);
 	}
 
 	std::map<types::global_dof_index, double> boundary_values;
 
 
-	std::map<types::boundary_id, std::unique_ptr<Function<dim>>> tmp_dirichlet_map;
+	BoundaryFuncMap<dim> tmp_dirichlet_map;
 	std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
 	local_spec.fill_dirichlet_map(tmp_dirichlet_map);
 	for (const auto& [boundary_id, dirichlet_function] : tmp_dirichlet_map) {
