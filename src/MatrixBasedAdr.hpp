@@ -93,22 +93,31 @@ void
 MatrixBasedAdr<dim, AdrSpec>::
 assemble_system()
 {
-	// TODO: quadrature_formula could be a class member
-	const QGauss<dim> quadrature_formula(fe.degree + 1);
+	// TODO: quadratures could be class members
+	const QGauss<dim> quadrature(fe.degree + 1);
+	const QGauss<dim-1> quadrature_face(fe.degree + 1);
+
 	FEValues<dim> fe_values(fe,
-	                        quadrature_formula,
-	                        ( update_values
-	                        | update_gradients
-	                        | update_JxW_values
-	                        | update_quadrature_points ));
+	                        quadrature,
+	                        update_values | update_gradients |
+	                        update_JxW_values | update_quadrature_points);
+
+	FEFaceValues<dim> fe_face_values(fe,
+									 quadrature_face,
+									 update_values | update_JxW_values |
+									 update_quadrature_points);
 
 	const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
-	const unsigned int n_q = quadrature_formula.size();
+	const unsigned int n_q = quadrature.size();
+	const unsigned int n_q_face = quadrature_face.size();
 
 	FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
 	Vector<double>     cell_rhs   (dofs_per_cell);
 
 	std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+
+	BoundaryFuncMap<dim> neumann_func_map;
+	local_spec.fill_neumann_map(neumann_func_map);
 
 	for (const auto &cell : dof_handler.active_cell_iterators()) {
 		fe_values.reinit(cell);
@@ -144,9 +153,27 @@ assemble_system()
 			}
 		}
 
-		for (const auto &face : cell->face_iterators()) {
-			if (face->at_boundary()) {
+		if (cell->at_boundary()) {
+			for (const auto &face : cell->face_iterators()) {
+				const types::boundary_id b_id = face->boundary_id();
 
+				if (face->at_boundary() && neumann_func_map.contains(b_id)) {
+					fe_face_values.reinit(cell, face);
+
+					for (unsigned int q = 0; q < n_q_face; ++q) {
+						const Point<dim> &x_q =
+							fe_face_values.quadrature_point(q);
+
+						const double mu = local_spec.diffusion(x_q);
+						const double h = neumann_func_map[b_id]->value(x_q);
+
+						for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+							cell_rhs(i) +=
+								mu * h * fe_face_values.shape_value(i, q)
+								       * fe_face_values.JxW(q);
+						}
+					}
+				}
 			}
 		}
 
@@ -173,7 +200,6 @@ assemble_system()
 	                                   solution,
 	                                   system_rhs);
 }
-
 
 template <int dim, typename AdrSpec>
 int

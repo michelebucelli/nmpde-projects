@@ -31,6 +31,16 @@ public:
 	}
 };
 
+// Normal derivative of ExactSolution for boundary_id = 0 (left face)
+class NeumannBC : public Function<dim>
+{
+public:
+	double value(const Point<dim> &p, const unsigned int = 0) const override
+	{
+		return -2 * M_PI * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]);
+	}
+};
+
 struct ConcreteSpec : public AdrSpec<dim>
 {
 	ConcreteSpec() {}
@@ -45,7 +55,9 @@ struct ConcreteSpec : public AdrSpec<dim>
 
 	double diffusion(const Point<dim>& p) const override
 	{
-		return p[0];
+		// WARNING: Avoid having mu = 0 on boundaries, the problem
+		// could lose well-posedness if you want to apply neumann there
+		return 1.0 + p[0] + p[1];
 	}
 
 	double reaction(const Point<dim>& p) const override
@@ -55,9 +67,10 @@ struct ConcreteSpec : public AdrSpec<dim>
 
 	double forcing(const Point<dim>& p) const override
 	{
-		return 8 * M_PI * M_PI * p[0] * sin(2 * M_PI * p[0])
-									  * cos(2 * M_PI * p[1]) -
+		return 8 * M_PI * M_PI * (1 + p[0] + p[1]) * sin(2 * M_PI * p[0])
+									               * cos(2 * M_PI * p[1]) -
 			   2 * M_PI * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) +
+			   2 * M_PI * sin(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]) +
 			       p[1] * sin(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) +
 			   2 * M_PI * p[1] * cos(2 * M_PI * p[0]) * cos(2 * M_PI * p[1]) -
 			   2 * M_PI * p[0] * sin(2 * M_PI * p[0]) * sin(2 * M_PI * p[1]);
@@ -65,14 +78,14 @@ struct ConcreteSpec : public AdrSpec<dim>
 
 	void fill_dirichlet_map(BoundaryFuncMap<dim> &function_map) const override
 	{
-		function_map[0] = std::make_unique<ExactSolution>();
 		function_map[1] = std::make_unique<ExactSolution>();
+		function_map[2] = std::make_unique<ExactSolution>();
+		function_map[3] = std::make_unique<ExactSolution>();
 	}
 
 	void fill_neumann_map(BoundaryFuncMap<dim> &function_map) const override
 	{
-		function_map[2] = std::make_unique<Functions::ZeroFunction<dim>>();
-		function_map[3] = std::make_unique<Functions::ZeroFunction<dim>>();
+		function_map[0] = std::make_unique<NeumannBC>();
 	}
 };
 
@@ -84,7 +97,7 @@ int main(void)
 
 	for (const unsigned int N : Ns) {
 		Triangulation<dim> mesh;
-		GridGenerator::subdivided_hyper_cube(mesh, N);
+		GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
 
 		MatrixBasedAdr<dim, ConcreteSpec> mb_adr(mesh, fe_degree);
 
