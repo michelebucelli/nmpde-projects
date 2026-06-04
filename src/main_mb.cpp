@@ -1,7 +1,9 @@
 // The purpose of this file is to port the same computations
 // of `main.cpp` with a matrix based backend
 
+#include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
+#include <deal.II/grid/grid_tools.h>
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/base/convergence_table.h>
 
@@ -89,16 +91,19 @@ struct ConcreteSpec : public AdrSpec<dim>
 	}
 };
 
-int main(void)
+int main(int argc, char *argv[])
 {
+	Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
+
 	auto exact_solution = std::make_shared<ExactSolution>();
 	ConvergenceTable table;
 	const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
 
 	for (const unsigned int N : Ns) {
-		Triangulation<dim> mesh;
-		GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
 
+		parallel::distributed::Triangulation<dim> mesh(MPI_COMM_WORLD);
+		GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
+		
 		MatrixBasedAdr<dim, ConcreteSpec> mb_adr(mesh, fe_degree);
 
 		mb_adr.setup_system();
@@ -121,7 +126,9 @@ int main(void)
 
 	table.set_scientific("eL2", true);
 	table.set_scientific("eH1", true);
-	table.write_text(std::cout);
+	if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
+		table.write_text(std::cout);
+	}
 
 	return 0;
 }
