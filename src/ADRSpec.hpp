@@ -38,7 +38,7 @@ using BoundaryFuncMap = std::map<types::boundary_id,
                                  std::unique_ptr<Function<dim>>>;
 
 template <int dim>
-struct AdrSpec
+struct ADRSpec
 {
 	virtual Tensor<1, dim> advection(const Point<dim>& p) const; // beta
 	virtual double diffusion(const Point<dim>& p) const; // mu
@@ -49,7 +49,7 @@ struct AdrSpec
 	virtual void fill_neumann_map(BoundaryFuncMap<dim> &function_map) const;
 
 	// virtual constructor to avoid compiler warnings
-	virtual ~AdrSpec() = default;
+	virtual ~ADRSpec() = default;
 };
 
 #endif // ADR_SPEC_HPP
