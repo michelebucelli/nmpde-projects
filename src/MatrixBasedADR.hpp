@@ -23,29 +23,37 @@
 #include <iostream>
 
 #include "ADRSpec.hpp"
+#include "ADRFactory.hpp"
 
 using namespace dealii;
 
-template <int dim, typename ADRSpec>
-class MatrixBasedADR {
-public:
-    MatrixBasedADR(const Triangulation<dim>& mesh,
-                   int fe_degree);
+template<typename ADRSpec>
+class MatrixBasedADR
+{
+    friend class ADRFactory;
 
+    static constexpr int dim = ADRSpec::dim;
+    using number = typename ADRSpec::ScalarType;
+
+    MatrixBasedADR(const Triangulation<dim> &mesh, int fe_degree_);
+
+public:
     void setup_system();
     void assemble_system();
-    int  solve(int nmax, double rtol, bool apply_preconditioner);
+    int solve(int nmax, double rtol, bool apply_preconditioner);
 
     double compute_error(const VectorTools::NormType &norm_type,
-                         const Function<dim>         &exact_solution,
-                         const Triangulation<dim>    &mesh) const;
+                         const Function<dim> &exact_solution,
+                         const Triangulation<dim> &mesh) const;
 
-protected:
-    const int          fe_degree;
-    const FE_Q<dim>    fe;
-    DoFHandler<dim>    dof_handler;
+private:
+    const int fe_degree;
 
-    SparsityPattern      sparsity_pattern;
+    const FE_Q<dim> fe;
+
+    DoFHandler<dim> dof_handler;
+
+    SparsityPattern sparsity_pattern;
     SparseMatrix<double> system_matrix;
 
     Vector<double> solution;
@@ -54,23 +62,18 @@ protected:
     ADRSpec local_spec;
 };
 
-
-template <int dim, typename ADRSpec>
-MatrixBasedADR<dim, ADRSpec>::MatrixBasedADR(const Triangulation<dim>& mesh,
-                                             int fe_degree_)
+template<typename ADRSpec>
+MatrixBasedADR<ADRSpec>::MatrixBasedADR(const Triangulation<dim> &mesh,
+                                        int fe_degree_)
     : fe_degree(fe_degree_)
     , fe(fe_degree)
     , dof_handler(mesh)
 {}
 
-template <int dim, typename ADRSpec>
-void MatrixBasedADR<dim, ADRSpec>::setup_system()
+template<typename ADRSpec>
+void MatrixBasedADR<ADRSpec>::setup_system()
 {
     dof_handler.distribute_dofs(fe);
-
-    std::cout << "Number of DoF: "
-              << dof_handler.n_dofs()
-              << std::endl;
 
     DynamicSparsityPattern dsp(dof_handler.n_dofs());
     DoFTools::make_sparsity_pattern(dof_handler, dsp);
@@ -82,9 +85,8 @@ void MatrixBasedADR<dim, ADRSpec>::setup_system()
     system_rhs.reinit(dof_handler.n_dofs());
 }
 
-
-template <int dim, typename ADRSpec>
-void MatrixBasedADR<dim, ADRSpec>::assemble_system()
+template<typename ADRSpec>
+void MatrixBasedADR<ADRSpec>::assemble_system()
 {
     // TODO: quadratures could be class members
     const QGauss<dim> quadrature(fe.degree + 1);
@@ -109,7 +111,8 @@ void MatrixBasedADR<dim, ADRSpec>::assemble_system()
 
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
-    BoundaryFuncMap<dim> neumann_func_map;
+    BoundaryFuncMap<NeumannFunction<number, Point<dim, number>>>
+    neumann_func_map;
     local_spec.fill_neumann_map(neumann_func_map);
 
     for (const auto &cell : dof_handler.active_cell_iterators()) {
@@ -177,7 +180,7 @@ void MatrixBasedADR<dim, ADRSpec>::assemble_system()
 
     std::map<types::global_dof_index, double> boundary_values;
 
-    BoundaryFuncMap<dim> tmp_dirichlet_map;
+    BoundaryFuncMap<Function<dim>> tmp_dirichlet_map;
     std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
     local_spec.fill_dirichlet_map(tmp_dirichlet_map);
     for (const auto& [boundary_id, dirichlet_function] : tmp_dirichlet_map) {
@@ -193,10 +196,10 @@ void MatrixBasedADR<dim, ADRSpec>::assemble_system()
                                        system_rhs);
 }
 
-template <int dim, typename ADRSpec>
-int MatrixBasedADR<dim, ADRSpec>::solve(int nmax,
-                                        double rtol,
-                                        bool apply_preconditioner)
+template<typename ADRSpec>
+int MatrixBasedADR<ADRSpec>::solve(int nmax,
+                                   double rtol,
+                                   bool apply_preconditioner)
 {
     SolverControl solver_control(nmax, rtol * system_rhs.l2_norm());
     SolverGMRES<Vector<double>> solver(solver_control);
@@ -219,14 +222,14 @@ int MatrixBasedADR<dim, ADRSpec>::solve(int nmax,
     return solver_control.last_step();
 }
 
-
-template <int dim, typename ADRSpec>
-double MatrixBasedADR<dim, ADRSpec>::
+template<typename ADRSpec>
+double MatrixBasedADR<ADRSpec>::
 compute_error(const VectorTools::NormType &norm_type,
-              const Function<dim>         &exact_solution,
-              const Triangulation<dim>    &mesh) const
+              const Function<dim> &exact_solution,
+              const Triangulation<dim> &mesh) const
 {
     Vector<double> error_per_cell(mesh.n_active_cells());
+
     VectorTools::integrate_difference(dof_handler,
                                       solution,
                                       exact_solution,
@@ -237,5 +240,4 @@ compute_error(const VectorTools::NormType &norm_type,
     return VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
 }
 
-
-#endif // MATRIX_BASED_ADR_HPP
+#endif

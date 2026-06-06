@@ -3,7 +3,6 @@
 
 #include <deal.II/base/point.h>
 #include <deal.II/base/tensor.h>
-#include <deal.II/base/function.h>
 
 using namespace dealii;
 
@@ -23,7 +22,7 @@ using namespace dealii;
 // Here are the bits that I still have to understand:
 //   * vectorized implementations: the coefficient functions must be parametric on the
 //     return type. In the matrix free context, we need them to yield VectorizedArray
-//     I think we can template on the return type
+//     I think we can template on the return type -> DONE
 //
 //   * how to pass functions to maps: we need to be careful about memory leaks. Since
 //     the AdrSpec is stateless, we can't pass references to Function because they will
@@ -33,23 +32,40 @@ using namespace dealii;
 //     We must pass smart pointers, but then we will need to clone the map for using
 //     `VectorTools::interpolate_boundary_values`. It's not a big deal
 
-template<int dim>
+template<typename Function>
 using BoundaryFuncMap = std::map<types::boundary_id,
-                                 std::unique_ptr<Function<dim>>>;
+                                 std::unique_ptr<Function>>;
 
-template <int dim>
+template<typename Scalar, typename Point>
+struct NeumannFunction
+{
+    virtual Scalar value(const Point &p) const = 0;
+    virtual ~NeumannFunction() = default;
+};
+
+template <int dim_, typename Scalar, typename Tensor, typename Point>
 struct ADRSpec
 {
-	virtual Tensor<1, dim> advection(const Point<dim>& p) const; // beta
-	virtual double diffusion(const Point<dim>& p) const; // mu
-	virtual double reaction(const Point<dim>& p) const; // gamma
-	virtual double forcing(const Point<dim>& p) const; // f
+    static constexpr int dim = dim_;
 
-	virtual void fill_dirichlet_map(BoundaryFuncMap<dim> &function_map) const;
-	virtual void fill_neumann_map(BoundaryFuncMap<dim> &function_map) const;
+    using ScalarType = Scalar;
+    using TensorType = Tensor;
+    using PointType = Point;
 
-	// virtual constructor to avoid compiler warnings
-	virtual ~ADRSpec() = default;
+    virtual Tensor advection(const Point &p) const = 0; // beta
+    virtual Scalar diffusion(const Point &p) const = 0; // mu
+    virtual Scalar reaction(const Point &p) const = 0; // gamma
+    virtual Scalar forcing(const Point &p) const = 0; // f
+
+    virtual void fill_dirichlet_map(
+        BoundaryFuncMap<Function<dim>> &function_map) const = 0;
+
+    virtual void fill_neumann_map(
+        BoundaryFuncMap<NeumannFunction<Scalar, Point>>
+        &function_map) const = 0;
+
+    // virtual constructor to avoid compiler warnings
+    virtual ~ADRSpec() = default;
 };
 
 #endif // ADR_SPEC_HPP
