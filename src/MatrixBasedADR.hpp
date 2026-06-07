@@ -153,7 +153,7 @@ void MatrixBasedADR<ADRSpec>::assemble_system()
             for (const auto &face : cell->face_iterators()) {
                 const types::boundary_id b_id = face->boundary_id();
 
-                if (face->at_boundary() && neumann_func_map.contains(b_id)) {
+                if (face->at_boundary() && neumann_func_map.count(b_id)) {
                     fe_face_values.reinit(cell, face);
 
                     for (unsigned int q = 0; q < n_q_face; ++q) {
