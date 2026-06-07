@@ -15,7 +15,8 @@ public:
                    typename Scalar_,
                    typename Tensor_,
                    typename Point_> typename ADRSpec>
-    static auto matrix_based(const Triangulation<dim> &mesh, int fe_degree)
+    static auto matrix_based(
+        const parallel::distributed::Triangulation<dim> &mesh, int fe_degree)
     {
         using ScalarPoint = Point<dim, number>;
         using ScalarTensor = Tensor<1, dim, number>;
