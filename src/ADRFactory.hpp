@@ -33,14 +33,16 @@ public:
                        typename Scalar_,
                        typename Tensor_,
                        typename Point_> typename ADRSpec>
-    static auto matrix_free(const unsigned int N)
+    static auto matrix_free(
+        const parallel::distributed::Triangulation<dim> &mesh)
     {
         using ArrayScalar = VectorizedArray<number, simd_width>;
         using ArrayPoint = Point<dim, ArrayScalar>;
         using ArrayTensor = Tensor<1, dim, ArrayScalar>;
 
         return MatrixFreeADR<
-            fe_degree, ADRSpec<dim, ArrayScalar, ArrayTensor, ArrayPoint>>(N);
+            fe_degree,
+            ADRSpec<dim, ArrayScalar, ArrayTensor, ArrayPoint>>(mesh);
     }
 };
 

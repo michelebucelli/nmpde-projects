@@ -38,7 +38,3 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLOG_TIMERS -Wfloat-conversion -Wmissin
 add_executable(main src/main.cpp)
 target_link_libraries(main)
 deal_ii_setup_target(main)
-
-add_executable(main_mb src/main_mb.cpp)
-target_link_libraries(main_mb)
-deal_ii_setup_target(main_mb)

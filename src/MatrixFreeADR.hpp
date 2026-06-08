@@ -5,50 +5,48 @@
 #include <deal.II/base/config.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/quadrature_lib.h>
-#include <deal.II/base/conditional_ostream.h>
 
-#include <deal.II/grid/tria.h>
-#include <deal.II/grid/grid_generator.h>
+#include <deal.II/distributed/tria.h>
 
-#include <deal.II/fe/fe_q.h>
-#include <deal.II/fe/mapping_q1.h>
-
-#include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/dofs/dof_renumbering.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/precondition.h>
 
-#include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/vector_tools.h>
 
 #include <iostream>
 #include <functional>
 
+#include "ADR.hpp"
 #include "ADRSpec.hpp"
 #include "ADRFactory.hpp"
 #include "ADROperator.hpp"
 
 using namespace dealii;
 
-template<int fe_degree, typename ADRSpec>
-class MatrixFreeADR
+template<unsigned int fe_degree, typename ADRSpec>
+class MatrixFreeADR :
+    public ADR<ADRSpec,
+               typename ADRSpec::ScalarType::value_type,
+               DistributedVector<typename ADRSpec::ScalarType::value_type>>
 {
+    using number = typename ADRSpec::ScalarType::value_type;
+    // We need to explicitly bring into this scope the base template
+    // class members due to the two-phase lookup (or use this->member)
+    using ADR<ADRSpec, number, DistributedVector<number>>::dim;
+
     // TODO: Consider passkey idiom
     friend class ADRFactory;
 
-    static constexpr int dim = ADRSpec::dim;
-
-    using number = typename ADRSpec::ScalarType::value_type;
     using ArrayScalar = typename ADRSpec::ScalarType;
     using ArrayTensor = typename ADRSpec::TensorType;
     using ArrayPoint = typename ADRSpec::PointType;
     using MatrixFreeType = MatrixFree<dim, number, ArrayScalar>;
 
-    MatrixFreeADR(const unsigned int N_);
+    MatrixFreeADR(const parallel::distributed::Triangulation<dim> &mesh);
 
 public:
-
     // @DISCUSSION: in the setup function the mesh is initialized with
     // a specific grid generator...
     //
@@ -57,8 +55,11 @@ public:
     // user supplied. The point was testing structured and unstructured meshes.
     //
     // So I would change this interface and add a mesh generator function
-    void setup(bool dof_reorder = true);
-    void assemble_rhs();
+
+    void setup() override;
+    void setup(bool dof_reorder);
+
+    void assemble() override;
 
     // @DISCUSSION: as users of the benchmark, we need some experiments:
     //   1. measure the time per iteration MB vs. MF without any preconditioner
@@ -71,60 +72,45 @@ public:
     // of the caller of this class
     //
     // Ideally this interface should be replicated for the matrix based solver
-    void solve(int nmax, number rtol, bool apply_preconditioner);
+    unsigned int solve(unsigned int max_iter,
+                       number rel_tol,
+                       bool apply_preconditioner) override;
 
-    void output();
-
-    double compute_error(const VectorTools::NormType &norm_type,
-                         const Function<dim, number> &exact_solution) const;
-
-private:
-    const unsigned int N;
-
-    parallel::distributed::Triangulation<dim> mesh;
-    const FE_Q<dim> fe;
-    DoFHandler<dim> dof_handler;
-    const MappingQ1<dim> mapping;
-
-    ADROperator<fe_degree, ADRSpec> system_matrix;
+protected:
     AffineConstraints<number> constraints;
 
-    DistributedVector<number> system_rhs;
-    DistributedVector<number> solution;
+    ADROperator<fe_degree, ADRSpec> system_matrix;
+
     DistributedVector<number> solution_update;
-
-    ConditionalOStream pcout;
-
-    ADRSpec local_spec;
 };
 
-template<int fe_degree, typename ADRSpec>
-MatrixFreeADR<fe_degree, ADRSpec>::MatrixFreeADR(const unsigned int N_)
-    : N(N_)
-    , mesh(MPI_COMM_WORLD)
-    , fe(fe_degree)
-    , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+template<unsigned int fe_degree, typename ADRSpec>
+MatrixFreeADR<fe_degree, ADRSpec>::MatrixFreeADR(
+    const parallel::distributed::Triangulation<dim> &mesh
+)
+    : ADR<ADRSpec, number, DistributedVector<number>>(mesh, fe_degree)
 {}
 
-template<int fe_degree, typename ADRSpec>
+template<unsigned int fe_degree, typename ADRSpec>
+void MatrixFreeADR<fe_degree, ADRSpec>::setup()
+{
+    setup(true);
+}
+
+template<unsigned int fe_degree, typename ADRSpec>
 void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
 {
-    // TODO: Check matrix-free simplex mesh support
-    GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
-
-    dof_handler.reinit(mesh);
-
     if (dof_reorder) {
         // TODO: Check DoFRenumbering::matrix_free_data_locality()
     }
 
-    dof_handler.distribute_dofs(fe);
+    this->dof_handler.distribute_dofs(this->fe);
 
     const IndexSet locally_relevant_dofs =
-        DoFTools::extract_locally_relevant_dofs(dof_handler);
+        DoFTools::extract_locally_relevant_dofs(this->dof_handler);
 
 #if DEAL_II_VERSION_GTE(9, 6, 0)
-    constraints.reinit(dof_handler.locally_owned_dofs(),
+    constraints.reinit(this->dof_handler.locally_owned_dofs(),
                        locally_relevant_dofs);
 #else
     constraints.reinit(locally_relevant_dofs);
@@ -132,13 +118,13 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
 
     BoundaryFuncMap<Function<dim>> tmp_dirichlet_map;
     std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
-    local_spec.fill_dirichlet_map(tmp_dirichlet_map);
+    this->local_spec.fill_dirichlet_map(tmp_dirichlet_map);
     for (const auto& [boundary_id, dirichlet_function] : tmp_dirichlet_map) {
         dirichlet_map[boundary_id] = dirichlet_function.get();
     }
 
     VectorTools::interpolate_boundary_values(
-        mapping, dof_handler, dirichlet_map, constraints);
+        this->mapping, this->dof_handler, dirichlet_map, constraints);
 
     constraints.close();
 
@@ -156,8 +142,8 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
         (update_values | update_JxW_values | update_quadrature_points);
 
     std::shared_ptr<MatrixFreeType> system_mf_storage(new MatrixFreeType());
-    system_mf_storage->reinit(mapping,
-                              dof_handler,
+    system_mf_storage->reinit(this->mapping,
+                              this->dof_handler,
                               constraints,
                               // dim=1 since basis functions are decomposed
                               // as tensor products of 1D functions
@@ -166,13 +152,13 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
 
     system_matrix.initialize(system_mf_storage);
 
-    system_matrix.initialize_dof_vector(system_rhs);
-    system_matrix.initialize_dof_vector(solution);
+    system_matrix.initialize_dof_vector(this->system_rhs);
+    system_matrix.initialize_dof_vector(this->solution);
     system_matrix.initialize_dof_vector(solution_update);
 }
 
-template<int fe_degree, typename ADRSpec>
-void MatrixFreeADR<fe_degree, ADRSpec>::assemble_rhs()
+template<unsigned int fe_degree, typename ADRSpec>
+void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 {
     // NOTE: There's another method to handle inhomogeneous dirichlet
     // bcs which should be faster for high-order elements with hanging-nodes.
@@ -182,10 +168,10 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble_rhs()
     Timer time;
 #endif
 
-    solution = 0;
-    constraints.distribute(solution);
-    solution.update_ghost_values();
-    system_rhs = 0;
+    this->solution = 0;
+    constraints.distribute(this->solution);
+    this->solution.update_ghost_values();
+    this->system_rhs = 0;
 
     FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number, ArrayScalar>
     phi(*system_matrix.get_matrix_free());
@@ -198,7 +184,7 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble_rhs()
 
         phi.reinit(cell);
         // Ignores constraints on solution, reading all DoFs
-        phi.read_dof_values_plain(solution);
+        phi.read_dof_values_plain(this->solution);
         phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
         for (const unsigned int q : phi.quadrature_point_indices()) {
@@ -207,19 +193,19 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble_rhs()
             const ArrayScalar q_val = phi.get_value(q);
             const ArrayTensor q_grad = phi.get_gradient(q);
 
-            phi.submit_value(local_spec.forcing(q_p) -
-                             local_spec.reaction(q_p) * q_val -
-                             local_spec.advection(q_p) * q_grad, q);
+            phi.submit_value(this->local_spec.forcing(q_p) -
+                             this->local_spec.reaction(q_p) * q_val -
+                             this->local_spec.advection(q_p) * q_grad, q);
 
-            phi.submit_gradient(-local_spec.diffusion(q_p) * q_grad, q);
+            phi.submit_gradient(-this->local_spec.diffusion(q_p) * q_grad, q);
         }
 
         phi.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
-        phi.distribute_local_to_global(system_rhs);
+        phi.distribute_local_to_global(this->system_rhs);
     }
 
     BoundaryFuncMap<NeumannFunction<ArrayScalar, ArrayPoint>> neumann_map;
-    local_spec.fill_neumann_map(neumann_map);
+    this->local_spec.fill_neumann_map(neumann_map);
 
     const unsigned int n_inner =
         system_matrix.get_matrix_free()->n_inner_face_batches();
@@ -236,40 +222,43 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble_rhs()
             for (const unsigned int q : phi_face.quadrature_point_indices()) {
                 const ArrayPoint q_p = phi_face.quadrature_point(q);
 
-                const ArrayScalar mu_val = local_spec.diffusion(q_p);
+                const ArrayScalar mu_val = this->local_spec.diffusion(q_p);
                 const ArrayScalar h_val  = bc_function->value(q_p);
 
                 phi_face.submit_value(mu_val * h_val, q);
             }
-            phi_face.integrate_scatter(EvaluationFlags::values, system_rhs);
+            phi_face.integrate_scatter(EvaluationFlags::values, this->system_rhs);
         }
     }
-    system_rhs.compress(VectorOperation::add);
+    this->system_rhs.compress(VectorOperation::add);
 
 #ifdef LOG_TIMERS
-    pcout << std::setw(20) << std::left << "assemble_rhs()"
-          << std::fixed << time.wall_time() << "s" << std::endl;
+    this->pcout << std::setw(20) << std::left << "assemble()"
+                << std::fixed << time.wall_time() << "s" << std::endl;
 #endif
 }
 
-template<int fe_degree, typename ADRSpec>
-void MatrixFreeADR<fe_degree, ADRSpec>::solve(int nmax,
-                                              number rtol,
-                                              bool apply_preconditioner)
+template<unsigned int fe_degree, typename ADRSpec>
+unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
+    unsigned int max_iter, number rel_tol, bool apply_preconditioner)
 {
 #ifdef LOG_TIMERS
     Timer time;
 #endif
 
+    // TODO: Find a way to implement solve() in the base ADR class
+
     // we can reuse somewhere this piece of code
     // static constexpr number tolerance_factor =
     //     std::is_same_v<number, float> ? 1e-6f : 1e-12;
-    SolverControl solver_control(nmax, rtol * system_rhs.l2_norm());
+    SolverControl solver_control(max_iter,
+                                 rel_tol * this->system_rhs.l2_norm());
     SolverGMRES<DistributedVector<number>> solver(solver_control);
 
     // this should later be a switch based on an
     // ENUM value of supported preconditioners
     if (apply_preconditioner) {
+        // TODO: Perform this in the assembly
         // Ensure diagonal is ready for the preconditioner
         system_matrix.compute_diagonal();
 
@@ -278,17 +267,19 @@ void MatrixFreeADR<fe_degree, ADRSpec>::solve(int nmax,
 
         solver.solve(system_matrix,
                      solution_update,
-                     system_rhs,
+                     this->system_rhs,
                      preconditioner);
     } else {
         PreconditionIdentity preconditioner;
         solver.solve(system_matrix,
                      solution_update,
-                     system_rhs,
+                     this->system_rhs,
                      preconditioner);
     }
 
-    solution += solution_update;
+    this->solution += solution_update;
+
+    this->solution.update_ghost_values();
 
     //pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
 
@@ -296,46 +287,12 @@ void MatrixFreeADR<fe_degree, ADRSpec>::solve(int nmax,
     const double elapsed = time.wall_time();
     const double elapsed_per_iter = elapsed / solver_control.last_step();
 
-    pcout << std::setw(20) << std::left << "solve() [tot/iter]"
-          << std::fixed << elapsed << "s/" << elapsed_per_iter
-          << "s" << std::endl;
+    this->pcout << std::setw(20) << std::left << "solve() [tot/iter]"
+                << std::fixed << elapsed << "s/" << elapsed_per_iter
+                << "s" << std::endl;
+
+    return solver_control.last_step();
 #endif
-}
-
-template<int fe_degree, typename ADRSpec>
-void MatrixFreeADR<fe_degree, ADRSpec>::output()
-{
-    DataOut<dim> data_out;
-
-    solution.update_ghost_values();
-    data_out.add_data_vector(dof_handler, solution, "solution");
-    data_out.build_patches(mapping);
-
-    data_out.write_vtu_with_pvtu_record("./",
-                                        "solution-" + std::to_string(N),
-                                        0,
-                                        MPI_COMM_WORLD);
-}
-
-template<int fe_degree, typename ADRSpec>
-double MatrixFreeADR<fe_degree, ADRSpec>::compute_error(
-    const VectorTools::NormType &norm_type,
-    const Function<dim, number> &exact_solution) const
-{
-    Vector<number> error_per_cell(mesh.n_active_cells());
-
-    VectorTools::integrate_difference(mapping,
-                                      dof_handler,
-                                      solution,
-                                      exact_solution,
-                                      error_per_cell,
-                                      QGauss<dim>(fe_degree + 2),
-                                      norm_type);
-
-    const double error =
-        VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
-
-    return error;
 }
 
 #endif

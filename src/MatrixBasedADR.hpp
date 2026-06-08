@@ -2,14 +2,11 @@
 #define MATRIX_BASED_ADR_HPP
 
 #include <deal.II/base/quadrature_lib.h>
-#include <deal.II/base/conditional_ostream.h>
 
 #include <deal.II/distributed/tria.h>
 
-#include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
 
-#include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_values.h>
 
 #include <deal.II/lac/vector.h>
@@ -25,114 +22,110 @@
 
 #include <iostream>
 
+#include "ADR.hpp"
 #include "ADRSpec.hpp"
 #include "ADRFactory.hpp"
 
 using namespace dealii;
 
+// WARNING: TrilinosWrappers::MPI::Vector and TrilinosWrappers::SparseMatrix
+// use TrilinosScalar as value_type which is hardcoded to double.
+// We can't use the spec defined ADRSpec::ScalarType.
+
 template<typename ADRSpec>
-class MatrixBasedADR
+class MatrixBasedADR :
+    public ADR<
+        ADRSpec, typename ADRSpec::ScalarType, TrilinosWrappers::MPI::Vector>
 {
+    using number = typename ADRSpec::ScalarType;
+    // We need to explicitly bring into this scope the base template
+    // class members due to the two-phase lookup (or use this->member)
+    using ADR<ADRSpec, number, TrilinosWrappers::MPI::Vector>::dim;
+
     friend class ADRFactory;
 
-    static constexpr int dim = ADRSpec::dim;
-    using number = typename ADRSpec::ScalarType;
-
     MatrixBasedADR(const parallel::distributed::Triangulation<dim> &mesh,
-                   int fe_degree_);
+                   unsigned int fe_degree);
 
 public:
-    void setup_system();
-    void assemble_system();
-    int solve(int nmax, double rtol, bool apply_preconditioner);
+    void setup() override;
 
-    double compute_error(const VectorTools::NormType &norm_type,
-                         const Function<dim> &exact_solution,
-                         const parallel::distributed::Triangulation<dim>
-                         &mesh) const;
+    void assemble() override;
 
-private:
-    const int fe_degree;
+    unsigned int solve(unsigned int max_iter,
+                       number rel_tol,
+                       bool apply_preconditioner) override;
 
-    const FE_Q<dim> fe;
-
-    DoFHandler<dim> dof_handler;
+protected:
+    IndexSet locally_owned_dofs;
 
     TrilinosWrappers::SparseMatrix system_matrix;
 
     TrilinosWrappers::MPI::Vector solution_owned;
-    TrilinosWrappers::MPI::Vector solution;
-    TrilinosWrappers::MPI::Vector system_rhs;
-
-    IndexSet locally_owned_dofs;
-    ConditionalOStream pcout;
-
-    ADRSpec local_spec;
 };
 
 template<typename ADRSpec>
 MatrixBasedADR<ADRSpec>::MatrixBasedADR(
     const parallel::distributed::Triangulation<dim> &mesh,
-    int fe_degree_
+    unsigned int fe_degree
 )
-    : fe_degree(fe_degree_)
-    , fe(fe_degree)
-    , dof_handler(mesh)
-    , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+    : ADR<ADRSpec, number, TrilinosWrappers::MPI::Vector>(mesh, fe_degree)
 {}
 
 template<typename ADRSpec>
-void MatrixBasedADR<ADRSpec>::setup_system()
+void MatrixBasedADR<ADRSpec>::setup()
 {
-    dof_handler.distribute_dofs(fe);
-    locally_owned_dofs = dof_handler.locally_owned_dofs();
+    this->dof_handler.distribute_dofs(this->fe);
+    locally_owned_dofs = this->dof_handler.locally_owned_dofs();
 
     TrilinosWrappers::SparsityPattern sparsity(locally_owned_dofs,
                                                MPI_COMM_WORLD);
-    DoFTools::make_sparsity_pattern(dof_handler, sparsity);
+    DoFTools::make_sparsity_pattern(this->dof_handler, sparsity);
     sparsity.compress();
 
     system_matrix.reinit(sparsity);
 
     IndexSet locally_relevant_dofs;
-    DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+    DoFTools::extract_locally_relevant_dofs(this->dof_handler,
+                                            locally_relevant_dofs);
 
-    solution.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+    this->solution.reinit(
+        locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
     solution_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
-    system_rhs.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+    this->system_rhs.reinit(locally_owned_dofs, MPI_COMM_WORLD);
 }
 
 template<typename ADRSpec>
-void MatrixBasedADR<ADRSpec>::assemble_system()
+void MatrixBasedADR<ADRSpec>::assemble()
 {
     // TODO: quadratures could be class members
-    const QGauss<dim> quadrature(fe.degree + 1);
-    const QGauss<dim-1> quadrature_face(fe.degree + 1);
+    const QGauss<dim> quadrature(this->fe.degree + 1);
+    const QGauss<dim-1> quadrature_face(this->fe.degree + 1);
 
-    FEValues<dim> fe_values(fe,
+    FEValues<dim> fe_values(this->fe,
                             quadrature,
                             update_values | update_gradients |
                             update_JxW_values | update_quadrature_points);
 
-    FEFaceValues<dim> fe_face_values(fe,
+    FEFaceValues<dim> fe_face_values(this->fe,
                                      quadrature_face,
                                      update_values | update_JxW_values |
                                      update_quadrature_points);
 
-    const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
+    const unsigned int dofs_per_cell = this->fe.n_dofs_per_cell();
     const unsigned int n_q = quadrature.size();
     const unsigned int n_q_face = quadrature_face.size();
 
-    FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-    Vector<double>     cell_rhs   (dofs_per_cell);
+    FullMatrix<number> cell_matrix(dofs_per_cell, dofs_per_cell);
+    Vector<number> cell_rhs(dofs_per_cell);
 
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
     BoundaryFuncMap<NeumannFunction<number, Point<dim, number>>>
     neumann_func_map;
-    local_spec.fill_neumann_map(neumann_func_map);
+    this->local_spec.fill_neumann_map(neumann_func_map);
 
-    for (const auto &cell : dof_handler.active_cell_iterators()) {
+    for (const auto &cell : this->dof_handler.active_cell_iterators()) {
         if (!cell->is_locally_owned()) {
             continue;
         }
@@ -145,10 +138,11 @@ void MatrixBasedADR<ADRSpec>::assemble_system()
         for (unsigned int q = 0; q < n_q; ++q) {
             const Point<dim> &x_q = fe_values.quadrature_point(q);
 
-            const double         mu    = local_spec.diffusion(x_q);
-            const Tensor<1, dim> beta  = local_spec.advection(x_q);
-            const double         gamma = local_spec.reaction(x_q);
-            const double         f     = local_spec.forcing(x_q);
+            const typename ADRSpec::TensorType beta =
+                this->local_spec.advection(x_q);
+            const number mu = this->local_spec.diffusion(x_q);
+            const number gamma = this->local_spec.reaction(x_q);
+            const number f = this->local_spec.forcing(x_q);
 
             for (unsigned int i = 0; i < dofs_per_cell; ++i) {
                 for (unsigned int j = 0; j < dofs_per_cell; ++j) {
@@ -181,8 +175,8 @@ void MatrixBasedADR<ADRSpec>::assemble_system()
                         const Point<dim> &x_q =
                             fe_face_values.quadrature_point(q);
 
-                        const double mu = local_spec.diffusion(x_q);
-                        const double h = neumann_func_map[b_id]->value(x_q);
+                        const number mu = this->local_spec.diffusion(x_q);
+                        const number h = neumann_func_map[b_id]->value(x_q);
 
                         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
                             cell_rhs(i) +=
@@ -196,43 +190,43 @@ void MatrixBasedADR<ADRSpec>::assemble_system()
 
         cell->get_dof_indices(local_dof_indices);
         system_matrix.add(local_dof_indices, cell_matrix);
-        system_rhs.add(local_dof_indices, cell_rhs);
+        this->system_rhs.add(local_dof_indices, cell_rhs);
     }
 
     system_matrix.compress(VectorOperation::add);
-    system_rhs.compress(VectorOperation::add);
+    this->system_rhs.compress(VectorOperation::add);
 
-    std::map<types::global_dof_index, double> boundary_values;
+    std::map<types::global_dof_index, number> boundary_values;
 
     BoundaryFuncMap<Function<dim>> tmp_dirichlet_map;
     std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
-    local_spec.fill_dirichlet_map(tmp_dirichlet_map);
+    this->local_spec.fill_dirichlet_map(tmp_dirichlet_map);
     for (const auto& [boundary_id, dirichlet_function] : tmp_dirichlet_map) {
         dirichlet_map[boundary_id] = dirichlet_function.get();
     }
 
-    VectorTools::interpolate_boundary_values(dof_handler,
+    VectorTools::interpolate_boundary_values(this->dof_handler,
                                              dirichlet_map,
                                              boundary_values);
 
     MatrixTools::apply_boundary_values(boundary_values,
                                        system_matrix,
                                        solution_owned,
-                                       system_rhs);
+                                       this->system_rhs);
 }
 
 template<typename ADRSpec>
-int MatrixBasedADR<ADRSpec>::solve(int nmax,
-                                   double rtol,
-                                   bool apply_preconditioner)
+unsigned int MatrixBasedADR<ADRSpec>::solve(
+    unsigned int max_iter, number rel_tol, bool apply_preconditioner)
 {
-    SolverControl solver_control(nmax, rtol * system_rhs.l2_norm());
+    SolverControl solver_control(max_iter,
+                                 rel_tol * this->system_rhs.l2_norm());
     SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);
 
     if (not apply_preconditioner) {
         solver.solve(system_matrix,
-                     solution,
-                     system_rhs,
+                     solution_owned,
+                     this->system_rhs,
                      TrilinosWrappers::PreconditionIdentity());
     } else {
         TrilinosWrappers::PreconditionJacobi preconditioner;
@@ -240,31 +234,13 @@ int MatrixBasedADR<ADRSpec>::solve(int nmax,
 
         solver.solve(system_matrix,
                      solution_owned,
-                     system_rhs,
+                     this->system_rhs,
                      preconditioner);
     }
 
-    solution = solution_owned;
+    this->solution = solution_owned;
 
     return solver_control.last_step();
-}
-
-template<typename ADRSpec>
-double MatrixBasedADR<ADRSpec>::
-compute_error(const VectorTools::NormType &norm_type,
-              const Function<dim> &exact_solution,
-              const parallel::distributed::Triangulation<dim> &mesh) const
-{
-    Vector<double> error_per_cell(mesh.n_active_cells());
-
-    VectorTools::integrate_difference(dof_handler,
-                                      solution,
-                                      exact_solution,
-                                      error_per_cell,
-                                      QGauss<dim>(fe_degree + 2),
-                                      norm_type);
-
-    return VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
 }
 
 #endif
