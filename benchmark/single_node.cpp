@@ -1,0 +1,112 @@
+// The purpose of this file is to directly compare the matrix based and
+// matrix free implementations down to the most primitive layer: the
+// time per iteration of a GMRES solver
+//
+// The classes `MatrixFreeADR` and `MatrixBasedADR` are compared against
+// an advection-diffusion-reaction problem on a mesh which could be either
+// structured or unstructured
+//
+// By performing a fixed number of GMRES iterations without any preconditioning
+// we get the raw time per iteration (per dof) metric. This metric is relevant
+// for general runs as one could use a matrix based preconditioner while computing
+// the action of A in a matrix free fashion
+//
+// For simplicity we restrict on using one node (one MPI rank) because it's
+// easier to collect hardware performance counters. Other files will implement
+// scalability tests on multiple nodes
+//
+// The acquisition campaign is challenging because of the many dimensions of
+// the exploration space. We want to sweep:
+//   * dofs: as the number of dofs on a single node is connected to the behaviour
+//     of cache memories. We should see sudden drops in performance right
+//     when the data can't fit in cache
+//
+//   * fe_degree: as it's connected to the arithmetic intensity of the matvec
+//     operation. Matrix free methods should become more efficient for higher
+//     order polynomials
+//
+//   * mesh type: structured meshes have a predictable access patterns, the matrix
+//     free implementation could not be so dominant in the case of unstructured meshes
+//
+// We won't explore the cartesian product of those decision variables, but in principle
+// we could. If we make this program parametric on the triplet (dofs, fe_degree, mesh type)
+// we can use external scripts to sweep the parameter space.
+// The problem is that matrix free implementations need to be templated on the fe_degree.
+// To avoid recompilation, we could specialize the template for all degrees in [1..20].
+// It will inflate the compilation time, but the cost is only paid once
+#include <cstdlib>
+#include <iostream>
+#include <optional>
+
+
+enum class MeshType {
+	Structured,
+	Unstructured
+};
+
+
+enum class SolverType {
+	MatrixBased,
+	MatrixFree
+};
+
+
+struct RunParameters {
+	int dofs;
+	int degree;
+	MeshType mesh_type;
+	SolverType solver_type;
+};
+
+
+std::optional<RunParameters>
+parse_arguments(int argc, char* argv[]) {
+	if (argc != 5) return {};
+
+	const int dofs = std::atoi(argv[1]);
+	const int degree = std::atoi(argv[2]);
+
+	MeshType mesh_type;
+	SolverType solver_type;
+
+	std::string mesh_str {argv[3]};
+	if (mesh_str == "structured") {
+		mesh_type = MeshType::Structured;
+	} else if (mesh_str == "unstructured") {
+		mesh_type = MeshType::Unstructured;
+	} else {
+		std::cerr << "Error when defining mesh type\n";
+		return std::nullopt;
+	}
+
+	std::string solver_str {argv[4]};
+	if (solver_str == "mf") {
+		solver_type = SolverType::MatrixFree;
+	} else if (solver_str == "mb") {
+		solver_type = SolverType::MatrixBased;
+	} else {
+		std::cerr << "Error when defining solver type\n";
+		return std::nullopt;
+	}
+
+	return RunParameters{dofs, degree, mesh_type, solver_type};
+}
+
+
+int main(int argc, char* argv[]) {
+	const auto run_parameters = parse_arguments(argc, argv);
+
+	if (not run_parameters.has_value()) {
+		std::cerr
+			<< "Need exactly 4 arguments:\n"
+			<< "  * dofs (int)\n"
+			<< "  * degree (int)\n"
+			<< "  * mesh (str) which could be either `structured` or `unstructured`\n"
+			<< "  * implementation (str) which could be either `mf` or `mf`\n"
+			<< std::endl;
+
+		return 1;
+	}
+
+	return 0;
+}
