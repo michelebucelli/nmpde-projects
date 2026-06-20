@@ -33,13 +33,15 @@ find_package(deal.II 9.3.1 REQUIRED
 deal_ii_initialize_cached_variables()
 
 # Add useful compiler flags.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLOG_TIMERS -Wfloat-conversion -Wmissing-braces -Wnon-virtual-dtor")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfloat-conversion -Wmissing-braces -Wnon-virtual-dtor")
 
 add_executable(main src/main.cpp)
 target_link_libraries(main)
+target_compile_definitions(main PUBLIC LOG_TIMERS)
 deal_ii_setup_target(main)
 
 
-add_executable(bench benchmark/single_node.cpp)
-target_link_libraries(bench)
-deal_ii_setup_target(bench)
+add_executable(single-node benchmark/single_node.cpp)
+target_include_directories(single-node PRIVATE "src/")
+target_link_libraries(single-node)
+deal_ii_setup_target(single-node)

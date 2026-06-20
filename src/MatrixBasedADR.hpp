@@ -219,9 +219,22 @@ template<typename ADRSpec>
 unsigned int MatrixBasedADR<ADRSpec>::solve(
     unsigned int max_iter, number rel_tol, bool apply_preconditioner)
 {
-    SolverControl solver_control(max_iter,
-                                 rel_tol * this->system_rhs.l2_norm());
-    SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);
+    SolverControl* solver_control;
+
+    if (rel_tol == 0.0) {
+        // this means that the user has no business in making
+        // the solver converge
+        //
+        // profiling use cases require a special type of solver
+        // control. One that doesn't fail when the maximum number
+        // of iterations is reached
+        solver_control = new IterationNumberControl(max_iter, 0.0);
+    } else {
+        solver_control = new SolverControl(
+            max_iter, rel_tol * this->system_rhs.l2_norm());
+    }
+
+    SolverGMRES<TrilinosWrappers::MPI::Vector> solver(*solver_control);
 
     if (not apply_preconditioner) {
         solver.solve(system_matrix,
@@ -240,7 +253,10 @@ unsigned int MatrixBasedADR<ADRSpec>::solve(
 
     this->solution = solution_owned;
 
-    return solver_control.last_step();
+    const auto res = solver_control->last_step();
+    delete solver_control;
+
+    return res;
 }
 
 #endif

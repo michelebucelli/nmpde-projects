@@ -251,9 +251,17 @@ unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
     // we can reuse somewhere this piece of code
     // static constexpr number tolerance_factor =
     //     std::is_same_v<number, float> ? 1e-6f : 1e-12;
-    SolverControl solver_control(max_iter,
-                                 rel_tol * this->system_rhs.l2_norm());
-    SolverGMRES<DistributedVector<number>> solver(solver_control);
+    SolverControl* solver_control;
+
+    if (rel_tol == 0.0) {
+        // same as in MatrixBasedADR::solve
+        solver_control = new IterationNumberControl(max_iter, 0.0);
+    } else {
+        solver_control = new SolverControl(
+            max_iter, rel_tol * this->system_rhs.l2_norm());
+    }
+
+    SolverGMRES<DistributedVector<number>> solver(*solver_control);
 
     // this should later be a switch based on an
     // ENUM value of supported preconditioners
@@ -285,14 +293,18 @@ unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
 
 #ifdef LOG_TIMERS
     const double elapsed = time.wall_time();
-    const double elapsed_per_iter = elapsed / solver_control.last_step();
+    const double elapsed_per_iter = elapsed / solver_control->last_step();
 
     this->pcout << std::setw(20) << std::left << "solve() [tot/iter]"
                 << std::fixed << elapsed << "s/" << elapsed_per_iter
                 << "s" << std::endl;
 
-    return solver_control.last_step();
 #endif
+
+    const auto res = solver_control->last_step();
+    delete solver_control;
+
+    return res;
 }
 
 #endif

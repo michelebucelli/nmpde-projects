@@ -62,6 +62,8 @@ public:
                                number rel_tol,
                                bool apply_preconditioner) = 0;
 
+    int n_dofs() const;
+
     void output(const std::string &output_name,
                 const std::string &output_dir = "./");
 
@@ -121,6 +123,12 @@ double ADR<ADRSpec, number, Vector_>::compute_error(
         VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
 
     return error;
+}
+
+template<typename ADRSpec, typename number, typename Vector_>
+int ADR<ADRSpec, number, Vector_>::n_dofs() const
+{
+    return dof_handler.n_dofs();
 }
 
 #endif
