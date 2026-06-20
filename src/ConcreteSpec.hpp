@@ -11,7 +11,6 @@
 using namespace dealii;
 
 constexpr unsigned int dim = 2;
-constexpr unsigned int fe_degree = 2;
 
 class ExactSolution : public Function<dim>
 {

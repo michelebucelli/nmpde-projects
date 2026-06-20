@@ -13,6 +13,7 @@
 using namespace dealii;
 
 constexpr unsigned int simd_width = 1;
+constexpr unsigned int fe_degree = 2;
 
 template<typename ADRSolver>
 void run_convergence_sample(
