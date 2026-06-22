@@ -39,6 +39,7 @@
 #include <deal.II/grid/grid_generator.h>
 
 #include <iostream>
+#include <fstream>
 #include <optional>
 
 #include "ADRFactory.hpp"

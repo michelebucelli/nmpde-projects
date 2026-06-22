@@ -130,10 +130,10 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
 
     system_matrix.clear();
 
-    typename MatrixFree<dim, double>::AdditionalData additional_data;
+    typename MatrixFreeType::AdditionalData additional_data;
     // TODO: Allow threading within each MPI process
     additional_data.tasks_parallel_scheme =
-        MatrixFree<dim, double>::AdditionalData::none;
+        MatrixFreeType::AdditionalData::none;
     // Specifies what should be computed (and cached) on cells
     additional_data.mapping_update_flags =
         (update_values | update_gradients | update_JxW_values |
