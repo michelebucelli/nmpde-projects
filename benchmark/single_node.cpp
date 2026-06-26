@@ -102,23 +102,38 @@ parse_arguments(int argc, char* argv[]) {
 }
 
 
-template <typename ADRSolver>
-double run_benchmark(ADRSolver &adr_solver) {
-	adr_solver.setup();
-	adr_solver.assemble();
+struct RunTimers {
+	double setup_time,
+	       assemble_time,
+	       iteration_time;
+};
 
+
+template <typename ADRSolver>
+RunTimers run_benchmark(ADRSolver &adr_solver) {
+	RunTimers res;
+	Timer timer;
 	const int maxit = 100;
 
-	Timer timer;
+	adr_solver.setup();
+	timer.stop();
+	res.setup_time = timer.wall_time();
+	timer.restart();
+
+	adr_solver.assemble();
+	timer.stop();
+	res.assemble_time = timer.wall_time();
+	timer.restart();
+
 	adr_solver.solve(maxit, 0.0, false);
 	timer.stop();
+	res.iteration_time = timer.wall_time() / maxit;
 
-	return timer.wall_time() / maxit;
+	return res;
 }
 
 
 constexpr int simd_width = 1;
-constexpr int fe_degree = 2;
 
 
 int main(int argc, char* argv[]) {
@@ -140,7 +155,7 @@ int main(int argc, char* argv[]) {
 	RunParameters params = *run_parameters;
 	parallel::distributed::Triangulation<dim> mesh(MPI_COMM_WORLD);
 
-	double time_for_it;
+	RunTimers run_timers;
 	int ndofs;
 	std::string mesh_str;
 
@@ -165,7 +180,7 @@ int main(int argc, char* argv[]) {
 		auto adr_mb = ADRFactory::matrix_based<
 			dim, double, ConcreteSpec>(mesh, params.degree);
 
-		time_for_it = run_benchmark(adr_mb);
+		run_timers = run_benchmark(adr_mb);
 		ndofs = adr_mb.n_dofs();
 
 	} else {
@@ -173,7 +188,7 @@ int main(int argc, char* argv[]) {
 			auto adr_mf = ADRFactory::matrix_free<                        \
 				dim, degree, simd_width, double, ConcreteSpec>(mesh); \
                                                                                       \
-		        time_for_it = run_benchmark(adr_mf);                          \
+		        run_timers = run_benchmark(adr_mf);                           \
 			ndofs = adr_mf.n_dofs();                                      \
 		} while (0)
 
@@ -197,13 +212,16 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	std::cout << "ncells,ndofs,fe_degree,time_for_it,mesh_str" << std::endl;
+	std::cout << "ncells,ndofs,fe_degree,setup_time,assemble_time,iteration_time,mesh_str" << std::endl;
 	std::cout
-		<< mesh.n_cells() << ","
-		<< ndofs          << ","
-		<< params.degree  << ","
-		<< time_for_it    << ","
-		<< mesh_str       << std::endl;
+		<< mesh.n_cells()            << ","
+		<< ndofs                     << ","
+		<< params.degree             << ","
+		<< run_timers.setup_time     << ","
+		<< run_timers.assemble_time  << ","
+		<< run_timers.iteration_time << ","
+		<< mesh_str
+		<< std::endl;
 
 	return 0;
 }
