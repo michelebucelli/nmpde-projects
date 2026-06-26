@@ -102,7 +102,7 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
 {
     this->dof_handler.distribute_dofs(this->fe);
 
-    const IndexSet locally_relevant_dofs =
+    IndexSet locally_relevant_dofs =
         DoFTools::extract_locally_relevant_dofs(this->dof_handler);
 
 #if DEAL_II_VERSION_GTE(9, 6, 0)
@@ -129,6 +129,8 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
     typename MatrixFreeType::AdditionalData additional_data;
     // TODO: Allow threading within each MPI process
     additional_data.tasks_parallel_scheme =
+        // WARNING: This should be set to none if MPI is used
+        // to parallelize also WITHIN each node
         MatrixFreeType::AdditionalData::none;
     // Specifies what should be computed (and cached) on cells
     additional_data.mapping_update_flags =
@@ -144,6 +146,9 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
         // returns the reordered indices only, could be insightful
 
         // Constraints need to be setup again after reordering
+
+        locally_relevant_dofs =
+        DoFTools::extract_locally_relevant_dofs(this->dof_handler);
 
 #if DEAL_II_VERSION_GTE(9, 6, 0)
         constraints.reinit(this->dof_handler.locally_owned_dofs(),
