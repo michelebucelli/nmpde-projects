@@ -100,10 +100,6 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup()
 template<unsigned int fe_degree, typename ADRSpec>
 void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
 {
-    if (dof_reorder) {
-        // TODO: Check DoFRenumbering::matrix_free_data_locality()
-    }
-
     this->dof_handler.distribute_dofs(this->fe);
 
     const IndexSet locally_relevant_dofs =
@@ -140,6 +136,26 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
          update_quadrature_points);
     additional_data.mapping_update_flags_boundary_faces =
         (update_values | update_JxW_values | update_quadrature_points);
+
+    if (dof_reorder) {
+        DoFRenumbering::matrix_free_data_locality(
+            this->dof_handler, constraints, additional_data);
+        // NOTE: compute_matrix_free_data_locality()
+        // returns the reordered indices only, could be insightful
+
+        // Constraints need to be setup again after reordering
+
+#if DEAL_II_VERSION_GTE(9, 6, 0)
+        constraints.reinit(this->dof_handler.locally_owned_dofs(),
+                           locally_relevant_dofs);
+#else
+        constraints.reinit(locally_relevant_dofs);
+#endif
+        VectorTools::interpolate_boundary_values(
+            this->mapping, this->dof_handler, dirichlet_map, constraints);
+
+        constraints.close();
+    }
 
     std::shared_ptr<MatrixFreeType> system_mf_storage(new MatrixFreeType());
     system_mf_storage->reinit(this->mapping,

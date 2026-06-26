@@ -62,7 +62,7 @@ public:
                                number rel_tol,
                                bool apply_preconditioner) = 0;
 
-    int n_dofs() const;
+    unsigned int n_dofs() const;
 
     void output(const std::string &output_name,
                 const std::string &output_dir = "./");
@@ -126,8 +126,9 @@ double ADR<ADRSpec, number, Vector_>::compute_error(
 }
 
 template<typename ADRSpec, typename number, typename Vector_>
-int ADR<ADRSpec, number, Vector_>::n_dofs() const
+unsigned int ADR<ADRSpec, number, Vector_>::n_dofs() const
 {
+    // WARNING: n_dofs() returns types::global_dof_index
     return dof_handler.n_dofs();
 }
 
