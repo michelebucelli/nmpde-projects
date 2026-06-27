@@ -177,16 +177,22 @@ int main(int argc, char* argv[]) {
 
 	// I'm afraid that the benchmarking section requires some repetition
 	if (params.solver_type == SolverType::MatrixBased) {
+#ifndef BUILD_WITH_KOKKOS
 		auto adr_mb = ADRFactory::matrix_based<
 			dim, double, ConcreteSpec>(mesh, params.degree);
 
 		run_timers = run_benchmark(adr_mb);
 		ndofs = adr_mb.n_dofs();
+#else
+        std::cout << "WARNING: matrix-based solver not currently "
+                  << "available when BUILD_WITH_KOKKOS=ON" << std::endl;
+        return 1;
+#endif
 
 	} else {
 		#define BENCH_MF(degree) do {                                         \
 			auto adr_mf = ADRFactory::matrix_free<                        \
-				dim, degree, simd_width, double, ConcreteSpec>(mesh); \
+				dim, degree, double, ConcreteSpec, simd_width>(mesh); \
                                                                                       \
 		        run_timers = run_benchmark(adr_mf);                           \
 			ndofs = adr_mf.n_dofs();                                      \

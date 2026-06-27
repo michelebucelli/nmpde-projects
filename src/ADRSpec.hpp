@@ -52,10 +52,11 @@ struct ADRSpec
     using TensorType = Tensor;
     using PointType = Point;
 
-    virtual Tensor advection(const Point &p) const = 0; // beta
-    virtual Scalar diffusion(const Point &p) const = 0; // mu
-    virtual Scalar reaction(const Point &p) const = 0; // gamma
-    virtual Scalar forcing(const Point &p) const = 0; // f
+    // TODO: Consider DEAL_II_HOST_DEVICE_ALWAYS_INLINE
+    DEAL_II_HOST_DEVICE virtual Tensor advection(const Point &p) const = 0; // beta
+    DEAL_II_HOST_DEVICE virtual Scalar diffusion(const Point &p) const = 0; // mu
+    DEAL_II_HOST_DEVICE virtual Scalar reaction(const Point &p) const = 0; // gamma
+    DEAL_II_HOST_DEVICE virtual Scalar forcing(const Point &p) const = 0; // f
 
     virtual void fill_dirichlet_map(
         BoundaryFuncMap<Function<dim>> &function_map) const = 0;

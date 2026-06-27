@@ -109,7 +109,7 @@ double ADR<ADRSpec, number, Vector_>::compute_error(
     const VectorTools::NormType &norm_type,
     const Function<dim, number> &exact_solution) const
 {
-    Vector<number> error_per_cell(mesh.n_active_cells());
+    Vector<double> error_per_cell(mesh.n_active_cells());
 
     VectorTools::integrate_difference(mapping,
                                       dof_handler,

@@ -46,9 +46,9 @@ struct NeumannBC : public NeumannFunction<Scalar, Point>
 template<int dim, typename Scalar, typename Tensor, typename Point>
 struct ConcreteSpec : public ADRSpec<dim, Scalar, Tensor, Point>
 {
-    ConcreteSpec() {}
+    DEAL_II_HOST_DEVICE ConcreteSpec() {}
 
-    Tensor advection(const Point &p) const override
+    DEAL_II_HOST_DEVICE Tensor advection(const Point &p) const override
     {
         Tensor res;
         res[0] = p[1];
@@ -56,19 +56,19 @@ struct ConcreteSpec : public ADRSpec<dim, Scalar, Tensor, Point>
         return res;
     }
 
-    Scalar diffusion(const Point &p) const override
+    DEAL_II_HOST_DEVICE Scalar diffusion(const Point &p) const override
     {
         // WARNING: Avoid having mu = 0 on boundaries, the problem
         // could lose well-posedness if you want to apply neumann there
         return 1.0 + p[0] + p[1];
     }
 
-    Scalar reaction(const Point &p) const override
+    DEAL_II_HOST_DEVICE Scalar reaction(const Point &p) const override
     {
         return p[1];
     }
 
-    Scalar forcing(const Point &p) const override
+    DEAL_II_HOST_DEVICE Scalar forcing(const Point &p) const override
     {
         return 8 * M_PI * M_PI * (1.0 + p[0] + p[1])
                  * std::sin(2 * M_PI * p[0])

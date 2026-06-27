@@ -13,6 +13,8 @@
 #include <deal.II/matrix_free/portable_matrix_free.h>
 #include <deal.II/matrix_free/portable_fe_evaluation.h>
 
+#include "../ADR.hpp"
+
 using namespace dealii;
 
 template<typename number>
@@ -23,142 +25,170 @@ template<typename number>
 using DistributedDeviceVector =
     LinearAlgebra::distributed::Vector<number, MemorySpace::Default>;
 
-#include <iostream>
-
-template<int dim, int fe_degree, typename number>
+template<unsigned int fe_degree, typename ADRSpec>
 class QuadADROperator
 {
+    using number = typename ADRSpec::ScalarType;
+
 public:
     DEAL_II_HOST_DEVICE QuadADROperator() {}
 
     DEAL_II_HOST_DEVICE void operator()(
         Portable::FEEvaluation<
-            dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
-        const int q_point) const;
+            ADRSpec::dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
+        const int q) const;
 };
 
-template<int dim, int fe_degree, typename number> DEAL_II_HOST_DEVICE
-void QuadADROperator<dim, fe_degree, number>::operator()(
-    Portable::FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
-    const int q_point) const
+template<unsigned int fe_degree, typename ADRSpec> DEAL_II_HOST_DEVICE
+void QuadADROperator<fe_degree, ADRSpec>::operator()(
+    Portable::FEEvaluation<
+        ADRSpec::dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
+    const int q) const
 {
-    auto q_grad = fe_eval->get_gradient(q_point);
-    //fe_eval->submit_value(q_grad + fe_eval->get_value(q_point), q_point);
-    fe_eval->submit_gradient(q_grad, q_point);
+    const unsigned int cell_idx = fe_eval->get_current_cell_index();
+    const typename Portable::MatrixFree<ADRSpec::dim, number>::Data *data =
+        fe_eval->get_matrix_free_data();
+
+    const auto q_p = data->get_quadrature_point(cell_idx, q);
+    const auto q_val = fe_eval->get_value(q);
+    const auto q_grad = fe_eval->get_gradient(q);
+
+    const ADRSpec spec;
+
+    fe_eval->submit_value(spec.reaction(q_p) * q_val +
+                          spec.advection(q_p) * q_grad, q);
+
+    fe_eval->submit_gradient(spec.diffusion(q_p) * q_grad, q);
 }
 
-template<int dim, int fe_degree, typename number, typename ForcingFunctor>
+template<unsigned int fe_degree, typename ADRSpec>
 class QuadRhsEvaluator
 {
+    using number = typename ADRSpec::ScalarType;
+
 public:
     DEAL_II_HOST_DEVICE QuadRhsEvaluator() {}
 
     DEAL_II_HOST_DEVICE void operator()(
         Portable::FEEvaluation<
-            dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
-        const int q_idx) const;
+            ADRSpec::dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
+        const int q) const;
 
     // TODO: Remove this if not used
     static constexpr unsigned int n_q_points =
-        Utilities::pow(fe_degree + 1, dim);
+        Utilities::pow(fe_degree + 1, ADRSpec::dim);
 };
 
-template<int dim, int fe_degree, typename number, typename ForcingFunctor>
+template<unsigned int fe_degree, typename ADRSpec>
 DEAL_II_HOST_DEVICE void
-QuadRhsEvaluator<dim, fe_degree, number, ForcingFunctor>::operator()(
-    Portable::FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
-    const int q_point) const
+QuadRhsEvaluator<fe_degree, ADRSpec>::operator()(
+    Portable::FEEvaluation<
+        ADRSpec::dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
+    const int q) const
 {
+    // TODO: How do I get the boundary id here? Could be used to build the
+    // neumann contribution on the device
+
     const unsigned int cell_idx = fe_eval->get_current_cell_index();
-    const typename Portable::MatrixFree<dim, number>::Data *data =
+    const typename Portable::MatrixFree<ADRSpec::dim, number>::Data *data =
         fe_eval->get_matrix_free_data();
 
-    const Point<dim> p = data->get_quadrature_point(cell_idx, q_point);
+    const auto q_p = data->get_quadrature_point(cell_idx, q);
+    const auto q_val = fe_eval->get_value(q);
+    const auto q_grad = fe_eval->get_gradient(q);
 
-    // TODO: How do I get the boundary id here?
+    // TODO: Perhaps store this object as class member
+    // to reduce the number of instantiations? Check of parallel_for
+    // schedules the loop
+    const ADRSpec spec;
 
-    const ForcingFunctor forcing_functor;
+    fe_eval->submit_value(spec.forcing(q_p) -
+                          spec.reaction(q_p) * q_val -
+                          spec.advection(q_p) * q_grad, q);
 
-    // forcing_functor call will be inlined
-    fe_eval->submit_value(forcing_functor(p), q_point);
-    fe_eval->submit_gradient(-fe_eval->get_gradient(q_point), q_point);
+    fe_eval->submit_gradient(-spec.diffusion(q_p) * q_grad, q);
 }
 
-template<int dim, int fe_degree, typename number>
+template<unsigned int fe_degree, typename ADRSpec>
 class LocalADROperator
 {
+    using number = typename ADRSpec::ScalarType;
+
 public:
     LocalADROperator() {}
 
     DEAL_II_HOST_DEVICE void operator()(
-        const typename Portable::MatrixFree<dim, number>::Data *data,
+        const typename Portable::MatrixFree<ADRSpec::dim, number>::Data *data,
         const Portable::DeviceVector<number> &src,
         Portable::DeviceVector<number> &dst) const;
 
     static constexpr unsigned int n_q_points =
-        Utilities::pow(fe_degree + 1, dim);
+        Utilities::pow(fe_degree + 1, ADRSpec::dim);
 
     static constexpr unsigned int n_local_dofs = n_q_points;
 };
 
-template<int dim, int fe_degree, typename number>
-DEAL_II_HOST_DEVICE void LocalADROperator<dim, fe_degree, number>::operator()(
-    const typename Portable::MatrixFree<dim, number>::Data *data,
+template<unsigned int fe_degree, typename ADRSpec>
+DEAL_II_HOST_DEVICE void LocalADROperator<fe_degree, ADRSpec>::operator()(
+    const typename Portable::MatrixFree<ADRSpec::dim, number>::Data *data,
     const Portable::DeviceVector<number> &src,
     Portable::DeviceVector<number> &dst) const
 {
     Portable::FEEvaluation<
-        dim, fe_degree, fe_degree + 1, 1, number> fe_eval(data);
+        ADRSpec::dim, fe_degree, fe_degree + 1, 1, number> fe_eval(data);
 
     fe_eval.read_dof_values(src);
-    fe_eval.evaluate(EvaluationFlags::gradients);
-    fe_eval.apply_for_each_quad_point(
-        QuadADROperator<dim, fe_degree, number>());
-    fe_eval.integrate(EvaluationFlags::gradients);
+    fe_eval.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
+    fe_eval.apply_for_each_quad_point(QuadADROperator<fe_degree, ADRSpec>());
+    fe_eval.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
     fe_eval.distribute_local_to_global(dst);
 }
 
-template<int dim, int fe_degree, typename number, typename ForcingFunctor>
+template<unsigned int fe_degree, typename ADRSpec>
 class LocalRhsEvaluator
 {
+    using number = typename ADRSpec::ScalarType;
+
 public:
     LocalRhsEvaluator() {}
 
     DEAL_II_HOST_DEVICE void operator()(
-        const typename Portable::MatrixFree<dim, number>::Data *data,
+        const typename Portable::MatrixFree<ADRSpec::dim, number>::Data *data,
         const Portable::DeviceVector<number> &src,
         Portable::DeviceVector<number> &dst) const;
 
     static constexpr unsigned int n_q_points =
-        Utilities::pow(fe_degree + 1, dim);
+        Utilities::pow(fe_degree + 1, ADRSpec::dim);
 
     static constexpr unsigned int n_local_dofs = n_q_points;
 };
 
-template<int dim, int fe_degree, typename number, typename ForcingFunctor>
+template<unsigned int fe_degree, typename ADRSpec>
 DEAL_II_HOST_DEVICE void
-LocalRhsEvaluator<dim, fe_degree, number, ForcingFunctor>::operator()(
-    const typename Portable::MatrixFree<dim, number>::Data *data,
+LocalRhsEvaluator<fe_degree, ADRSpec>::operator()(
+    const typename Portable::MatrixFree<ADRSpec::dim, number>::Data *data,
     const Portable::DeviceVector<number> &src,
     Portable::DeviceVector<number> &dst) const
 {
     Portable::FEEvaluation<
-        dim, fe_degree, fe_degree + 1, 1, number> fe_eval(data);
+        ADRSpec::dim, fe_degree, fe_degree + 1, 1, number> fe_eval(data);
 
     // NOTE: I guess there's no need for read_dof_values_plain()
     // since constraints are not applied with the Portable version of
     // read_dof_values(). That's why copy_constrained_values() is used, right?
     fe_eval.read_dof_values(src);
-    fe_eval.evaluate(EvaluationFlags::gradients);
-    fe_eval.apply_for_each_quad_point(
-        QuadRhsEvaluator<dim, fe_degree, number, ForcingFunctor>());
+    fe_eval.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
+    fe_eval.apply_for_each_quad_point(QuadRhsEvaluator<fe_degree, ADRSpec>());
     fe_eval.integrate(EvaluationFlags::values | EvaluationFlags::gradients);
     fe_eval.distribute_local_to_global(dst);
 }
 
-template<int dim, int fe_degree, typename number>
+template<unsigned int fe_degree, typename ADRSpec>
 class ADROperator : public EnableObserverPointer
 {
+    static constexpr int dim = ADRSpec::dim;
+    using number = typename ADRSpec::ScalarType;
+
 public:
     ADROperator(const DoFHandler<dim> &dof_handler,
                 const MappingQ<dim> &mapping,
@@ -171,7 +201,6 @@ public:
 
     void initialize_dof_vector(DistributedDeviceVector<number> &vec) const;
 
-    template<typename ForcingFunctor>
     void compute_rhs(DistributedDeviceVector<number> &dst,
                      const DistributedDeviceVector<number> &src) const;
 
@@ -194,8 +223,8 @@ private:
     inverse_diagonal_entries;
 };
 
-template<int dim, int fe_degree, typename number>
-ADROperator<dim, fe_degree, number>::ADROperator(
+template<unsigned int fe_degree, typename ADRSpec>
+ADROperator<fe_degree, ADRSpec>::ADROperator(
     const DoFHandler<dim> &dof_handler,
     const MappingQ<dim> &mapping,
     const AffineConstraints<number> &constraints)
@@ -214,8 +243,8 @@ ADROperator<dim, fe_degree, number>::ADROperator(
                    additional_data);
 }
 
-template<int dim, int fe_degree, typename number>
-void ADROperator<dim, fe_degree, number>::precompute_coefs(
+template<unsigned int fe_degree, typename ADRSpec>
+void ADROperator<fe_degree, ADRSpec>::precompute_coefs(
     const DoFHandler<dim> &dof_handler)
 {
     /*
@@ -233,13 +262,13 @@ void ADROperator<dim, fe_degree, number>::precompute_coefs(
     */
 }
 
-template<int dim, int fe_degree, typename number>
-void ADROperator<dim, fe_degree, number>::vmult(
+template<unsigned int fe_degree, typename ADRSpec>
+void ADROperator<fe_degree, ADRSpec>::vmult(
     DistributedDeviceVector<number> &dst,
     const DistributedDeviceVector<number> &src) const
 {
     dst = 0;
-    LocalADROperator<dim, fe_degree, number> loc_adr_operator;
+    LocalADROperator<fe_degree, ADRSpec> loc_adr_operator;
     mf_data.cell_loop(loc_adr_operator, src, dst);
     // cell_loop is evaluated for all dofs, but for constrained
     // ones, we want the action of the operator to be the identity,
@@ -247,22 +276,20 @@ void ADROperator<dim, fe_degree, number>::vmult(
     mf_data.copy_constrained_values(src, dst);
 }
 
-template<int dim, int fe_degree, typename number>
-void ADROperator<dim, fe_degree, number>::initialize_dof_vector(
+template<unsigned int fe_degree, typename ADRSpec>
+void ADROperator<fe_degree, ADRSpec>::initialize_dof_vector(
     DistributedDeviceVector<number> &vec) const
 {
     mf_data.initialize_dof_vector(vec);
 }
 
-template<int dim, int fe_degree, typename number>
-template<typename ForcingFunctor>
-void ADROperator<dim, fe_degree, number>::compute_rhs(
+template<unsigned int fe_degree, typename ADRSpec>
+void ADROperator<fe_degree, ADRSpec>::compute_rhs(
     DistributedDeviceVector<number> &dst,
     const DistributedDeviceVector<number> &src) const
 {
     dst = 0;
-    LocalRhsEvaluator<
-        dim, fe_degree, number, ForcingFunctor> loc_rhs_operator;
+    LocalRhsEvaluator<fe_degree, ADRSpec> loc_rhs_operator;
     mf_data.cell_loop(loc_rhs_operator, src, dst);
     // Making sure that rhs is zeroed out for constrained dofs
     // (we want solution_update = 0 there, since the initial solution
@@ -270,8 +297,8 @@ void ADROperator<dim, fe_degree, number>::compute_rhs(
     mf_data.set_constrained_values(0, dst);
 }
 
-template<int dim, int fe_degree, typename number>
-void ADROperator<dim, fe_degree, number>::compute_diagonal()
+template<unsigned int fe_degree, typename ADRSpec>
+void ADROperator<fe_degree, ADRSpec>::compute_diagonal()
 {
     inverse_diagonal_entries.reset(
         new DiagonalMatrix<DistributedDeviceVector<number>>());
@@ -286,9 +313,9 @@ void ADROperator<dim, fe_degree, number>::compute_diagonal()
     compute_diagonal<dim, fe_degree, fe_degree + 1, 1, number>(
         mf_data,
         inverse_diagonal,
-        QuadADROperator<dim, fe_degree, number>(),
-        EvaluationFlags::gradients,
-        EvaluationFlags::gradients);
+        QuadADROperator<fe_degree, ADRSpec>(),
+        EvaluationFlags::values | EvaluationFlags::gradients,
+        EvaluationFlags::values | EvaluationFlags::gradients);
 
     // TODO: Is this not needed anymore?
     // Set Dirichlet constrained DoFs to 1 to allow invertibility
@@ -304,29 +331,31 @@ void ADROperator<dim, fe_degree, number>::compute_diagonal()
     // Kokkos:fence() here?
 }
 
-template<int dim, int fe_degree, typename number>
-std::shared_ptr<DiagonalMatrix<DistributedDeviceVector<number>>>
-ADROperator<dim, fe_degree, number>::get_matrix_diagonal_inverse() const
+template<unsigned int fe_degree, typename ADRSpec>
+std::shared_ptr<DiagonalMatrix<DistributedDeviceVector<
+    typename ADROperator<fe_degree, ADRSpec>::number>>>
+ADROperator<fe_degree, ADRSpec>::get_matrix_diagonal_inverse() const
 {
     return inverse_diagonal_entries;
 }
 
-template<int dim, int fe_degree, typename number>
-types::global_dof_index ADROperator<dim, fe_degree, number>::m() const
+template<unsigned int fe_degree, typename ADRSpec>
+types::global_dof_index ADROperator<fe_degree, ADRSpec>::m() const
 {
     // TODO: This returns the local size, right? I have to understand
     // how vmult is distributed across MPI processes
     return mf_data.get_vector_partitioner()->size();
 }
 
-template<int dim, int fe_degree, typename number>
-types::global_dof_index ADROperator<dim, fe_degree, number>::n() const
+template<unsigned int fe_degree, typename ADRSpec>
+types::global_dof_index ADROperator<fe_degree, ADRSpec>::n() const
 {
     return m();
 }
 
-template<int dim, int fe_degree, typename number>
-number ADROperator<dim, fe_degree, number>::el(
+template<unsigned int fe_degree, typename ADRSpec>
+typename ADROperator<fe_degree, ADRSpec>::number
+ADROperator<fe_degree, ADRSpec>::el(
     const types::global_dof_index row,
     [[maybe_unused]] const types::global_dof_index col) const
 {

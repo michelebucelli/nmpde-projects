@@ -57,7 +57,9 @@ int main(int argc, char *argv[])
     auto exact_solution = std::make_shared<ExactSolution>();
 
     ConvergenceTable table_mf;
+#ifndef BUILD_WITH_KOKKOS
     ConvergenceTable table_mb;
+#endif
 
     const std::vector<unsigned int> Ns = { 10, 20, 40, 80 };
 
@@ -79,17 +81,20 @@ int main(int argc, char *argv[])
         // The same can be said for MatrixBasedADR.
 
         auto adr_mf = ADRFactory::matrix_free<
-            dim, fe_degree, simd_width, double, ConcreteSpec>(mesh);
+            dim, fe_degree, double, ConcreteSpec, simd_width>(mesh);
+        run_convergence_sample(adr_mf, N, *exact_solution, table_mf);
 
+#ifndef BUILD_WITH_KOKKOS
         auto adr_mb = ADRFactory::matrix_based<
             dim, double, ConcreteSpec>(mesh, fe_degree);
-
-        run_convergence_sample(adr_mf, N, *exact_solution, table_mf);
         run_convergence_sample(adr_mb, N, *exact_solution, table_mb);
+#endif
     }
 
     log_convergence_table(table_mf, "\nmatrix-free:");
+#ifndef BUILD_WITH_KOKKOS
     log_convergence_table(table_mb, "\nmatrix-based:");
+#endif
 
     return 0;
 }

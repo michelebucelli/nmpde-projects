@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.12.0)
 project(matrix-free LANGUAGES CXX C)
 
+option(BUILD_WITH_KOKKOS "Build the Kokkos-based portable implementation" OFF)
+
 set(CMAKE_CXX_STANDARD 17)
+if (BUILD_WITH_KOKKOS)
+  set(CMAKE_CXX_STANDARD 20)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED "ON")
 
 # Set default build type to Release.
@@ -19,27 +24,34 @@ endif()
 find_package(MPI REQUIRED)
 set(CMAKE_CXX_COMPILER "${MPI_CXX_COMPILER}")
 
-# Locate Boost.
-find_package(Boost 1.72.0 REQUIRED
-  COMPONENTS filesystem iostreams serialization
-  HINTS ${BOOST_DIR} $ENV{BOOST_DIR} $ENV{mkBoostPrefix})
-message(STATUS "Using the Boost-${Boost_VERSION} configuration found at ${Boost_DIR}")
-message(STATUS)
-include_directories(${Boost_INCLUDE_DIRS})
+set(DEAL_II_MIN_VERSION 9.3.1)
+
+if (BUILD_WITH_KOKKOS)
+  find_package(Kokkos 4.7.4)
+  set(DEAL_II_MIN_VERSION 9.7.1)
+endif()
 
 # Locate deal.II and initialize its variables.
-find_package(deal.II 9.3.1 REQUIRED
-  HINTS ${DEAL_II_DIR} $ENV{DEAL_II_DIR} $ENV{mkDealiiPrefix})
+find_package(deal.II ${DEAL_II_MIN_VERSION} REQUIRED HINTS ${DEAL_II_DIR} $ENV{DEAL_II_DIR})
 deal_ii_initialize_cached_variables()
+
+if(TARGET dealii::interface_kokkos)
+  get_target_property(_libs dealii::interface_kokkos INTERFACE_LINK_LIBRARIES)
+  list(FILTER _libs EXCLUDE REGEX "libkokkos")
+  set_target_properties(dealii::interface_kokkos PROPERTIES INTERFACE_LINK_LIBRARIES "${_libs}")
+endif()
 
 # Add useful compiler flags.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfloat-conversion -Wmissing-braces -Wnon-virtual-dtor")
+
+if (BUILD_WITH_KOKKOS)
+  add_compile_definitions(BUILD_WITH_KOKKOS)
+endif()
 
 add_executable(main src/main.cpp)
 target_link_libraries(main)
 target_compile_definitions(main PUBLIC LOG_TIMERS)
 deal_ii_setup_target(main)
-
 
 add_executable(single-node benchmark/single_node.cpp)
 target_include_directories(single-node PRIVATE "src/")

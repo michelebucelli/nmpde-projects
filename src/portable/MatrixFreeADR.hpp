@@ -1,5 +1,5 @@
-#ifndef MATRIX_FREE_ADR
-#define MATRIX_FREE_ADR
+#ifndef PORTABLE_MATRIX_FREE_ADR
+#define PORTABLE_MATRIX_FREE_ADR
 
 #include <deal.II/base/timer.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -26,115 +26,92 @@
 #include <fstream>
 #include <functional>
 
+#include "../ADR.hpp"
+#include "../ADRSpec.hpp"
 #include "ADROperator.hpp"
 
 using namespace dealii;
 
-template<int dim, int fe_degree, typename ForcingTerm>
-class MatrixFreeADR
+template<unsigned int fe_degree, typename ADRSpec>
+class MatrixFreeADR :
+    public ADR<ADRSpec,
+               typename ADRSpec::ScalarType,
+               DistributedDeviceVector<typename ADRSpec::ScalarType>>
 {
+    using number = typename ADRSpec::ScalarType;
+    using ADR<ADRSpec, number, DistributedDeviceVector<number>>::dim;
+
+    friend class ADRFactory;
+
+    using PointType = typename ADRSpec::PointType;
+
 public:
+    MatrixFreeADR(const parallel::distributed::Triangulation<dim> &mesh);
 
-    MatrixFreeADR(const unsigned int N_,
-                  std::unique_ptr<Function<dim>> dirichlet_bc_,
-                  std::function<double(const Point<dim> &)> neumann_bc_);
+    void setup() override;
 
-    void setup();
-    void assemble_rhs();
-    void solve();
-    void output();
+    void assemble() override;
 
-    const ConditionalOStream &get_pcout() { return pcout; }
+    unsigned int solve(unsigned int max_iter,
+                       number rel_tol,
+                       bool apply_preconditioner) override;
 
     double compute_error(const VectorTools::NormType &norm_type,
                          const Function<dim> &exact_solution) const;
 
 private:
-    const unsigned int mpi_rank;
-    const unsigned int mpi_size;
+    std::unique_ptr<ADROperator<fe_degree, ADRSpec>> system_matrix_dev;
 
-    const unsigned int N;
-
-    std::unique_ptr<Function<dim>> dirichlet_bc;
-    std::function<double(const Point<dim> &)> neumann_bc;
-
-    // TODO: Can I use fullydistributed?
-    parallel::distributed::Triangulation<dim> mesh;
-
-    const FE_Q<dim> fe;
-    DoFHandler<dim> dof_handler;
-
-    // TODO: What's the purpose of this?
-    const MappingQ1<dim> mapping;
-
-    std::unique_ptr<ADROperator<dim, fe_degree, double>> system_matrix_dev;
-
-    AffineConstraints<double> constraints;
+    AffineConstraints<number> constraints;
 
     IndexSet locally_owned_dofs;
     IndexSet locally_relevant_dofs;
 
     // TODO: Make sure DEAL_II_MPI_WITH_DEVICE_SUPPORT is defined
-    DistributedDeviceVector<double> system_rhs_dev;
-    DistributedDeviceVector<double> solution_dev;
-    DistributedDeviceVector<double> solution_update_dev;
-    DistributedVector<double> ghost_solution_host;
-
-    ConditionalOStream pcout;
+    DistributedDeviceVector<number> solution_update_dev;
+    DistributedVector<number> ghost_solution_host;
 };
 
-template<int dim, int fe_degree, typename ForcingTerm>
-MatrixFreeADR<dim, fe_degree, ForcingTerm>::MatrixFreeADR(
-    const unsigned int N_,
-    std::unique_ptr<Function<dim>> dirichlet_bc_,
-    std::function<double(const Point<dim> &)> neumann_bc_
+template<unsigned int fe_degree, typename ADRSpec>
+MatrixFreeADR<fe_degree, ADRSpec>::MatrixFreeADR(
+    const parallel::distributed::Triangulation<dim> &mesh
 )
-    : mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
-    , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
-    , N(N_)
-    , dirichlet_bc(std::move(dirichlet_bc_))
-    , neumann_bc(neumann_bc_)
-    , mesh(MPI_COMM_WORLD)
-    , fe(fe_degree)
-    , pcout(std::cout, mpi_rank == 0)
+    : ADR<ADRSpec, number, DistributedDeviceVector<number>>(mesh, fe_degree)
 {}
 
-template<int dim, int fe_degree, typename ForcingTerm>
-void MatrixFreeADR<dim, fe_degree, ForcingTerm>::setup()
+template<unsigned int fe_degree, typename ADRSpec>
+void MatrixFreeADR<fe_degree, ADRSpec>::setup()
 {
 #ifdef LOG_TIMERS
     Timer time;
 #endif
 
-    // TODO: Check matrix-free simplex mesh support
-    GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
-
-    dof_handler.reinit(mesh);
     // TODO: Check DoFRenumbering::matrix_free_data_locality()
-    dof_handler.distribute_dofs(fe);
+    this->dof_handler.distribute_dofs(this->fe);
 
-    locally_owned_dofs = dof_handler.locally_owned_dofs();
+    locally_owned_dofs = this->dof_handler.locally_owned_dofs();
     locally_relevant_dofs =
-        DoFTools::extract_locally_relevant_dofs(dof_handler);
+        DoFTools::extract_locally_relevant_dofs(this->dof_handler);
 
     constraints.clear();
     constraints.reinit(locally_owned_dofs, locally_relevant_dofs);
 
-    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
-    // WARNING: Currently applying neumann bcs only on left face (x = 0)
-    for (types::boundary_id b_id = 1; b_id < dim * 2; ++b_id) {
-        boundary_functions[b_id] = dirichlet_bc.get();
+    BoundaryFuncMap<Function<dim>> tmp_dirichlet_map;
+    std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
+    this->local_spec.fill_dirichlet_map(tmp_dirichlet_map);
+    for (const auto& [boundary_id, dirichlet_function] : tmp_dirichlet_map) {
+        dirichlet_map[boundary_id] = dirichlet_function.get();
     }
 
-    VectorTools::interpolate_boundary_values(mapping,
-                                             dof_handler,
-                                             boundary_functions,
+    VectorTools::interpolate_boundary_values(this->mapping,
+                                             this->dof_handler,
+                                             dirichlet_map,
                                              constraints);
 
     constraints.close();
 
-    system_matrix_dev.reset(new ADROperator<dim, fe_degree, double>(
-        dof_handler, mapping, constraints));
+    system_matrix_dev.reset(new ADROperator<fe_degree, ADRSpec>(
+        this->dof_handler, this->mapping, constraints));
 
     //system_matrix_dev->template precompute_coefs<ForcingTerm>(dof_handler);
 
@@ -142,18 +119,18 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::setup()
                                locally_relevant_dofs,
                                MPI_COMM_WORLD);
 
-    system_matrix_dev->initialize_dof_vector(solution_dev);
-    solution_update_dev.reinit(solution_dev);
-    system_rhs_dev.reinit(solution_dev);
+    system_matrix_dev->initialize_dof_vector(this->solution);
+    solution_update_dev.reinit(this->solution);
+    this->system_rhs.reinit(this->solution);
 
 #ifdef LOG_TIMERS
-    pcout << std::setw(20) << std::left << "setup()"
-          << std::fixed << time.wall_time() << "s" << std::endl;
+    this->pcout << std::setw(20) << std::left << "setup()"
+                << std::fixed << time.wall_time() << "s" << std::endl;
 #endif
 }
 
-template<int dim, int fe_degree, typename ForcingTerm>
-void MatrixFreeADR<dim, fe_degree, ForcingTerm>::assemble_rhs()
+template<unsigned int fe_degree, typename ADRSpec>
+void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 {
 #ifdef LOG_TIMERS
     Timer time;
@@ -165,57 +142,67 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::assemble_rhs()
 
     // TODO: Can you avoid this transfer? I guess only if there's a way
     // to interpolate constraints directly on the device
-    LinearAlgebra::ReadWriteVector<double> rw_vector(locally_owned_dofs);
+    LinearAlgebra::ReadWriteVector<number> rw_vector(locally_owned_dofs);
     // TODO: Does this two-copy transfer have to do with the usage of
     // non-pinned memory?
     rw_vector.import_elements(ghost_solution_host, VectorOperation::insert);
-    solution_dev.import_elements(rw_vector, VectorOperation::insert);
+    this->solution.import_elements(rw_vector, VectorOperation::insert);
 
-    system_matrix_dev->template compute_rhs<ForcingTerm>(system_rhs_dev,
-                                                         solution_dev);
+    system_matrix_dev->compute_rhs(this->system_rhs, this->solution);
 
     // TODO: Neumann bcs rhs contribution is currently computed on the host.
     // Check wether overlapping this computation with compute_rhs is possible.
 
-    DistributedVector<double> rhs_neumann_term(locally_owned_dofs,
+    DistributedVector<number> rhs_neumann_term(locally_owned_dofs,
                                                locally_relevant_dofs,
                                                MPI_COMM_WORLD);
+
+    BoundaryFuncMap<NeumannFunction<number, PointType>> neumann_map;
+    this->local_spec.fill_neumann_map(neumann_map);
+
     rhs_neumann_term = 0;
 
     const QGauss<dim - 1> quadrature_face(fe_degree + 1);
 
-    FEFaceValues<dim> fe_face_values(fe,
+    FEFaceValues<dim> fe_face_values(this->fe,
                                      quadrature_face,
                                      update_values | update_JxW_values |
                                      update_quadrature_points);
 
-    const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
+    const unsigned int dofs_per_cell = this->fe.n_dofs_per_cell();
     const unsigned int n_q_face = quadrature_face.size();
 
-    Vector<double> cell_neumann_term(dofs_per_cell);
+    Vector<number> cell_neumann_term(dofs_per_cell);
 
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
     // TODO: Manually use kokkos to dispatch this loop on the host
-    for (const auto &cell : dof_handler.active_cell_iterators()) {
+    for (const auto &cell : this->dof_handler.active_cell_iterators()) {
         if (cell->is_locally_owned() && cell->at_boundary()) {
 
             cell_neumann_term = 0;
 
             for (unsigned int face = 0; face < cell->n_faces(); ++face) {
+                const types::boundary_id b_id =
+                    cell->face(face)->boundary_id();
+
                 if (cell->face(face)->at_boundary() &&
-                    // WARNING: Currently applying neumann
-                    // bcs only on left face (x = 0)
-                    cell->face(face)->boundary_id() == 0) {
+                    neumann_map.count(b_id)) {
+
+                    const auto &bc_function = neumann_map[b_id];
 
                     fe_face_values.reinit(cell, face);
                     for (unsigned int q = 0; q < n_q_face; ++q) {
-                        const double neumann_loc =
-                            neumann_bc(fe_face_values.quadrature_point(q));
+                        const PointType q_p =
+                            fe_face_values.quadrature_point(q); 
+
+                        const number mu_val = this->local_spec.diffusion(q_p);
+                        const number h_val = bc_function->value(q_p);
 
                         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
                             cell_neumann_term(i) +=
-                                neumann_loc *
+                                mu_val *
+                                h_val *
                                 fe_face_values.shape_value(i, q) *
                                 fe_face_values.JxW(q);
                         }
@@ -234,43 +221,59 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::assemble_rhs()
     rhs_neumann_term.compress(VectorOperation::add);
 
     rw_vector.import_elements(rhs_neumann_term, VectorOperation::insert);
-    system_rhs_dev.import_elements(rw_vector, VectorOperation::add);
+    this->system_rhs.import_elements(rw_vector, VectorOperation::add);
 
 #ifdef LOG_TIMERS
-    pcout << std::setw(20) << std::left << "assemble_rhs()"
-          << std::fixed << time.wall_time() << "s" << std::endl;
+    this->pcout << std::setw(20) << std::left << "assemble()"
+                << std::fixed << time.wall_time() << "s" << std::endl;
 #endif
 }
 
-template<int dim, int fe_degree, typename ForcingTerm>
-void MatrixFreeADR<dim, fe_degree, ForcingTerm>::solve()
+template<unsigned int fe_degree, typename ADRSpec>
+unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
+    unsigned int max_iter, number rel_tol, bool apply_preconditioner)
 {
 #ifdef LOG_TIMERS
     Timer time;
 #endif
 
-    // Not really needed currently
-    system_matrix_dev->compute_diagonal();
+    SolverControl *solver_control;
 
-    SolverControl solver_control(10000, 1e-12 * system_rhs_dev.l2_norm());
-    SolverCG<DistributedDeviceVector<double>> solver(solver_control);
+    if (rel_tol == 0.0) {
+        // same as in MatrixBasedADR::solve
+        solver_control = new IterationNumberControl(max_iter, 0.0);
+    } else {
+        solver_control = new SolverControl(
+            max_iter, rel_tol * this->system_rhs.l2_norm());
+    }
 
-    // TODO: Figure out how to use other preconditioners
-    PreconditionIdentity preconditioner;
+    SolverGMRES<DistributedDeviceVector<number>> solver(*solver_control);
 
-    solver.solve(*system_matrix_dev,
-                 solution_update_dev,
-                 system_rhs_dev,
-                 preconditioner);
+    if (apply_preconditioner) {
+        // NOTE: This could probably be moved in assemble or setup
+        system_matrix_dev->compute_diagonal();
 
-    solution_dev += solution_update_dev;
+        const auto &preconditioner =
+            *system_matrix_dev->get_matrix_diagonal_inverse();
 
-    pcout << solver_control.last_step() << " CG iterations" << std::endl;
+        solver.solve(*system_matrix_dev,
+                     solution_update_dev,
+                     this->system_rhs,
+                     preconditioner);
+    } else {
+        PreconditionIdentity preconditioner;
+        solver.solve(*system_matrix_dev,
+                     solution_update_dev,
+                     this->system_rhs,
+                     preconditioner);
+    }
+
+    this->solution += solution_update_dev;
 
     // Copy solution to host
     // TODO: Time d2h copy
-    LinearAlgebra::ReadWriteVector<double> rw_vector(locally_owned_dofs);
-    rw_vector.import_elements(solution_dev, VectorOperation::insert);
+    LinearAlgebra::ReadWriteVector<number> rw_vector(locally_owned_dofs);
+    rw_vector.import_elements(this->solution, VectorOperation::insert);
     ghost_solution_host.import_elements(rw_vector, VectorOperation::insert);
 
     constraints.distribute(ghost_solution_host);
@@ -279,37 +282,28 @@ void MatrixFreeADR<dim, fe_degree, ForcingTerm>::solve()
 
 #ifdef LOG_TIMERS
     const double elapsed = time.wall_time();
-    const double elapsed_per_iter = elapsed / solver_control.last_step();
+    const double elapsed_per_iter = elapsed / solver_control->last_step();
 
-    pcout << std::setw(20) << std::left << "solve() [tot/iter]"
-          << std::fixed << elapsed << "s/" << elapsed_per_iter
-          << "s" << std::endl;
+    this->pcout << std::setw(20) << std::left << "solve() [tot/iter]"
+                << std::fixed << elapsed << "s/" << elapsed_per_iter
+                << "s" << std::endl;
 #endif
+
+    return solver_control->last_step();
 }
 
-template<int dim, int fe_degree, typename ForcingTerm>
-void MatrixFreeADR<dim, fe_degree, ForcingTerm>::output()
-{
-    DataOut<dim> data_out;
-
-    data_out.add_data_vector(dof_handler, ghost_solution_host, "solution");
-    data_out.build_patches(mapping);
-
-    data_out.write_vtu_with_pvtu_record("./",
-                                       "solution-" + std::to_string(N),
-                                        0,
-                                        MPI_COMM_WORLD);
-}
-
-template<int dim, int fe_degree, typename ForcingTerm>
-double MatrixFreeADR<dim, fe_degree, ForcingTerm>::
+template<unsigned int fe_degree, typename ADRSpec>
+double MatrixFreeADR<fe_degree, ADRSpec>::
     compute_error(const VectorTools::NormType &norm_type,
                   const Function<dim> &exact_solution) const
 {
-    Vector<double> error_per_cell(mesh.n_active_cells());
+    Vector<double> error_per_cell(this->mesh.n_active_cells());
 
-    VectorTools::integrate_difference(mapping,
-                                      dof_handler,
+    // TODO: Check if you can use the base class compute_error()
+    // which computes the error on this->solution instead of
+    // ghost_solution_host
+    VectorTools::integrate_difference(this->mapping,
+                                      this->dof_handler,
                                       ghost_solution_host,
                                       exact_solution,
                                       error_per_cell,
@@ -317,7 +311,9 @@ double MatrixFreeADR<dim, fe_degree, ForcingTerm>::
                                       norm_type);
 
     const double error =
-        VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
+        VectorTools::compute_global_error(this->mesh,
+                                          error_per_cell,
+                                          norm_type);
 
     return error;
 }

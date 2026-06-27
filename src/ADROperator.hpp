@@ -31,6 +31,8 @@ private:
     static constexpr int dim = ADRSpec::dim;
 
     using number = typename ADRSpec::ScalarType::value_type;
+    // TODO: Consider using auto inside the quadrature loops
+    // instead of using these aliases
     using ArrayScalar = typename ADRSpec::ScalarType;
     using ArrayPoint = typename ADRSpec::PointType;
     using ArrayTensor = typename ADRSpec::TensorType;
