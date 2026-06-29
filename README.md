@@ -1,3 +1,32 @@
+## matrix-free operators in deal.II
+
+### TODO
+
+In order of relevance:
+- [ ] benchmark (see [here](benchmark/TODO.md))
+- [ ] real-world ADR test case
+- [ ] mb vs mf preconditioners (multigrid here?)
+- [ ] some TODOs in the code (check if they're still relevant though)
+
+### Compiling the program
+
+The program can be compiled with:
+```
+mkdir build && cd build
+cmake ..
+make
+```
+
+### Useful resources
+
+- https://dealii.org/current/doxygen/deal.II/step_37.html
+- https://dealii.org/current/doxygen/deal.II/step_64.html
+
+- https://dealii.org/current/doxygen/deal.II/group__matrixfree.html
+- https://dealii.org/current/doxygen/deal.II/classMatrixFreeOperators_1_1Base.html
+- https://dealii.org/current/doxygen/deal.II/classMatrixFree.html
+- https://dealii.org/current/doxygen/deal.II/classFEEvaluation.html
+
 ## Portable matrix-free operators in deal.II
 
 ### Installing deal.II with Kokkos (Ubuntu)
@@ -36,25 +65,6 @@ The program can be compiled with:
 ```
 mkdir build && cd build
 export CMAKE_PREFIX_PATH=/path/to/dealii/install/dir
-cmake ..
+cmake -DBUILD_WITH_KOKKOS=ON ..
 make
 ```
-
-### Useful resources
-
-- https://dealii.org/current/doxygen/deal.II/step_37.html
-- https://dealii.org/current/doxygen/deal.II/step_64.html
-
-- https://dealii.org/current/doxygen/deal.II/group__matrixfree.html
-- https://dealii.org/current/doxygen/deal.II/classMatrixFreeOperators_1_1Base.html
-- https://dealii.org/current/doxygen/deal.II/classMatrixFree.html
-- https://dealii.org/current/doxygen/deal.II/classFEEvaluation.html
-
-### TODO
-
-- [ ] various TODOs in the code
-- [ ] generic preconditioners
-- [ ] multigrid
-- [ ] benchmark pipeline
-- [ ] convergence test suite
-=======

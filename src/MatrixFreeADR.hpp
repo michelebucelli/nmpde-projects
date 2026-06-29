@@ -36,7 +36,6 @@ class MatrixFreeADR :
     // class members due to the two-phase lookup (or use this->member)
     using ADR<ADRSpec, number, DistributedVector<number>>::dim;
 
-    // TODO: Consider passkey idiom
     friend class ADRFactory;
 
     using ArrayScalar = typename ADRSpec::ScalarType;
@@ -127,7 +126,6 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
     system_matrix.clear();
 
     typename MatrixFreeType::AdditionalData additional_data;
-    // TODO: Allow threading within each MPI process
     additional_data.tasks_parallel_scheme =
         // WARNING: This should be set to none if MPI is used
         // to parallelize also WITHIN each node
@@ -297,8 +295,8 @@ std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
     // this should later be a switch based on an
     // ENUM value of supported preconditioners
     if (apply_preconditioner) {
-        // TODO: Perform this in the assembly
         // Ensure diagonal is ready for the preconditioner
+        // TODO: Consider performing compute_diagonal() in the assembly
         system_matrix.compute_diagonal();
 
         PreconditionJacobi<ADROperator<fe_degree, ADRSpec>> preconditioner;

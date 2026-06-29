@@ -249,7 +249,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
-		std::cout << "ncells,ndofs,fe_degree,iterations,setup_time,assemble_time,solve_time,solver_iteration_time,mesh_str" << std::endl;
+		std::cout << "ncells,ndofs,fe_degree,iterations,setup_time,assemble_time,solve_time,solver_iteration_time,solver_iter_time_per_dof,mesh_str" << std::endl;
 		std::cout
 			<< mesh.n_cells()            << ","
 			<< ndofs                     << ","
@@ -259,6 +259,7 @@ int main(int argc, char* argv[]) {
 			<< run_timers.assemble_time  << ","
 			<< run_timers.solve_time     << ","
 			<< run_timers.solver_iteration_time << ","
+			<< run_timers.solver_iteration_time / ndofs << ","
 			<< mesh_str
 			<< std::endl;
 	}

@@ -199,7 +199,7 @@ def main():
             sys.exit(1)
 
     # Print CSV Header
-    header = "ncells,ndofs,fe_degree,threads,mpi_procs,setup_time,assemble_time,solve_time,solver_iteration_time,iterations,mesh_str"
+    header = "ncells,ndofs,fe_degree,threads,mpi_procs,setup_time,assemble_time,solve_time,solver_iteration_time,solver_iter_time_per_dof,iterations,mesh_str"
     if out_file:
         out_file.write(header + "\n")
         out_file.flush()
@@ -240,7 +240,7 @@ def main():
             data_row = None
             for line in lines:
                 parts = line.split(",")
-                if len(parts) == 9 and parts[0] != "ncells":
+                if len(parts) == 10 and parts[0] != "ncells":
                     final_parts = [
                         parts[0],       # ncells
                         parts[1],       # ndofs
@@ -251,8 +251,9 @@ def main():
                         parts[5],       # assemble_time
                         parts[6],       # solve_time
                         parts[7],       # solver_iteration_time
+                        parts[8],       # solver_iter_time_per_dof
                         parts[3],       # iterations
-                        parts[8]        # mesh_str
+                        parts[9]        # mesh_str
                     ]
                     data_row = ",".join(final_parts)
                     break
