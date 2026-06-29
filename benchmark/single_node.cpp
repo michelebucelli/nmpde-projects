@@ -37,6 +37,7 @@
 #include <deal.II/distributed/tria.h>
 #include <deal.II/grid/grid_in.h>
 #include <deal.II/grid/grid_generator.h>
+#include <deal.II/base/mpi.h>
 
 #include <iostream>
 #include <fstream>
@@ -62,10 +63,11 @@ enum class SolverType {
 
 
 struct RunParameters {
-	int N;
-	int degree;
+	unsigned int N;
+	unsigned int degree;
 	MeshType mesh_type;
 	SolverType solver_type;
+	unsigned int num_iters;
 };
 
 
@@ -74,19 +76,29 @@ parse_arguments(int argc, char* argv[]) {
 	MeshType mesh_type;
 	SolverType solver_type;
 
-	int N = -1;
+	unsigned int N = 0;
 	std::string mesh_name;
 
-	if (argc != 4) return {};
+	if (argc != 5) return {};
 
 	try {
-		N = std::stoi(argv[1]);
+		int N_parsed = std::stoi(argv[1]);
+		if (N_parsed <= 0) {
+			std::cerr << "Structured mesh division N must be positive\n";
+			return std::nullopt;
+		}
+		N = static_cast<unsigned int>(N_parsed);
 		mesh_type = MeshType::Structured;
 	} catch(std::exception const &) {
 		mesh_type = MeshType::Unstructured;
 	}
 
-	const int degree = std::atoi(argv[2]);
+	int degree_parsed = std::atoi(argv[2]);
+	if (degree_parsed <= 0) {
+		std::cerr << "Degree must be positive\n";
+		return std::nullopt;
+	}
+	const unsigned int degree = static_cast<unsigned int>(degree_parsed);
 
 	std::string solver_str {argv[3]};
 	if (solver_str == "mf") {
@@ -98,43 +110,60 @@ parse_arguments(int argc, char* argv[]) {
 		return std::nullopt;
 	}
 
-	return RunParameters{N, degree, mesh_type, solver_type};
+	int num_iters_parsed = -1;
+	try {
+		num_iters_parsed = std::stoi(argv[4]);
+	} catch(std::exception const &) {
+		std::cerr << "Error when parsing number of iterations\n";
+		return std::nullopt;
+	}
+	if (num_iters_parsed <= 0) {
+		std::cerr << "Number of iterations must be positive\n";
+		return std::nullopt;
+	}
+	const unsigned int num_iters = static_cast<unsigned int>(num_iters_parsed);
+
+	return RunParameters{N, degree, mesh_type, solver_type, num_iters};
 }
 
 
 struct RunTimers {
 	double setup_time,
 	       assemble_time,
-	       iteration_time;
+	       solve_time,
+	       solver_iteration_time;
 };
 
 
 template <typename ADRSolver>
-RunTimers run_benchmark(ADRSolver &adr_solver) {
+RunTimers run_benchmark(ADRSolver &adr_solver,
+                        unsigned int num_iters) {
 	RunTimers res;
 	Timer timer;
-	const int maxit = 100;
 
+	MPI_Barrier(MPI_COMM_WORLD);
+	timer.restart();
 	adr_solver.setup();
 	timer.stop();
-	res.setup_time = timer.wall_time();
-	timer.restart();
+	res.setup_time = Utilities::MPI::max(timer.wall_time(), MPI_COMM_WORLD);
 
+	MPI_Barrier(MPI_COMM_WORLD);
+	timer.restart();
 	adr_solver.assemble();
 	timer.stop();
-	res.assemble_time = timer.wall_time();
-	timer.restart();
+	res.assemble_time = Utilities::MPI::max(timer.wall_time(), MPI_COMM_WORLD);
 
-	adr_solver.solve(maxit, 0.0, false);
+	MPI_Barrier(MPI_COMM_WORLD);
+	timer.restart();
+	const auto solve_result = adr_solver.solve(num_iters, 0.0, false);
 	timer.stop();
-	res.iteration_time = timer.wall_time() / maxit;
+	res.solve_time = Utilities::MPI::max(timer.wall_time(), MPI_COMM_WORLD);
+	res.solver_iteration_time = Utilities::MPI::max(solve_result.second / num_iters, MPI_COMM_WORLD);
 
 	return res;
 }
 
-
-constexpr int simd_width = 1;
-
+constexpr int simd_width = VectorizedArray<double>::size();
 
 int main(int argc, char* argv[]) {
 	Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
@@ -143,10 +172,11 @@ int main(int argc, char* argv[]) {
 
 	if (not run_parameters.has_value()) {
 		std::cerr
-			<< "Need exactly 3 arguments:\n"
+			<< "Need exactly 4 arguments:\n"
 			<< "  * N (int or str)\n"
 			<< "  * degree (int)\n"
 			<< "  * implementation (str) which could be either `mb` or `mf`\n"
+			<< "  * iterations (int)\n"
 			<< std::endl;
 
 		return 1;
@@ -156,7 +186,7 @@ int main(int argc, char* argv[]) {
 	parallel::distributed::Triangulation<dim> mesh(MPI_COMM_WORLD);
 
 	RunTimers run_timers;
-	int ndofs;
+	unsigned int ndofs = 0;
 	std::string mesh_str;
 
 	if (params.mesh_type == MeshType::Structured) {
@@ -181,7 +211,7 @@ int main(int argc, char* argv[]) {
 		auto adr_mb = ADRFactory::matrix_based<
 			dim, double, ConcreteSpec>(mesh, params.degree);
 
-		run_timers = run_benchmark(adr_mb);
+		run_timers = run_benchmark(adr_mb, params.num_iters);
 		ndofs = adr_mb.n_dofs();
 #else
         std::cout << "WARNING: matrix-based solver not currently "
@@ -194,7 +224,7 @@ int main(int argc, char* argv[]) {
 			auto adr_mf = ADRFactory::matrix_free<                        \
 				dim, degree, double, ConcreteSpec, simd_width>(mesh); \
                                                                                       \
-		        run_timers = run_benchmark(adr_mf);                           \
+		        run_timers = run_benchmark(adr_mf, params.num_iters);         \
 			ndofs = adr_mf.n_dofs();                                      \
 		} while (0)
 
@@ -218,16 +248,20 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	std::cout << "ncells,ndofs,fe_degree,setup_time,assemble_time,iteration_time,mesh_str" << std::endl;
-	std::cout
-		<< mesh.n_cells()            << ","
-		<< ndofs                     << ","
-		<< params.degree             << ","
-		<< run_timers.setup_time     << ","
-		<< run_timers.assemble_time  << ","
-		<< run_timers.iteration_time << ","
-		<< mesh_str
-		<< std::endl;
+	if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
+		std::cout << "ncells,ndofs,fe_degree,iterations,setup_time,assemble_time,solve_time,solver_iteration_time,mesh_str" << std::endl;
+		std::cout
+			<< mesh.n_cells()            << ","
+			<< ndofs                     << ","
+			<< params.degree             << ","
+			<< params.num_iters          << ","
+			<< run_timers.setup_time     << ","
+			<< run_timers.assemble_time  << ","
+			<< run_timers.solve_time     << ","
+			<< run_timers.solver_iteration_time << ","
+			<< mesh_str
+			<< std::endl;
+	}
 
 	return 0;
 }

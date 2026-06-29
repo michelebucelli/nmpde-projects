@@ -52,9 +52,9 @@ public:
 
     void assemble() override;
 
-    unsigned int solve(unsigned int max_iter,
-                       number rel_tol,
-                       bool apply_preconditioner) override;
+    std::pair<unsigned int, double> solve(unsigned int max_iter,
+                                          number rel_tol,
+                                          bool apply_preconditioner) override;
 
     double compute_error(const VectorTools::NormType &norm_type,
                          const Function<dim> &exact_solution) const;
@@ -230,7 +230,7 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 }
 
 template<unsigned int fe_degree, typename ADRSpec>
-unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
+std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
     unsigned int max_iter, number rel_tol, bool apply_preconditioner)
 {
 #ifdef LOG_TIMERS
@@ -249,6 +249,17 @@ unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
 
     SolverGMRES<DistributedDeviceVector<number>> solver(*solver_control);
 
+    auto run_solve = [&](const auto &preconditioner) {
+        Timer solver_timer;
+        solver.solve(*system_matrix_dev,
+                     solution_update_dev,
+                     this->system_rhs,
+                     preconditioner);
+        return solver_timer.wall_time();
+    };
+
+    double solver_time = 0.0;
+
     if (apply_preconditioner) {
         // NOTE: This could probably be moved in assemble or setup
         system_matrix_dev->compute_diagonal();
@@ -256,16 +267,11 @@ unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
         const auto &preconditioner =
             *system_matrix_dev->get_matrix_diagonal_inverse();
 
-        solver.solve(*system_matrix_dev,
-                     solution_update_dev,
-                     this->system_rhs,
-                     preconditioner);
+        solver_time = run_solve(preconditioner);
     } else {
         PreconditionIdentity preconditioner;
-        solver.solve(*system_matrix_dev,
-                     solution_update_dev,
-                     this->system_rhs,
-                     preconditioner);
+
+        solver_time = run_solve(preconditioner);
     }
 
     this->solution += solution_update_dev;
@@ -289,7 +295,7 @@ unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
                 << "s" << std::endl;
 #endif
 
-    return solver_control->last_step();
+    return {solver_control->last_step(), solver_time};
 }
 
 template<unsigned int fe_degree, typename ADRSpec>

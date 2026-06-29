@@ -72,9 +72,9 @@ public:
     // of the caller of this class
     //
     // Ideally this interface should be replicated for the matrix based solver
-    unsigned int solve(unsigned int max_iter,
-                       number rel_tol,
-                       bool apply_preconditioner) override;
+    std::pair<unsigned int, double> solve(unsigned int max_iter,
+                                          number rel_tol,
+                                          bool apply_preconditioner) override;
 
 protected:
     AffineConstraints<number> constraints;
@@ -131,7 +131,7 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
     additional_data.tasks_parallel_scheme =
         // WARNING: This should be set to none if MPI is used
         // to parallelize also WITHIN each node
-        MatrixFreeType::AdditionalData::none;
+        MatrixFreeType::AdditionalData::partition_partition;
     // Specifies what should be computed (and cached) on cells
     additional_data.mapping_update_flags =
         (update_values | update_gradients | update_JxW_values |
@@ -260,7 +260,7 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 }
 
 template<unsigned int fe_degree, typename ADRSpec>
-unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
+std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
     unsigned int max_iter, number rel_tol, bool apply_preconditioner)
 {
 #ifdef LOG_TIMERS
@@ -284,6 +284,16 @@ unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
 
     SolverGMRES<DistributedVector<number>> solver(*solver_control);
 
+    auto run_solve = [&](const auto &preconditioner) {
+        Timer solver_timer;
+        solver.solve(system_matrix,
+                     solution_update,
+                     this->system_rhs,
+                     preconditioner);
+        return solver_timer.wall_time();
+    };
+
+    double solver_time = 0.0;
     // this should later be a switch based on an
     // ENUM value of supported preconditioners
     if (apply_preconditioner) {
@@ -294,16 +304,9 @@ unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
         PreconditionJacobi<ADROperator<fe_degree, ADRSpec>> preconditioner;
         preconditioner.initialize(system_matrix, 1.0);
 
-        solver.solve(system_matrix,
-                     solution_update,
-                     this->system_rhs,
-                     preconditioner);
+        solver_time = run_solve(preconditioner);
     } else {
-        PreconditionIdentity preconditioner;
-        solver.solve(system_matrix,
-                     solution_update,
-                     this->system_rhs,
-                     preconditioner);
+        solver_time = run_solve(PreconditionIdentity());
     }
 
     this->solution += solution_update;
@@ -325,7 +328,7 @@ unsigned int MatrixFreeADR<fe_degree, ADRSpec>::solve(
     const auto res = solver_control->last_step();
     delete solver_control;
 
-    return res;
+    return {res, solver_time};
 }
 
 #endif

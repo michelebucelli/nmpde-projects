@@ -18,6 +18,7 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <string>
+#include <utility>
 #include <iostream>
 
 using namespace dealii;
@@ -58,9 +59,9 @@ public:
 
     virtual void assemble() = 0;
 
-    virtual unsigned int solve(unsigned int max_iter,
-                               number rel_tol,
-                               bool apply_preconditioner) = 0;
+    virtual std::pair<unsigned int, double> solve(unsigned int max_iter,
+                                                  number rel_tol,
+                                                  bool apply_preconditioner) = 0;
 
     unsigned int n_dofs() const;
 

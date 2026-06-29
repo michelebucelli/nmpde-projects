@@ -1,6 +1,7 @@
 #ifndef MATRIX_BASED_ADR_HPP
 #define MATRIX_BASED_ADR_HPP
 
+#include <deal.II/base/timer.h>
 #include <deal.II/base/quadrature_lib.h>
 
 #include <deal.II/distributed/tria.h>
@@ -52,9 +53,9 @@ public:
 
     void assemble() override;
 
-    unsigned int solve(unsigned int max_iter,
-                       number rel_tol,
-                       bool apply_preconditioner) override;
+    std::pair<unsigned int, double> solve(unsigned int max_iter,
+                                          number rel_tol,
+                                          bool apply_preconditioner) override;
 
 protected:
     IndexSet locally_owned_dofs;
@@ -85,9 +86,8 @@ void MatrixBasedADR<ADRSpec>::setup()
 
     system_matrix.reinit(sparsity);
 
-    IndexSet locally_relevant_dofs;
-    DoFTools::extract_locally_relevant_dofs(this->dof_handler,
-                                            locally_relevant_dofs);
+    IndexSet locally_relevant_dofs =
+        DoFTools::extract_locally_relevant_dofs(this->dof_handler);
 
     this->solution.reinit(
         locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
@@ -216,7 +216,7 @@ void MatrixBasedADR<ADRSpec>::assemble()
 }
 
 template<typename ADRSpec>
-unsigned int MatrixBasedADR<ADRSpec>::solve(
+std::pair<unsigned int, double> MatrixBasedADR<ADRSpec>::solve(
     unsigned int max_iter, number rel_tol, bool apply_preconditioner)
 {
     SolverControl* solver_control;
@@ -236,19 +236,23 @@ unsigned int MatrixBasedADR<ADRSpec>::solve(
 
     SolverGMRES<TrilinosWrappers::MPI::Vector> solver(*solver_control);
 
-    if (not apply_preconditioner) {
-        solver.solve(system_matrix,
-                     solution_owned,
-                     this->system_rhs,
-                     TrilinosWrappers::PreconditionIdentity());
-    } else {
-        TrilinosWrappers::PreconditionJacobi preconditioner;
-        preconditioner.initialize(system_matrix, 1.0);
-
+    auto run_solve = [&](const auto &preconditioner) {
+        Timer solver_timer;
         solver.solve(system_matrix,
                      solution_owned,
                      this->system_rhs,
                      preconditioner);
+        return solver_timer.wall_time();
+    };
+
+    double solver_time = 0.0;
+
+    if (not apply_preconditioner) {
+        solver_time = run_solve(TrilinosWrappers::PreconditionIdentity());
+    } else {
+        TrilinosWrappers::PreconditionJacobi preconditioner;
+        preconditioner.initialize(system_matrix, 1.0);
+        solver_time = run_solve(preconditioner);
     }
 
     this->solution = solution_owned;
@@ -256,7 +260,7 @@ unsigned int MatrixBasedADR<ADRSpec>::solve(
     const auto res = solver_control->last_step();
     delete solver_control;
 
-    return res;
+    return {res, solver_time};
 }
 
 #endif
