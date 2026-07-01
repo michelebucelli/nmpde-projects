@@ -35,17 +35,17 @@ endif()
 find_package(deal.II ${DEAL_II_MIN_VERSION} REQUIRED HINTS ${DEAL_II_DIR} $ENV{DEAL_II_DIR})
 deal_ii_initialize_cached_variables()
 
-if(TARGET dealii::interface_kokkos)
-  get_target_property(_libs dealii::interface_kokkos INTERFACE_LINK_LIBRARIES)
-  list(FILTER _libs EXCLUDE REGEX "libkokkos")
-  set_target_properties(dealii::interface_kokkos PROPERTIES INTERFACE_LINK_LIBRARIES "${_libs}")
-endif()
-
 # Add useful compiler flags.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfloat-conversion -Wmissing-braces -Wnon-virtual-dtor")
 
 if (BUILD_WITH_KOKKOS)
   add_compile_definitions(BUILD_WITH_KOKKOS)
+
+  if(TARGET dealii::interface_kokkos)
+    get_target_property(_libs dealii::interface_kokkos INTERFACE_LINK_LIBRARIES)
+    list(FILTER _libs EXCLUDE REGEX "libkokkos")
+    set_target_properties(dealii::interface_kokkos PROPERTIES INTERFACE_LINK_LIBRARIES "${_libs}")
+  endif()
 endif()
 
 add_executable(main src/main.cpp)
