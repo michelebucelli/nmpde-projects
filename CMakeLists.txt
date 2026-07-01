@@ -35,6 +35,12 @@ endif()
 find_package(deal.II ${DEAL_II_MIN_VERSION} REQUIRED HINTS ${DEAL_II_DIR} $ENV{DEAL_II_DIR})
 deal_ii_initialize_cached_variables()
 
+# search for likwid
+find_package(likwid QUIET)
+if (likwid_FOUND)
+  add_definitions(-DUSE_LIKWID)
+endif()
+
 # Add useful compiler flags.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfloat-conversion -Wmissing-braces -Wnon-virtual-dtor")
 
