@@ -17,9 +17,10 @@ def calculate_n_from_dofs(min_dofs, degree, dim):
     N = int(math.ceil(val / degree))
     return max(1, N)
 
-def parse_range_or_list(value_str):
+def parse_range_or_list(value_str, allow_step=False):
     """
-    Parses a string representing a range (e.g. '3-6') or a comma-separated list (e.g. '3,5,7').
+    Parses a string representing a range (e.g. '3-6', with step '10-20:2', '1000-10000:1.5exp' or '1000-10000:2exp')
+    or a comma-separated list.
     Returns a list of parsed values (integers or strings).
     """
     if not value_str:
@@ -28,16 +29,74 @@ def parse_range_or_list(value_str):
     items = []
     for part in value_str.split(','):
         part = part.strip()
-        if '-' in part:
-            subparts = part.split('-')
+        
+        step = 1
+        is_exp = False
+        multiplier = 2.0
+        range_part = part
+        if allow_step and ':' in part:
+            subparts_step = part.split(':')
+            if len(subparts_step) == 2:
+                range_part = subparts_step[0].strip()
+                step_str = subparts_step[1].strip()
+                if step_str.endswith("exp"):
+                    is_exp = True
+                    mult_str = step_str[:-3].strip()
+                    if mult_str:
+                        try:
+                            multiplier = float(mult_str)
+                            if multiplier <= 0.0:
+                                print(f"Warning: Invalid multiplier '{multiplier}'. Multiplier must be positive. Using default step 1.", file=sys.stderr)
+                                multiplier = 2.0
+                        except ValueError:
+                            print(f"Warning: Could not parse multiplier '{mult_str}'. Using default multiplier 2.0.", file=sys.stderr)
+                            multiplier = 2.0
+                    else:
+                        multiplier = 2.0
+                else:
+                    try:
+                        step = int(step_str)
+                        if step <= 0:
+                            print(f"Warning: Invalid step '{step}'. Step must be a positive integer. Using default step 1.", file=sys.stderr)
+                            step = 1
+                    except ValueError:
+                        print(f"Warning: Could not parse step '{step_str}'. Using default step 1.", file=sys.stderr)
+                        step = 1
+
+        if '-' in range_part:
+            subparts = range_part.split('-')
             if len(subparts) == 2:
                 try:
-                    start = int(subparts[0])
-                    end = int(subparts[1])
-                    if start <= end:
-                        items.extend(range(start, end + 1))
+                    start = int(subparts[0].strip())
+                    end = int(subparts[1].strip())
+                    if is_exp:
+                        if start <= 0 or (start > end and end <= 0):
+                            print(f"Warning: Exponential/multiplier step is only supported for positive numbers (start={start}, end={end}).", file=sys.stderr)
+                            if start <= end:
+                                items.extend(range(start, end + 1, 1))
+                            else:
+                                items.extend(range(start, end - 1, -1))
+                        else:
+                            curr = start
+                            if start <= end:
+                                while curr <= end:
+                                    items.append(curr)
+                                    next_curr = int(round(curr * multiplier))
+                                    if next_curr <= curr:
+                                        next_curr = curr + 1
+                                    curr = next_curr
+                            else:
+                                while curr >= end:
+                                    items.append(curr)
+                                    next_curr = int(round(curr * multiplier))
+                                    if next_curr >= curr:
+                                        next_curr = curr - 1
+                                    curr = next_curr
                     else:
-                        items.extend(range(start, end - 1, -1))
+                        if start <= end:
+                            items.extend(range(start, end + 1, step))
+                        else:
+                            items.extend(range(start, end - 1, -step))
                     continue
                 except ValueError:
                     pass
@@ -65,6 +124,74 @@ def parse_impl(impl_str):
             sys.exit(1)
     seen = set()
     return [x for x in resolved if not (x in seen or seen.add(x))]
+
+def parse_likwid_output(stdout, group_name):
+    """
+    Parses the stdout of a likwid-perfctr run.
+    Returns a dictionary of {f"{group_name}_{metric/event}": value}.
+    """
+    results = {}
+    lines = stdout.strip().split("\n")
+    
+    in_raw_table = False
+    in_metric_table = False
+    raw_header_seen = False
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Detect table markers
+        if line.startswith("TABLE,"):
+            parts = line.split(",")
+            if len(parts) >= 4:
+                table_type = parts[2]  # e.g., "Group 1 Raw" or "Group 1 Metric"
+                if "Raw" in table_type:
+                    in_raw_table = True
+                    in_metric_table = False
+                    raw_header_seen = False
+                elif "Metric" in table_type:
+                    in_raw_table = False
+                    in_metric_table = True
+            continue
+        
+        if in_raw_table:
+            if line.startswith("STRUCT,") or line.startswith("TABLE,"):
+                in_raw_table = False
+                raw_header_seen = False
+            else:
+                parts = [p.strip() for p in line.split(",")]
+                if parts[0] == "Event":
+                    raw_header_seen = True
+                    continue
+                
+                if raw_header_seen:
+                    if len(parts) >= 3:
+                        name = parts[0]
+                        val = parts[2]
+                        results[f"{group_name}_{name}"] = val
+                else:
+                    if len(parts) >= 2:
+                        name = parts[0]
+                        val = parts[1]
+                        if name and name != "Region Info":
+                            results[f"{group_name}_{name}"] = val
+                            
+        elif in_metric_table:
+            if line.startswith("STRUCT,") or line.startswith("TABLE,"):
+                in_metric_table = False
+            else:
+                parts = [p.strip() for p in line.split(",")]
+                if parts[0] == "Metric":
+                    continue
+                if len(parts) >= 2:
+                    name = parts[0]
+                    val = parts[1]
+                    if name:
+                        results[f"{group_name}_{name}"] = val
+                        
+    return results
 
 def main():
     parser = argparse.ArgumentParser(
@@ -123,6 +250,16 @@ def main():
         "-o", "--output",
         help="Path to save the output CSV file. If not specified, results are printed to stdout."
     )
+    parser.add_argument(
+        "--likwid",
+        action="store_true",
+        help="Use likwid-perfctr to measure performance counters."
+    )
+    parser.add_argument(
+        "--likwid-groups",
+        default="MEM_DP",
+        help="Comma-separated list of LIKWID performance groups to measure (e.g. MEM_DP,L2,L3). Default: MEM_DP."
+    )
 
     args = parser.parse_args()
 
@@ -139,6 +276,10 @@ def main():
 
     impl_values = parse_impl(args.impl)
 
+    likwid_groups = []
+    if args.likwid_groups:
+        likwid_groups = [g.strip() for g in args.likwid_groups.split(",") if g.strip()]
+
     if args.mpi_procs:
         mpi_procs_values = parse_range_or_list(args.mpi_procs)
         for p in mpi_procs_values:
@@ -151,12 +292,23 @@ def main():
         if args.threads:
             thread_values = parse_range_or_list(args.threads)
         else:
-            thread_values = [os.cpu_count() or 1]
+            if args.likwid:
+                thread_values = [1]
+            else:
+                thread_values = [os.cpu_count() or 1]
 
         for t in thread_values:
             if not isinstance(t, int) or t <= 0:
                 print(f"Error: Invalid thread count '{t}'. Must be a positive integer.", file=sys.stderr)
                 sys.exit(1)
+
+    if args.likwid:
+        if any(p > 1 for p in mpi_procs_values):
+            print("Error: When using --likwid, you cannot use --mpi-procs.", file=sys.stderr)
+            sys.exit(1)
+        if any(t > 1 for t in thread_values):
+            print("Error: When using --likwid, you cannot use more than 1 thread (-t 1).", file=sys.stderr)
+            sys.exit(1)
 
     binary_path = args.binary
     if not os.path.exists(binary_path):
@@ -166,7 +318,7 @@ def main():
     # Determine permutations
     permutations = []
     if args.cells_per_dim:
-        c_values = parse_range_or_list(args.cells_per_dim)
+        c_values = parse_range_or_list(args.cells_per_dim, allow_step=True)
         if not c_values:
             print("Error: No cells-per-dim values specified or parsed successfully.", file=sys.stderr)
             sys.exit(1)
@@ -174,7 +326,7 @@ def main():
         for c_val, deg_val, impl_val, t_val, mpi_val in itertools.product(c_values, degree_values, impl_values, thread_values, mpi_procs_values):
             permutations.append((c_val, deg_val, impl_val, t_val, mpi_val))
     else:
-        dofs_values = parse_range_or_list(args.dofs)
+        dofs_values = parse_range_or_list(args.dofs, allow_step=True)
         if not dofs_values:
             print("Error: No DoFs values specified or parsed successfully.", file=sys.stderr)
             sys.exit(1)
@@ -198,82 +350,128 @@ def main():
             print(f"Error opening output file: {e}", file=sys.stderr)
             sys.exit(1)
 
-    # Print CSV Header
-    header = "ncells,ndofs,fe_degree,threads,mpi_procs,setup_time,assemble_time,solve_time,solver_iteration_time,solver_iter_time_per_dof,iterations,mesh_str"
-    if out_file:
-        out_file.write(header + "\n")
-        out_file.flush()
+    base_cols = ["ncells", "ndofs", "fe_degree", "impl", "threads", "mpi_procs", "setup_time", "assemble_time", "solve_time", "solver_iteration_time", "solver_iter_time_per_dof", "iterations", "mesh_str"]
+    base_header = ",".join(base_cols)
+    full_cols = base_cols[:]
+    header = base_header
+    
+    header_written = False
+    if not args.likwid:
+        if out_file:
+            out_file.write(base_header + "\n")
+            out_file.flush()
+        header_written = True
 
     results_cache = []
+    run_groups = likwid_groups if args.likwid else [None]
+
     for idx, (n_val, deg_val, impl_val, t_val, mpi_val) in enumerate(permutations, 1):
-        if mpi_val > 1:
-            cmd = [
-                "mpirun",
-                "-n", str(mpi_val),
-                binary_path,
-                str(n_val),
-                str(deg_val),
-                impl_val,
-                str(args.iters)
-            ]
-        else:
-            cmd = [
-                binary_path,
-                str(n_val),
-                str(deg_val),
-                impl_val,
-                str(args.iters)
-            ]
+        perm_data = {}
+        skip_permutation = False
         
+        dofs_est = (n_val * deg_val + 1) ** args.dim if isinstance(n_val, int) else "unknown"
         # Display progress info on stderr so it doesn't pollute CSV stdout
-        print(f"[{idx}/{len(permutations)}] Running benchmark: cells_per_dim={n_val}, degree={deg_val}, solver={impl_val}, threads={t_val}, mpi_procs={mpi_val}, iterations={args.iters}", file=sys.stderr, flush=True)
+        print(f"[{idx}/{len(permutations)}] Running benchmark: cells_per_dim={n_val}, dofs={dofs_est}, degree={deg_val}, solver={impl_val}, threads={t_val}, mpi_procs={mpi_val}, iterations={args.iters}", file=sys.stderr, flush=True)
         
-        # Configure environment variables (e.g. DEAL_II_NUM_THREADS)
         run_env = os.environ.copy()
         run_env["DEAL_II_NUM_THREADS"] = str(t_val)
- 
-        try:
-            result = subprocess.run(cmd, env=run_env, capture_output=True, text=True, check=True)
-            
-            # Parse result output to locate the data row
-            lines = result.stdout.strip().split("\n")
-            data_row = None
-            for line in lines:
-                parts = line.split(",")
-                if len(parts) == 10 and parts[0] != "ncells":
-                    final_parts = [
-                        parts[0],       # ncells
-                        parts[1],       # ndofs
-                        parts[2],       # fe_degree
-                        str(t_val),     # threads
-                        str(mpi_val),   # mpi_procs
-                        parts[4],       # setup_time
-                        parts[5],       # assemble_time
-                        parts[6],       # solve_time
-                        parts[7],       # solver_iteration_time
-                        parts[8],       # solver_iter_time_per_dof
-                        parts[3],       # iterations
-                        parts[9]        # mesh_str
-                    ]
-                    data_row = ",".join(final_parts)
-                    break
-            
-            if data_row:
-                results_cache.append(data_row)
-                if out_file:
-                    out_file.write(data_row + "\n")
-                    out_file.flush()
+        
+        for g_idx, group in enumerate(run_groups):
+            if args.likwid:
+                cmd = [
+                    "likwid-perfctr",
+                    "-C", "0",
+                    "-g", group,
+                    "-m",
+                    "-O",
+                    binary_path,
+                    str(n_val),
+                    str(deg_val),
+                    impl_val,
+                    str(args.iters)
+                ]
             else:
-                print(f"Warning: Could not parse CSV output row from command: {' '.join(cmd)}", file=sys.stderr)
-                if result.stdout:
-                    print(f"Output was:\n{result.stdout}", file=sys.stderr)
+                if mpi_val > 1:
+                    cmd = [
+                        "mpirun",
+                        "-n", str(mpi_val),
+                        binary_path,
+                        str(n_val),
+                        str(deg_val),
+                        impl_val,
+                        str(args.iters)
+                    ]
+                else:
+                    cmd = [
+                        binary_path,
+                        str(n_val),
+                        str(deg_val),
+                        impl_val,
+                        str(args.iters)
+                    ]
+            
+            try:
+                result = subprocess.run(cmd, env=run_env, capture_output=True, text=True, check=True)
+                
+                # Parse stdout to locate the data row
+                lines = result.stdout.strip().split("\n")
+                
+                if g_idx == 0:
+                    base_parsed = False
+                    for line in lines:
+                        parts = [p.strip() for p in line.split(",")]
+                        if len(parts) == 10 and parts[0] != "ncells":
+                            perm_data["ncells"] = parts[0]
+                            perm_data["ndofs"] = parts[1]
+                            perm_data["fe_degree"] = parts[2]
+                            perm_data["impl"] = impl_val
+                            perm_data["threads"] = str(t_val)
+                            perm_data["mpi_procs"] = str(mpi_val)
+                            perm_data["setup_time"] = parts[4]
+                            perm_data["assemble_time"] = parts[5]
+                            perm_data["solve_time"] = parts[6]
+                            perm_data["solver_iteration_time"] = parts[7]
+                            perm_data["solver_iter_time_per_dof"] = parts[8]
+                            perm_data["iterations"] = parts[3]
+                            perm_data["mesh_str"] = parts[9]
+                            base_parsed = True
+                            break
+                    if not base_parsed:
+                        print(f"Warning: Could not parse CSV output row from command: {' '.join(cmd)}", file=sys.stderr)
+                        if result.stdout:
+                            print(f"Output was:\n{result.stdout}", file=sys.stderr)
+                
+                if args.likwid:
+                    group_data = parse_likwid_output(result.stdout, group)
+                    perm_data.update(group_data)
                     
-        except subprocess.CalledProcessError as e:
-            print(f"Error running command: {' '.join(cmd)}", file=sys.stderr)
-            print(f"Exit code: {e.returncode}", file=sys.stderr)
-            if e.stderr:
-                print(f"Error output:\n{e.stderr.strip()}", file=sys.stderr)
-            print("-" * 40, file=sys.stderr)
+            except subprocess.CalledProcessError as e:
+                print(f"Error running command: {' '.join(cmd)}", file=sys.stderr)
+                print(f"Exit code: {e.returncode}", file=sys.stderr)
+                if e.stderr:
+                    print(f"Error output:\n{e.stderr.strip()}", file=sys.stderr)
+                print("-" * 40, file=sys.stderr)
+                skip_permutation = True
+                break
+        
+        if skip_permutation:
+            continue
+            
+        if args.likwid and not header_written:
+            likwid_cols = sorted([k for k in perm_data.keys() if k not in base_cols])
+            full_cols = base_cols + likwid_cols
+            header = ",".join(full_cols)
+            if out_file:
+                out_file.write(header + "\n")
+                out_file.flush()
+            header_written = True
+            
+        row_values = [str(perm_data.get(col, "")) for col in full_cols]
+        data_row = ",".join(row_values)
+        results_cache.append(data_row)
+        if out_file:
+            out_file.write(data_row + "\n")
+            out_file.flush()
 
     # Print the clean accumulated CSV results to stdout at the very end
     if args.pretty:
