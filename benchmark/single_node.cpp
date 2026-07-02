@@ -47,7 +47,6 @@
 #include "ConcreteSpec.hpp"
 
 #ifdef USE_LIKWID
-#define LIKWID_PERFMON
 #include <likwid-marker.h>
 #else
 #define LIKWID_MARKER_INIT

@@ -38,7 +38,7 @@ deal_ii_initialize_cached_variables()
 # search for likwid
 find_package(likwid QUIET)
 if (likwid_FOUND)
-  add_definitions(-DUSE_LIKWID)
+  add_definitions(-DUSE_LIKWID -DLIKWID_PERFMON)
 endif()
 
 # Add useful compiler flags.
@@ -63,3 +63,8 @@ add_executable(single-node benchmark/single_node.cpp)
 target_include_directories(single-node PRIVATE "src/")
 target_link_libraries(single-node)
 deal_ii_setup_target(single-node)
+
+if (likwid_FOUND)
+  target_link_libraries(single-node likwid)
+endif()
+
