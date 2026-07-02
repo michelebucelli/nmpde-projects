@@ -47,6 +47,7 @@
 #include "ConcreteSpec.hpp"
 
 #ifdef USE_LIKWID
+#define LIKWID_PERFMON
 #include <likwid-marker.h>
 #else
 #define LIKWID_MARKER_INIT
@@ -251,19 +252,19 @@ int main(int argc, char* argv[]) {
 
 		switch(params.degree) {
 			case 1: BENCH_MF(1); break;
-			// case 2: BENCH_MF(2); break;
-			// case 3: BENCH_MF(3); break;
-			// case 4: BENCH_MF(4); break;
-			// case 5: BENCH_MF(5); break;
-			// case 6: BENCH_MF(6); break;
-			// case 7: BENCH_MF(7); break;
-			// case 8: BENCH_MF(8); break;
-			// case 9: BENCH_MF(9); break;
-			// case 10: BENCH_MF(10); break;
-			// case 11: BENCH_MF(11); break;
-			// case 12: BENCH_MF(12); break;
-			// case 13: BENCH_MF(13); break;
-			// case 14: BENCH_MF(14); break;
+			case 2: BENCH_MF(2); break;
+			case 3: BENCH_MF(3); break;
+			case 4: BENCH_MF(4); break;
+			case 5: BENCH_MF(5); break;
+			case 6: BENCH_MF(6); break;
+			case 7: BENCH_MF(7); break;
+			case 8: BENCH_MF(8); break;
+			case 9: BENCH_MF(9); break;
+			case 10: BENCH_MF(10); break;
+			case 11: BENCH_MF(11); break;
+			case 12: BENCH_MF(12); break;
+			case 13: BENCH_MF(13); break;
+			case 14: BENCH_MF(14); break;
 			default:
 				 return 1;
 		}
