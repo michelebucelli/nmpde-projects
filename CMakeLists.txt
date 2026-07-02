@@ -35,10 +35,12 @@ endif()
 find_package(deal.II ${DEAL_II_MIN_VERSION} REQUIRED HINTS ${DEAL_II_DIR} $ENV{DEAL_II_DIR})
 deal_ii_initialize_cached_variables()
 
-# search for likwid
+# search for likwid, but make it quiet because
+# not all users have installed it
 find_package(likwid QUIET)
 if (likwid_FOUND)
   add_definitions(-DUSE_LIKWID -DLIKWID_PERFMON)
+  message(STATUS "Found likwid")
 endif()
 
 # Add useful compiler flags.
@@ -65,6 +67,6 @@ target_link_libraries(single-node)
 deal_ii_setup_target(single-node)
 
 if (likwid_FOUND)
-  target_link_libraries(single-node likwid)
+  target_link_libraries(single-node likwid::likwid)
 endif()
 
