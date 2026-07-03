@@ -57,6 +57,9 @@ public:
                                           number rel_tol,
                                           bool apply_preconditioner) override;
 
+    template <class Vector1_, class Vector2_>
+    void vmult(Vector1_& dest, const Vector2_& src);
+
 protected:
     IndexSet locally_owned_dofs;
 
@@ -261,6 +264,14 @@ std::pair<unsigned int, double> MatrixBasedADR<ADRSpec>::solve(
     delete solver_control;
 
     return {res, solver_time};
+}
+
+
+template <class ADRSpec>
+template <class Vector1_, class Vector2_>
+void MatrixBasedADR<ADRSpec>::vmult(
+    Vector1_& dest, const Vector2_& src) {
+    system_matrix.vmult(dest, src);
 }
 
 #endif

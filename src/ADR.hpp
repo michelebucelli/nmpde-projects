@@ -50,7 +50,6 @@ protected:
     DoFHandler<dim> dof_handler;
 
     Vector_ solution;
-    Vector_ system_rhs;
 
     ConditionalOStream pcout;
 
@@ -72,6 +71,7 @@ public:
                          const Function<dim, number> &exact_solution) const;
 
     virtual ~ADR() = default;
+    Vector_ system_rhs;
 };
 
 template<typename ADRSpec, typename number, typename Vector_>

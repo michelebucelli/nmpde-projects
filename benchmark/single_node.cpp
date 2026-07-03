@@ -166,20 +166,31 @@ RunTimers run_benchmark(ADRSolver &adr_solver,
 	timer.stop();
 	res.assemble_time = Utilities::MPI::max(timer.wall_time(), MPI_COMM_WORLD);
 
+	// we want to repeatedly call A*x, where x must be a dense vector
+	// since with MPI it's not trivial to produce an arbitrary vector
+	// we use an already existing vector, `system_rhs` as the source operand
+	// I allocate a new vector as the destination operand (note that mb and mf have two different vectors)
+	decltype(adr_solver.system_rhs) destination(adr_solver.system_rhs);
+
+	// a constant is added such that all the entries are non zero
+	adr_solver.system_rhs.add(69.420);
+
 	MPI_Barrier(MPI_COMM_WORLD);
-	timer.restart();
 
 	LIKWID_MARKER_INIT;
 	LIKWID_MARKER_THREADINIT;
 
 	LIKWID_MARKER_START("Compute");
-	const auto solve_result = adr_solver.solve(num_iters, 0.0, false);
+	timer.restart();
+	for (unsigned int i = 0; i < num_iters; ++i) {
+		adr_solver.vmult(destination, adr_solver.system_rhs);
+	}
+	timer.stop();
 	LIKWID_MARKER_STOP("Compute");
 	LIKWID_MARKER_CLOSE;
 
-	timer.stop();
 	res.solve_time = Utilities::MPI::max(timer.wall_time(), MPI_COMM_WORLD);
-	res.solver_iteration_time = Utilities::MPI::max(solve_result.second / num_iters, MPI_COMM_WORLD);
+	res.solver_iteration_time = res.solve_time / num_iters;
 
 	return res;
 }

@@ -75,6 +75,9 @@ public:
                                           number rel_tol,
                                           bool apply_preconditioner) override;
 
+    template <class Vector1_, class Vector2_>
+    void vmult(Vector1_& dest, const Vector2_& src);
+
 protected:
     AffineConstraints<number> constraints;
 
@@ -327,6 +330,13 @@ std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
     delete solver_control;
 
     return {res, solver_time};
+}
+
+template<unsigned int fe_degree, typename ADRSpec>
+template <class Vector1_, class Vector2_>
+void MatrixFreeADR<fe_degree, ADRSpec>::vmult(
+    Vector1_& dest, const Vector2_& src) {
+    system_matrix.vmult(dest, src);
 }
 
 #endif
