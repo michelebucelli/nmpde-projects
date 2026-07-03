@@ -70,3 +70,6 @@ if (likwid_FOUND)
   target_link_libraries(single-node likwid::likwid)
 endif()
 
+
+add_executable(unstructured mesh/unstructured.cpp)
+deal_ii_setup_target(unstructured)
