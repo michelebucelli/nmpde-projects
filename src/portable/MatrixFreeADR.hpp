@@ -56,13 +56,17 @@ public:
                                           number rel_tol,
                                           bool apply_preconditioner) override;
 
+    void output(const std::string &output_name,
+                const std::string &output_dir = "./");
+
     double compute_error(const VectorTools::NormType &norm_type,
                          const Function<dim> &exact_solution) const;
 
+    template <class Vector1_, class Vector2_>
+    void vmult(Vector1_& dest, const Vector2_& src);
+
 private:
     std::unique_ptr<ADROperator<fe_degree, ADRSpec>> system_matrix_dev;
-
-    AffineConstraints<number> constraints;
 
     IndexSet locally_owned_dofs;
     IndexSet locally_relevant_dofs;
@@ -93,8 +97,11 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup()
     locally_relevant_dofs =
         DoFTools::extract_locally_relevant_dofs(this->dof_handler);
 
-    constraints.clear();
-    constraints.reinit(locally_owned_dofs, locally_relevant_dofs);
+    this->constraints.clear();
+    this->constraints.reinit(locally_owned_dofs, locally_relevant_dofs);
+
+    DoFTools::make_hanging_node_constraints(this->dof_handler,
+                                            this->constraints);
 
     BoundaryFuncMap<Function<dim>> tmp_dirichlet_map;
     std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
@@ -106,12 +113,12 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup()
     VectorTools::interpolate_boundary_values(this->mapping,
                                              this->dof_handler,
                                              dirichlet_map,
-                                             constraints);
+                                             this->constraints);
 
-    constraints.close();
+    this->constraints.close();
 
     system_matrix_dev.reset(new ADROperator<fe_degree, ADRSpec>(
-        this->dof_handler, this->mapping, constraints));
+        this->dof_handler, this->mapping, this->constraints));
 
     //system_matrix_dev->template precompute_coefs<ForcingTerm>(dof_handler);
 
@@ -137,7 +144,7 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 #endif
 
     ghost_solution_host = 0;
-    constraints.distribute(ghost_solution_host);
+    this->constraints.distribute(ghost_solution_host);
     ghost_solution_host.update_ghost_values();
 
     // TODO: Can you avoid this transfer? I guess only if there's a way
@@ -164,7 +171,8 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 
     const QGauss<dim - 1> quadrature_face(fe_degree + 1);
 
-    FEFaceValues<dim> fe_face_values(this->fe,
+    FEFaceValues<dim> fe_face_values(this->mapping,
+                                     this->fe,
                                      quadrature_face,
                                      update_values | update_JxW_values |
                                      update_quadrature_points);
@@ -212,9 +220,9 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 
             cell->get_dof_indices(local_dof_indices);
             // TODO: We could avoid using constraints object, right?
-            constraints.distribute_local_to_global(cell_neumann_term,
-                                                   local_dof_indices,
-                                                   rhs_neumann_term);
+            this->constraints.distribute_local_to_global(cell_neumann_term,
+                                                         local_dof_indices,
+                                                         rhs_neumann_term);
         }
     }
 
@@ -282,7 +290,7 @@ std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
     rw_vector.import_elements(this->solution, VectorOperation::insert);
     ghost_solution_host.import_elements(rw_vector, VectorOperation::insert);
 
-    constraints.distribute(ghost_solution_host);
+    this->constraints.distribute(ghost_solution_host);
 
     ghost_solution_host.update_ghost_values();
 
@@ -299,6 +307,23 @@ std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
 }
 
 template<unsigned int fe_degree, typename ADRSpec>
+void MatrixFreeADR<fe_degree, ADRSpec>::
+    output(const std::string &output_name, const std::string &output_dir)
+{
+    DataOut<dim> data_out;
+
+    data_out.add_data_vector(
+        this->dof_handler, ghost_solution_host, "solution");
+
+    data_out.build_patches(this->mapping);
+
+    data_out.write_vtu_with_pvtu_record(output_dir,
+                                        output_name,
+                                        0,
+                                        MPI_COMM_WORLD);
+}
+
+template<unsigned int fe_degree, typename ADRSpec>
 double MatrixFreeADR<fe_degree, ADRSpec>::
     compute_error(const VectorTools::NormType &norm_type,
                   const Function<dim> &exact_solution) const
@@ -307,7 +332,7 @@ double MatrixFreeADR<fe_degree, ADRSpec>::
 
     // TODO: Check if you can use the base class compute_error()
     // which computes the error on this->solution instead of
-    // ghost_solution_host
+    // ghost_solution_host, same for output()
     VectorTools::integrate_difference(this->mapping,
                                       this->dof_handler,
                                       ghost_solution_host,

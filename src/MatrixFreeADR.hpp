@@ -79,8 +79,6 @@ public:
     void vmult(Vector1_& dest, const Vector2_& src);
 
 protected:
-    AffineConstraints<number> constraints;
-
     ADROperator<fe_degree, ADRSpec> system_matrix;
 
     DistributedVector<number> solution_update;
@@ -108,11 +106,13 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
         DoFTools::extract_locally_relevant_dofs(this->dof_handler);
 
 #if DEAL_II_VERSION_GTE(9, 6, 0)
-    constraints.reinit(this->dof_handler.locally_owned_dofs(),
-                       locally_relevant_dofs);
+    this->constraints.reinit(this->dof_handler.locally_owned_dofs(),
+                             locally_relevant_dofs);
 #else
-    constraints.reinit(locally_relevant_dofs);
+    this->constraints.reinit(locally_relevant_dofs);
 #endif
+
+    DoFTools::make_hanging_node_constraints(this->dof_handler, this->constraints);
 
     BoundaryFuncMap<Function<dim>> tmp_dirichlet_map;
     std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
@@ -122,9 +122,9 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
     }
 
     VectorTools::interpolate_boundary_values(
-        this->mapping, this->dof_handler, dirichlet_map, constraints);
+        this->mapping, this->dof_handler, dirichlet_map, this->constraints);
 
-    constraints.close();
+    this->constraints.close();
 
     system_matrix.clear();
 
@@ -142,7 +142,7 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
 
     if (dof_reorder) {
         DoFRenumbering::matrix_free_data_locality(
-            this->dof_handler, constraints, additional_data);
+            this->dof_handler, this->constraints, additional_data);
         // NOTE: compute_matrix_free_data_locality()
         // returns the reordered indices only, could be insightful
 
@@ -152,21 +152,23 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
         DoFTools::extract_locally_relevant_dofs(this->dof_handler);
 
 #if DEAL_II_VERSION_GTE(9, 6, 0)
-        constraints.reinit(this->dof_handler.locally_owned_dofs(),
-                           locally_relevant_dofs);
+        this->constraints.reinit(this->dof_handler.locally_owned_dofs(),
+                                 locally_relevant_dofs);
 #else
-        constraints.reinit(locally_relevant_dofs);
+        this->constraints.reinit(locally_relevant_dofs);
 #endif
-        VectorTools::interpolate_boundary_values(
-            this->mapping, this->dof_handler, dirichlet_map, constraints);
+        DoFTools::make_hanging_node_constraints(this->dof_handler, this->constraints);
 
-        constraints.close();
+        VectorTools::interpolate_boundary_values(
+            this->mapping, this->dof_handler, dirichlet_map, this->constraints);
+
+        this->constraints.close();
     }
 
     std::shared_ptr<MatrixFreeType> system_mf_storage(new MatrixFreeType());
     system_mf_storage->reinit(this->mapping,
                               this->dof_handler,
-                              constraints,
+                              this->constraints,
                               // dim=1 since basis functions are decomposed
                               // as tensor products of 1D functions
                               QGauss<1>(fe_degree + 1),
@@ -191,7 +193,7 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 #endif
 
     this->solution = 0;
-    constraints.distribute(this->solution);
+    this->constraints.distribute(this->solution);
     this->solution.update_ghost_values();
     this->system_rhs = 0;
 

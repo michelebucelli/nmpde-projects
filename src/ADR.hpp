@@ -13,6 +13,7 @@
 #include <deal.II/dofs/dof_handler.h>
 
 #include <deal.II/lac/vector.h>
+#include <deal.II/lac/affine_constraints.h>
 
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/vector_tools.h>
@@ -42,12 +43,15 @@ protected:
     // Alternatively, we could have a virtual get_fe_degree()
     const unsigned int fe_degree_;
 
+    // TODO: Do we need MappingQ on unstructured meshes?
     const MappingQ1<dim> mapping;
     const FE_Q<dim> fe;
 
     const parallel::distributed::Triangulation<dim> &mesh;
 
     DoFHandler<dim> dof_handler;
+
+    AffineConstraints<number> constraints;
 
     Vector_ solution;
 
@@ -71,6 +75,7 @@ public:
                          const Function<dim, number> &exact_solution) const;
 
     virtual ~ADR() = default;
+
     Vector_ system_rhs;
 };
 
@@ -80,6 +85,7 @@ ADR<ADRSpec, number, Vector_>::ADR(
     unsigned int fe_degree
 )
     : fe_degree_(fe_degree)
+  //, mapping(fe_degree) for MappingQ
     , fe(fe_degree)
     , mesh(mesh_)
     , dof_handler(mesh)

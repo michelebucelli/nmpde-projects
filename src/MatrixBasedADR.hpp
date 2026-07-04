@@ -82,15 +82,40 @@ void MatrixBasedADR<ADRSpec>::setup()
     this->dof_handler.distribute_dofs(this->fe);
     locally_owned_dofs = this->dof_handler.locally_owned_dofs();
 
+    IndexSet locally_relevant_dofs =
+        DoFTools::extract_locally_relevant_dofs(this->dof_handler);
+
+    this->constraints.clear();
+#if DEAL_II_VERSION_GTE(9, 6, 0)
+    this->constraints.reinit(locally_owned_dofs,
+                             locally_relevant_dofs);
+#else
+    this->constraints.reinit(locally_relevant_dofs);
+#endif
+
+    DoFTools::make_hanging_node_constraints(this->dof_handler,
+                                            this->constraints);
+
+    BoundaryFuncMap<Function<dim>> tmp_dirichlet_map;
+    std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
+    this->local_spec.fill_dirichlet_map(tmp_dirichlet_map);
+    for (const auto& [boundary_id, dirichlet_function] : tmp_dirichlet_map) {
+        dirichlet_map[boundary_id] = dirichlet_function.get();
+    }
+
+    VectorTools::interpolate_boundary_values(this->mapping,
+                                             this->dof_handler,
+                                             dirichlet_map,
+                                             this->constraints);
+    this->constraints.close();
+
     TrilinosWrappers::SparsityPattern sparsity(locally_owned_dofs,
                                                MPI_COMM_WORLD);
-    DoFTools::make_sparsity_pattern(this->dof_handler, sparsity);
+    DoFTools::make_sparsity_pattern(this->dof_handler, sparsity,
+                                    this->constraints);
     sparsity.compress();
 
     system_matrix.reinit(sparsity);
-
-    IndexSet locally_relevant_dofs =
-        DoFTools::extract_locally_relevant_dofs(this->dof_handler);
 
     this->solution.reinit(
         locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
@@ -105,12 +130,14 @@ void MatrixBasedADR<ADRSpec>::assemble()
     const QGauss<dim> quadrature(this->fe.degree + 1);
     const QGauss<dim-1> quadrature_face(this->fe.degree + 1);
 
-    FEValues<dim> fe_values(this->fe,
+    FEValues<dim> fe_values(this->mapping,
+                            this->fe,
                             quadrature,
                             update_values | update_gradients |
                             update_JxW_values | update_quadrature_points);
 
-    FEFaceValues<dim> fe_face_values(this->fe,
+    FEFaceValues<dim> fe_face_values(this->mapping,
+                                     this->fe,
                                      quadrature_face,
                                      update_values | update_JxW_values |
                                      update_quadrature_points);
@@ -192,30 +219,18 @@ void MatrixBasedADR<ADRSpec>::assemble()
         }
 
         cell->get_dof_indices(local_dof_indices);
-        system_matrix.add(local_dof_indices, cell_matrix);
-        this->system_rhs.add(local_dof_indices, cell_rhs);
+        this->constraints.distribute_local_to_global(cell_matrix,
+                                                     cell_rhs,
+                                                     local_dof_indices,
+                                                     system_matrix,
+                                                     this->system_rhs);
     }
 
     system_matrix.compress(VectorOperation::add);
     this->system_rhs.compress(VectorOperation::add);
 
-    std::map<types::global_dof_index, number> boundary_values;
-
-    BoundaryFuncMap<Function<dim>> tmp_dirichlet_map;
-    std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
-    this->local_spec.fill_dirichlet_map(tmp_dirichlet_map);
-    for (const auto& [boundary_id, dirichlet_function] : tmp_dirichlet_map) {
-        dirichlet_map[boundary_id] = dirichlet_function.get();
-    }
-
-    VectorTools::interpolate_boundary_values(this->dof_handler,
-                                             dirichlet_map,
-                                             boundary_values);
-
-    MatrixTools::apply_boundary_values(boundary_values,
-                                       system_matrix,
-                                       solution_owned,
-                                       this->system_rhs);
+    solution_owned = 0;
+    this->constraints.distribute(solution_owned);
 }
 
 template<typename ADRSpec>
@@ -258,6 +273,7 @@ std::pair<unsigned int, double> MatrixBasedADR<ADRSpec>::solve(
         solver_time = run_solve(preconditioner);
     }
 
+    this->constraints.distribute(solution_owned);
     this->solution = solution_owned;
 
     const auto res = solver_control->last_step();
