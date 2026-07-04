@@ -150,7 +150,7 @@ struct RunTimers {
 
 template <typename ADRSolver>
 RunTimers run_benchmark(ADRSolver &adr_solver,
-                        unsigned int num_iters) {
+                        unsigned int& num_iters) {
 	RunTimers res;
 	Timer timer;
 
@@ -176,6 +176,16 @@ RunTimers run_benchmark(ADRSolver &adr_solver,
 	adr_solver.system_rhs.add(69.420);
 
 	MPI_Barrier(MPI_COMM_WORLD);
+
+	timer.restart();
+	adr_solver.vmult(destination, adr_solver.system_rhs);
+	timer.stop();
+	const auto single_iter_time = timer.wall_time();
+	const auto measurement_time_goal = 1.0;
+	const auto estimated_iters = measurement_time_goal / single_iter_time;
+
+	num_iters = (estimated_iters > 10 ? estimated_iters : 10);
+
 
 	LIKWID_MARKER_INIT;
 	LIKWID_MARKER_THREADINIT;
