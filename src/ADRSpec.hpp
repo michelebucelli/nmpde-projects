@@ -43,10 +43,10 @@ struct NeumannFunction
     virtual ~NeumannFunction() = default;
 };
 
-template <int dim_, typename Scalar, typename Tensor, typename Point>
+template <unsigned int dim_, typename Scalar, typename Tensor, typename Point>
 struct ADRSpec
 {
-    static constexpr int dim = dim_;
+    static constexpr unsigned int dim = dim_;
 
     using ScalarType = Scalar;
     using TensorType = Tensor;

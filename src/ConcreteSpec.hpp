@@ -43,7 +43,7 @@ struct NeumannBC : public NeumannFunction<Scalar, Point>
     }
 };
 
-template<int dim, typename Scalar, typename Tensor, typename Point>
+template<unsigned int dim, typename Scalar, typename Tensor, typename Point>
 struct ConcreteSpec : public ADRSpec<dim, Scalar, Tensor, Point>
 {
     DEAL_II_HOST_DEVICE ConcreteSpec() {}

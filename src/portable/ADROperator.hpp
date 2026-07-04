@@ -186,7 +186,7 @@ LocalRhsEvaluator<fe_degree, ADRSpec>::operator()(
 template<unsigned int fe_degree, typename ADRSpec>
 class ADROperator : public EnableObserverPointer
 {
-    static constexpr int dim = ADRSpec::dim;
+    static constexpr unsigned int dim = ADRSpec::dim;
     using number = typename ADRSpec::ScalarType;
 
 public:

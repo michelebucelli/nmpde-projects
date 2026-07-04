@@ -16,9 +16,9 @@ class ADRFactory
 {
 public:
 #ifndef BUILD_WITH_KOKKOS
-    template<int dim,
+    template<unsigned int dim,
              typename number,
-             template <int dim_,
+             template <unsigned int dim_,
                    typename Scalar_,
                    typename Tensor_,
                    typename Point_> typename ADRSpec>
@@ -38,10 +38,10 @@ public:
     }
 #endif
 
-    template<int dim,
+    template<unsigned int dim,
              unsigned int fe_degree,
              typename number,
-             template <int dim_,
+             template <unsigned int dim_,
                        typename Scalar_,
                        typename Tensor_,
                        typename Point_> typename ADRSpec,

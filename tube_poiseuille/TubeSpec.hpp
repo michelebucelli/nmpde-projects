@@ -14,7 +14,7 @@ constexpr unsigned int dim = 3;
 
 // Provide default template arguments to allow querying
 // TubeSpec<>::tube_radius
-template<int dim = 3,
+template<unsigned int dim = 3,
          typename Scalar = double,
          typename Tensor = dealii::Tensor<1, dim>,
          typename Point = Point<dim>>
