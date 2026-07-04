@@ -73,3 +73,8 @@ endif()
 
 add_executable(unstructured mesh/unstructured.cpp)
 deal_ii_setup_target(unstructured)
+
+add_executable(tube_poiseuille tube_poiseuille/experiment.cpp)
+target_include_directories(tube_poiseuille PRIVATE "src/")
+target_link_libraries(tube_poiseuille)
+deal_ii_setup_target(tube_poiseuille)
