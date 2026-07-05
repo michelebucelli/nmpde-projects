@@ -538,6 +538,8 @@ def main():
                         ]
                     else:
                         cmd = [
+                            "taskset",
+                            "-c", ",".join(map(str, range(t_val))),
                             binary_path,
                             str(n_val),
                             str(deg_val),
@@ -609,8 +611,7 @@ def main():
                 out_file.flush()
 
     # Print the clean accumulated CSV results to stdout at the very end
-    if args.pretty:
-        if not args.slurm:
+    if args.pretty and not args.slurm:
             headers = header.split(",")
             rows = [row.split(",") for row in results_cache]
         
@@ -626,13 +627,13 @@ def main():
             print("-+-".join("-" * w for w in col_widths), flush=True)
             for row in rows:
                 print(fmt.format(*row), flush=True)
-        else:
-            print(header, flush=True)
-            for row in results_cache:
-                print(row, flush=True)
+    else:
+        print(header, flush=True)
+        for row in results_cache:
+            print(row, flush=True)
 
-        if out_file:
-            out_file.close()
+    if out_file:
+        out_file.close()
 
 if __name__ == "__main__":
     main()

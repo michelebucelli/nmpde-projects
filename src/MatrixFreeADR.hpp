@@ -5,6 +5,7 @@
 #include <deal.II/base/config.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/quadrature_lib.h>
+#include <deal.II/base/multithread_info.h>
 
 #include <deal.II/distributed/tria.h>
 
@@ -129,10 +130,12 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
     system_matrix.clear();
 
     typename MatrixFreeType::AdditionalData additional_data;
-    additional_data.tasks_parallel_scheme =
         // WARNING: This should be set to none if MPI is used
         // to parallelize also WITHIN each node
-        MatrixFreeType::AdditionalData::partition_partition;
+    additional_data.tasks_parallel_scheme =
+        (MultithreadInfo::n_threads() > 1) ?
+        MatrixFreeType::AdditionalData::partition_partition :
+        MatrixFreeType::AdditionalData::none;
     // Specifies what should be computed (and cached) on cells
     additional_data.mapping_update_flags =
         (update_values | update_gradients | update_JxW_values |
