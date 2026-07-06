@@ -22,7 +22,13 @@ struct TubeSpec : public ADRSpec<dim, Scalar, Tensor, Point>
 {
     static constexpr double tube_radius = 1.0;
     static constexpr double max_flow_velocity = 1.0;
-    static constexpr double peclet = 1.0;
+    static constexpr double peclet = 200.0;
+    static constexpr double damkohler = 0.5;
+
+    double photoreactor_starting_point = 0.0;
+    double photoreactor_window = 2.0;
+    double window_bound_sharpness = 20.0;
+    double photoreaction_coefficient = (damkohler * max_flow_velocity) / photoreactor_window;
 
     class ParabolicDistributionInlet : public Function<dim>
     {
@@ -58,7 +64,10 @@ struct TubeSpec : public ADRSpec<dim, Scalar, Tensor, Point>
 
     DEAL_II_HOST_DEVICE Scalar reaction(const Point &p) const override
     {
-        return 0.0;
+        Scalar window = 0.5 * (std::tanh(window_bound_sharpness * (p[0] - photoreactor_starting_point)) -
+                               std::tanh(window_bound_sharpness * (p[0] - photoreactor_starting_point - photoreactor_window)));
+
+        return 0.0;// photoreaction_coefficient * window;
     }
 
     DEAL_II_HOST_DEVICE Scalar forcing(const Point &p) const override
@@ -76,7 +85,7 @@ struct TubeSpec : public ADRSpec<dim, Scalar, Tensor, Point>
     void fill_neumann_map(BoundaryFuncMap<NeumannFunction<Scalar, Point>>
                           &function_map) const override
     {
-        // Zero neumann on other boundary
+        // Homogeneous Neumann on outlet
     }
 };
 
