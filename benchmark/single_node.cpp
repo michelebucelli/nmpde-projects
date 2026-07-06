@@ -42,6 +42,7 @@
 #include <iostream>
 #include <fstream>
 #include <optional>
+#include <cmath>
 
 #include "ADRFactory.hpp"
 #include "ConcreteSpec.hpp"
@@ -182,7 +183,9 @@ RunTimers run_benchmark(ADRSolver &adr_solver,
 	timer.stop();
 	const auto single_iter_time = timer.wall_time();
 	const auto measurement_time_goal = 1.0;
-	const auto estimated_iters = measurement_time_goal / single_iter_time;
+	const int estimated_iters = static_cast<int>(
+		std::round(measurement_time_goal / single_iter_time)
+	);
 
 	num_iters = (estimated_iters > 10 ? estimated_iters : 10);
 
