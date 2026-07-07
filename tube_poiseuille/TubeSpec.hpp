@@ -5,6 +5,7 @@
 #include <deal.II/base/function.h>
 
 #include <memory>
+#include <cmath>
 
 #include "ADRSpec.hpp"
 
@@ -57,20 +58,20 @@ struct TubeSpec : public ADRSpec<dim, Scalar, Tensor, Point>
         return res;
     }
 
-    DEAL_II_HOST_DEVICE Scalar diffusion(const Point &p) const override
+    DEAL_II_HOST_DEVICE Scalar diffusion(const Point &/*p*/) const override
     {
         return 2.0 * tube_radius * max_flow_velocity / peclet;
     }
 
-    DEAL_II_HOST_DEVICE Scalar reaction(const Point &p) const override
+    DEAL_II_HOST_DEVICE Scalar reaction(const Point &/*p*/) const override
     {
-        Scalar window = 0.5 * (std::tanh(window_bound_sharpness * (p[0] - photoreactor_starting_point)) -
-                               std::tanh(window_bound_sharpness * (p[0] - photoreactor_starting_point - photoreactor_window)));
+        // Scalar window = 0.5 * (std::tanh(window_bound_sharpness * (p[0] - photoreactor_starting_point)) -
+        //                        std::tanh(window_bound_sharpness * (p[0] - photoreactor_starting_point - photoreactor_window)));
 
         return 0.0;// photoreaction_coefficient * window;
     }
 
-    DEAL_II_HOST_DEVICE Scalar forcing(const Point &p) const override
+    DEAL_II_HOST_DEVICE Scalar forcing(const Point &/*p*/) const override
     {
         return 0.0;
     }
@@ -83,7 +84,7 @@ struct TubeSpec : public ADRSpec<dim, Scalar, Tensor, Point>
     }
 
     void fill_neumann_map(BoundaryFuncMap<NeumannFunction<Scalar, Point>>
-                          &function_map) const override
+                          & /*function_map*/) const override
     {
         // Homogeneous Neumann on outlet
     }

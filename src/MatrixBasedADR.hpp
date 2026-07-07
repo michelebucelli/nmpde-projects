@@ -268,8 +268,9 @@ std::pair<unsigned int, double> MatrixBasedADR<ADRSpec>::solve(
     if (not apply_preconditioner) {
         solver_time = run_solve(TrilinosWrappers::PreconditionIdentity());
     } else {
-        TrilinosWrappers::PreconditionJacobi preconditioner;
-        preconditioner.initialize(system_matrix, 1.0);
+        TrilinosWrappers::PreconditionILU::AdditionalData ilu_data(1);
+        TrilinosWrappers::PreconditionILU preconditioner;
+        preconditioner.initialize(system_matrix, ilu_data);
         solver_time = run_solve(preconditioner);
     }
 

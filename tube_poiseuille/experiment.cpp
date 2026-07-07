@@ -114,7 +114,7 @@ parse_arguments(int argc, char* argv[]) {
 		std::cerr << "Error when parsing number of iterations\n";
 		return std::nullopt;
 	}
-	if (num_iters_parsed <= 0) {
+	if (num_iters_parsed < 0) {
 		std::cerr << "Number of iterations must be positive\n";
 		return std::nullopt;
 	}
@@ -148,9 +148,17 @@ RunTimers run_benchmark(ADRSolver &adr_solver,
 	timer.stop();
 	res.assemble_time = timer.wall_time();
 
-	timer.restart();
-	adr_solver.solve(num_iters, 0.0, false);
-	timer.stop();
+	if (num_iters != 0) {
+		timer.restart();
+		adr_solver.solve(num_iters, 0.0, false);
+		timer.stop();
+	} else {
+		timer.restart();
+		const auto [niters, _] = adr_solver.solve(1000, 1e-6, true);
+		timer.stop();
+
+		num_iters = niters;
+	}
 
 	res.solve_time = timer.wall_time();
 	res.solver_iteration_time = res.solve_time / num_iters;
