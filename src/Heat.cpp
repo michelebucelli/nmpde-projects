@@ -44,34 +44,6 @@ void Heat::setup_system() {
   solution.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
 }
 
-void Heat::setup_system() {
-
-  if (!fe) {
-    fe = std::make_unique<FE_SimplexP<dim>>(r);
-    quadrature = std::make_unique<QGaussSimplex<dim>>(r + 1);
-    dof_handler.reinit(mesh); 
-  }
-
-  
-  dof_handler.distribute_dofs(*fe);
-
-  const IndexSet locally_owned_dofs = dof_handler.locally_owned_dofs();
-  const IndexSet locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
-
-  // Ricostruzione dello sparsity pattern
-  TrilinosWrappers::SparsityPattern sparsity(locally_owned_dofs, MPI_COMM_WORLD);
-  DoFTools::make_sparsity_pattern(dof_handler, sparsity);
-  sparsity.compress();
-
-  // Re-inizializzazione di matrice e vettori
-  system_matrix.reinit(sparsity);
-  system_rhs.reinit(locally_owned_dofs, MPI_COMM_WORLD);
-  solution_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
-  solution_owned_old.reinit(locally_owned_dofs, MPI_COMM_WORLD);
-  solution.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
-}
-
-
 void
 Heat::assemble()
 {
@@ -125,6 +97,7 @@ Heat::assemble()
           const double f_old_loc = f(fe_values.quadrature_point(q), time);
           const double f_new_loc = f(fe_values.quadrature_point(q), time + delta_t);
 
+
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
@@ -164,6 +137,8 @@ Heat::assemble()
                 fe_values.JxW(q);
             }
         }
+
+
         
       cell->get_dof_indices(dof_indices);
 
@@ -188,10 +163,7 @@ Heat::solve_linear_system()
   ReductionControl solver_control(/* maxiter = */ 10000,
                                   /* tolerance = */ 1.0e-12,
                                   /* reduce = */ 1.0e-6);
-                                  // /* reduce = */ 1.0e-12);
 
-  // Sostituiamo SolverCG con SolverGMRES
-  // GMRES gestisce matrici non simmetriche generate dal termine b * grad(u)
   SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
 
   solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
@@ -233,10 +205,6 @@ void Heat::refine_mesh() {
   
   solution_owned = interpolated_sol;
   solution = solution_owned;
-
-  // std::cout << "Active cells: "
-  //         << mesh.n_active_cells()
-  //         << std::endl;
 }
 
 
@@ -310,7 +278,6 @@ void Heat::run() {
     output();
   }
 }
-
 
 double
 Heat::compute_error(const VectorTools::NormType &norm_type,

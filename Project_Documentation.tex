@@ -1,0 +1,415 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf-8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{float}
+
+\lstset{
+    language=bash,
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!10},
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\thepage}
+\lhead{NMPDE Projects: CI/CD and Testing Infrastructure}
+
+\title{\textbf{NMPDE Projects: Comprehensive Testing and CI/CD Documentation}}
+\author{Advanced Methods for Scientific Computing}
+\date{February 2026}
+
+\begin{document}
+
+\maketitle
+
+\section*{Abstract}
+This document provides a comprehensive overview of the testing and continuous integration infrastructure developed for the NMPDE space-time adaptivity project. It covers the automated verification pipeline, scalability testing framework, model validation mechanisms, and Azure cloud deployment architecture. The documentation serves as a reference guide for developers and stakeholders involved in the project.
+
+\newpage
+\tableofcontents
+
+\newpage
+
+\section{Introduction and Project Overview}
+
+\subsection{Project Scope}
+The NMPDE (Numerical Methods for Partial Differential Equations) projects repository implements advanced numerical algorithms for solving partial differential equations, with a specific focus on space-time adaptivity techniques. The primary deliverable is the `space-time-adaptivity` executable, built using the \textit{deal.II} finite element library and implemented in C++.
+
+\subsection{Key Components}
+The project structure includes:
+\begin{itemize}
+    \item \textbf{Source Code} (\texttt{src/}): Core implementation in C++, including the Heat equation solver and manufactured solution tests
+    \item \textbf{Mesh Files} (\texttt{mesh/}): Gmsh-generated mesh files for various refinement levels
+    \item \textbf{Build System}: CMake-based configuration using deal.II's integration
+    \item \textbf{Testing Infrastructure} (\texttt{scripts/}): Bash and Python utilities for verification, validation, and performance analysis
+    \item \textbf{CI/CD Pipelines} (\texttt{.github/workflows/}): GitHub Actions workflows for continuous integration
+    \item \textbf{Infrastructure as Code} (\texttt{terraform/}): Terraform configurations for Azure cloud provisioning
+\end{itemize}
+
+\subsection{Technology Stack}
+\begin{itemize}
+    \item \textbf{Language}: C++17 with deal.II library
+    \item \textbf{Build System}: CMake (\geq 3.12)
+    \item \textbf{Container Platform}: Docker (quay.io/pjbaioni/amsc\_mk:2025)
+    \item \textbf{CI/CD}: GitHub Actions
+    \item \textbf{Cloud Infrastructure}: Microsoft Azure with Terraform
+    \item \textbf{Testing Framework}: CTest (integrated with CMake)
+    \item \textbf{Validation}: Python 3 with pyvista for VTU/PVTu mesh analysis
+\end{itemize}
+
+\newpage
+
+\section{Testing Infrastructure Overview}
+
+\subsection{Testing Philosophy}
+The project employs a multi-tiered testing approach:
+\begin{enumerate}
+    \item \textbf{Unit Tests}: CTest-based tests defined in \texttt{CMakeLists.txt}
+    \item \textbf{Verification Tests}: Automated validation of compilation, execution, and correctness
+    \item \textbf{Model Validation Tests}: Computation-intensive tests verifying physical conservation laws
+    \item \textbf{Scalability Tests}: Performance benchmarking across varying thread counts
+    \item \textbf{Artifact Generation}: Automated production of visualization-ready output files (VTU/PVTu format)
+\end{enumerate}
+
+\subsection{Build Configuration}
+The project uses a standard CMake workflow:
+
+\begin{lstlisting}
+cmake_minimum_required(VERSION 3.12.0)
+project(space-time-adaptivity LANGUAGES CXX C)
+include(common/cmake-common.cmake)
+
+add_executable(space-time-adaptivity src/space-time-adaptivity.cpp src/Heat.cpp)
+deal_ii_setup_target(space-time-adaptivity)
+
+enable_testing()
+add_test(NAME space-time-adaptivity COMMAND space-time-adaptivity)
+add_test(NAME model_validation COMMAND space-time-adaptivity)
+\end{lstlisting}
+
+Key CMake options:
+\begin{itemize}
+    \item \texttt{CMAKE\_BUILD\_TYPE=Release}: Optimized compilation for performance
+    \item \texttt{DDEAL\_II\_ALLOW\_TESTS=ON}: Enable deal.II test support
+\end{itemize}
+
+\subsection{Local Testing Execution}
+
+\subsubsection{Verification Testing}
+The verification script configures, builds, and runs all registered tests:
+
+\begin{lstlisting}
+#!/bin/bash
+./scripts/run_verification.sh [build_dir]
+\end{lstlisting}
+
+This script:
+\begin{enumerate}
+    \item Configures the project with Release optimization
+    \item Builds all targets in parallel
+    \item Executes CTest with parallel execution on $(nproc)-1 cores
+    \item Reports test results with full failure diagnostics
+\end{enumerate}
+
+\subsubsection{Model Validation Testing}
+The model validation harness provides sophisticated verification capabilities:
+
+\begin{lstlisting}
+TEST_CMD='./build/bin/project5_generate_results > model_results.csv' \
+  RESULTS_FILE=model_results.csv TOL=1e-6 \
+  PY_VALIDATOR=scripts/validate_model.py \
+  ./scripts/run_model_validation.sh build
+\end{lstlisting}
+
+Environment variables for customization:
+\begin{itemize}
+    \item \texttt{VENV\_DIR}: Python virtual environment location (default: \texttt{venv})
+    \item \texttt{BUILD\_DIR}: Build directory containing executables
+    \item \texttt{RESULTS\_FILE}: Output file containing numerical results
+    \item \texttt{TEST\_CMD}: Custom command to generate results
+    \item \texttt{PY\_VALIDATOR}: Path to Python validation script
+    \item \texttt{TOL}: Relative error tolerance for validation (default: \texttt{1e-6})
+\end{itemize}
+
+\subsubsection{Scalability Testing}
+Thread-based scalability analysis with timing measurements:
+
+\begin{lstlisting}
+TEST_EXEC=build/space-time-adaptivity ./scripts/run_scalability.sh build
+\end{lstlisting}
+
+Output format (CSV):
+\begin{lstlisting}
+threads,seconds,cmd
+1,45.32,build/space-time-adaptivity --threads=1
+2,23.18,build/space-time-adaptivity --threads=2
+4,12.45,build/space-time-adaptivity --threads=4
+8,7.33,build/space-time-adaptivity --threads=8
+16,4.92,build/space-time-adaptivity --threads=16
+\end{lstlisting}
+
+\newpage
+
+\section{GitHub Actions CI/CD Pipeline}
+
+\subsection{Architecture Overview}
+The GitHub Actions infrastructure consists of two coordinated workflows:
+\begin{itemize}
+    \item \textbf{Verification CI}: Automatic on every push and pull request
+    \item \textbf{Scalability Tests}: Manual dispatch workflow with optional executable parameter
+\end{itemize}
+
+Both workflows execute within the standardized Docker container \texttt{quay.io/pjbaioni/amsc\_mk:2025}, ensuring reproducibility across deployment environments.
+
+\subsection{Verification Workflow}
+
+The verification workflow (\texttt{.github/workflows/verification.yml}) implements a two-stage pipeline:
+
+\subsubsection{Stage 1: Build and Test}
+\begin{itemize}
+    \item \textbf{Environment}: Ubuntu latest with containerized deal.II dependencies
+    \item \textbf{Modules}: Loads \texttt{gcc-glibc} and \texttt{dealii} via environment modules
+    \item \textbf{Build}: Parallel CMake configuration and compilation
+    \item \textbf{Testing}: Executes CTest with parallel execution strategy
+    \item \textbf{Artifacts}: Uploads entire build directory for downstream model validation
+\end{itemize}
+
+\subsubsection{Stage 2: Model Validation}
+\begin{itemize}
+    \item \textbf{Dependency}: Requires successful build-and-test completion
+    \item \textbf{Environment}: Isolated job with download of build artifacts
+    \item \textbf{Execution}: Runs \texttt{scripts/run\_model\_validation.sh}
+    \item \textbf{Validation}: Executes Python-based model correctness verification
+\end{itemize}
+
+Key Features:
+\begin{itemize}
+    \item Automatic triggering on push and pull requests
+    \item Parallel build optimization ($(nproc)-1 threads)
+    \item Artifact retention for cross-job communication
+    \item Comprehensive failure diagnostics with full output
+\end{itemize}
+
+\subsection{Scalability Workflow}
+
+The scalability workflow (\texttt{.github/workflows/scalability.yml}) provides configuration flexibility:
+
+\begin{itemize}
+    \item \textbf{Trigger}: Manual dispatch (\texttt{workflow\_dispatch})
+    \item \textbf{Input Parameter}: \texttt{test\_executable} (default: \texttt{build/space-time-adaptivity})
+    \item \textbf{Build Step}: Clean rebuild of project in Release mode
+    \item \textbf{Execution}: Runs \texttt{scripts/run\_scalability.sh} with provided executable
+    \item \textbf{Output}: Generates \texttt{scalability\_results.csv}
+\end{itemize}
+
+Workflow dispatch allows flexibility such as:
+\begin{lstlisting}
+# Run with custom benchmark executable
+TEST_EXEC=build/custom-benchmark ./scripts/run_scalability.sh build
+
+# Or default to ctest scalability tests
+./scripts/run_scalability.sh build
+\end{lstlisting}
+
+\newpage
+
+\section{Model Validation Framework}
+
+\subsection{Validation Architecture}
+The model validation system provides sophisticated verification for numerical solutions through multiple analysis pathways:
+
+\subsubsection{Input Format Support}
+\begin{enumerate}
+    \item \textbf{CSV Numeric Files}: Direct numerical result files
+    \item \textbf{VTU Files}: Individual time-step visualization files from deal.II's DataOut
+    \item \textbf{PVTu Files}: Master parallel visualization files (typically used for analysis)
+\end{enumerate}
+
+\subsubsection{Analysis Methodology}
+For VTU/PVTu format outputs, the validator:
+\begin{enumerate}
+    \item Reads mesh data using PyVista library
+    \item Extracts the \texttt{solution} field from point or cell data
+    \item Computes volume-weighted mean (mass integral)
+    \item Compares against known reference value
+    \item Reports relative error and pass/fail status
+\end{enumerate}
+
+\subsection{Validation Script Implementation}
+
+The Python validator (\texttt{scripts/validate\_model.py}) provides multiple validation strategies:
+
+\begin{lstlisting}[language=python]
+def compute_mean_from_vtu(path: Path):
+    """Computes the mean of the 'solution' data from VTU/PVTu."""
+    import pyvista as pv
+    mesh = pv.read(str(path))
+    
+    if 'solution' in mesh.point_data:
+        return float(np.mean(mesh.point_data['solution']))
+    if 'solution' in mesh.cell_data:
+        return float(np.mean(mesh.cell_data['solution']))
+    
+    # Fallback to first available data array
+    if mesh.point_data:
+        key = list(mesh.point_data.keys())[0]
+        return float(mesh.point_data[key][0])
+    raise ValueError('No suitable data arrays found')
+\end{lstlisting}
+
+\subsection{Physical Conservation Properties}
+The default validation target assumes the \texttt{FunctionU0} initial condition over the unit domain $[0,1]^3$. The expected volume-weighted mean is:
+
+\[
+\text{Expected Mass} = \int_{\Omega} u_0(x) \, dx = \frac{1}{216}
+\]
+
+The numerical scheme with homogeneous Neumann boundary conditions should conserve this quantity. Validation succeeds when:
+
+\[
+\left|\frac{\text{Computed Mean} - \frac{1}{216}}{\frac{1}{216}}\right| < \text{TOL}
+\]
+
+where TOL is configurable (default: $10^{-6}$).
+
+\newpage
+
+\section{Azure Cloud Infrastructure and Deployment}
+
+\subsection{Infrastructure Overview}
+The Azure infrastructure provides scalable cloud resources for distributed testing and performance monitoring. Terraform manages all provisioned resources, ensuring reproducibility and version control.
+
+\subsection{Resource Architecture}
+
+\subsubsection{Resource Group}
+\textbf{Name}: \texttt{nmpde-projects-rg}
+\begin{itemize}
+    \item Central container for all resources
+    \item Ensures logical grouping and lifecycle management
+    \item Supports role-based access control (RBAC)
+\end{itemize}
+
+\subsubsection{Container Registry (ACR)}
+\textbf{Name}: \texttt{nmpdeprojectsacr}
+\begin{itemize}
+    \item Tier: Basic (suitable for development/testing)
+    \item Admin access enabled for GitHub Actions authentication
+    \item Mirrors container images (e.g., quay.io/pjbaioni/amsc\_mk:2025)
+    \item Integration point between GitHub Actions and Azure deployment
+\end{itemize}
+
+\subsubsection{Storage Account}
+\textbf{Name}: \texttt{nmpdeprojectsstorage}
+\begin{itemize}
+    \item Tier: Standard with Local Redundancy (LRS)
+    \item Blob containers for organizational separation:
+    \begin{enumerate}
+        \item \texttt{performance-reports}: JSON and CSV test outputs
+        \item \texttt{build-artifacts}: Compiled binaries and libraries
+        \item \texttt{test-results}: CTest and benchmark results
+    \end{enumerate}
+    \item Access: Private (requires authentication)
+\end{itemize}
+
+\subsubsection{Log Analytics Workspace}
+\textbf{Configuration}: PerGB2018 pricing tier
+\begin{itemize}
+    \item Centralizes monitoring and diagnostic data
+    \item Enables performance analysis and troubleshooting
+    \item Integrates with Azure Monitor for alerting
+\end{itemize}
+
+\subsection{Infrastructure as Code (Terraform)}
+
+\subsubsection{Provider Configuration}
+\begin{lstlisting}
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+  }
+}
+provider "azurerm" {
+  features {}
+  subscription_id = var.subscription_id
+}
+\end{lstlisting}
+
+\subsubsection{Deployment Process}
+\begin{enumerate}
+    \item \textbf{Initialization}: \texttt{terraform init} (downloads providers)
+    \item \textbf{Planning}: \texttt{terraform plan} (previews changes)
+    \item \textbf{Application}: \texttt{terraform apply} (provisions resources)
+    \item \textbf{Cleanup}: \texttt{terraform destroy} (removes resources)
+\end{enumerate}
+
+\subsubsection{Variable Configuration}
+Key Terraform variables:
+\begin{itemize}
+    \item \texttt{subscription\_id}: Azure subscription identifier
+    \item \texttt{resource\_group\_name}: Logical container name
+    \item \texttt{location}: Azure region (e.g., eastus)
+    \item \texttt{acr\_name}: Container registry identifier
+    \item \texttt{storage\_account\_name}: Storage account identifier
+\end{itemize}
+
+\subsection{GitHub Actions Integration}
+
+\subsubsection{Service Principal Setup}
+Azure resources require GitHub Actions to authenticate. Setup process:
+
+\begin{lstlisting}
+# Create service principal with Contributor role
+az ad sp create-for-rbac \
+  --name "github-actions-nmpde" \
+  --role contributor \
+  --scopes /subscriptions/5d7fbbd4-db18-4472-915d-de671cc0f22a \
+  --sdk-auth
+\end{lstlisting}
+
+Output JSON contains credentials stored as GitHub secret \texttt{AZURE\_CREDENTIALS}.
+
+\subsubsection{Secrets Configuration}
+Repository secrets required:
+\begin{itemize}
+    \item \texttt{AZURE\_CREDENTIALS}: Service principal authentication JSON
+    \item \texttt{AZURE\_SUBSCRIPTION\_ID}: Subscription identifier
+    \item \texttt{AZURE\_RESOURCE\_GROUP}: Resource group name
+\end{itemize}
+
+\subsection{Performance Monitoring and Reporting}
+
+The performance testing script (\texttt{scripts/run\_performance\_tests.sh}) collects comprehensive system metrics:
+
+\subsubsection{Collected Metrics}
+\begin{itemize}
+    \item \textbf{CPU Information}: Core count, architecture, flags (from \texttt{lscpu})
+    \item \textbf{Memory}: Total, available, and used capacity (from \texttt{free})
+    \item \textbf{Disk}: Storage capacity and utilization (from \texttt{df})
+    \item \textbf{Process Limits}: Maximum processes and memory constraints (from \texttt{ulimit})
+    \item \textbf{Timing Data}: Execution duration and throughput metrics
+\end{itemize}
+
+\subsubsection{Output Format}
+Reports are generated in two formats:
+\begin{enumerate}
+    \item \textbf{JSON Report} (\texttt{performance\_YYYYMMDD\_HHMMSS.json}): Structured data for automated processing
+    \item \textbf{Text Report} (\texttt{system\_metrics\_YYYYMMDD\_HHMMSS.txt}): Human-readable system information
+\end{enumerate}
+
+Reports are timestamped to enable historical trend analysis and performance regression detection.
+
+\end{document}

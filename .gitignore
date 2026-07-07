@@ -36,3 +36,11 @@
 */build/*
 build/
 docs/Adaptive finite elements for a linear parabolic problem.pdf
+bin
+venv
+.DS_Store
+docs/ci_README.md
+docs/teoria.md
+scripts/make_run.sh
+src/exact-solution-test.cpp
+lab-04
