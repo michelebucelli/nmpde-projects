@@ -1,0 +1,309 @@
+name: Azure MPI Performance Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      mpi_processes:
+        description: 'Number of MPI processes'
+        default: '4'
+      test_type:
+        description: 'Test type'
+        type: choice
+        options:
+          - convergence
+          - scalability
+          - full
+        default: 'convergence'
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  AZURE_RESOURCE_GROUP: nmpde-projects-rg
+  AZURE_LOCATION: italynorth
+  CONTAINER_IMAGE: quay.io/pjbaioni/amsc_mk:2025
+  ACR_NAME: nmpdeprojectsacr
+  STORAGE_ACCOUNT: nmpdeprojectsstorage
+
+jobs:
+  infrastructure:
+    name: Provision Azure Infrastructure
+    runs-on: ubuntu-latest
+    outputs:
+      acr_login_server: ${{ steps.terraform.outputs.acr_login_server }}
+      storage_account: ${{ steps.terraform.outputs.storage_account_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init
+
+      - name: Terraform Plan
+        run: |
+          cd terraform
+          terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: |
+          cd terraform
+          terraform apply -auto-approve tfplan
+
+      - name: Get Terraform Outputs
+        id: terraform
+        run: |
+          cd terraform
+          echo "acr_login_server=$(terraform output -raw acr_login_server)" >> $GITHUB_OUTPUT
+          echo "storage_account_name=$(terraform output -raw storage_account_name)" >> $GITHUB_OUTPUT
+
+  mirror-container:
+    name: Mirror Container to ACR
+    needs: infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to ACR
+        run: |
+          az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Import container from quay.io
+        run: |
+          az acr import \
+            --name ${{ env.ACR_NAME }} \
+            --source ${{ env.CONTAINER_IMAGE }} \
+            --image amsc_mk:2025 \
+            --force
+
+  build-and-test:
+    name: Build and Test on Azure
+    needs: [infrastructure, mirror-container]
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pjbaioni/amsc_mk:2025
+      options: --user root
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build project
+        shell: bash
+        run: |
+          source /u/sw/etc/profile.d/mk.sh
+          module load gcc-glibc dealii
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDEAL_II_ALLOW_TESTS=ON
+          cmake --build build --parallel
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          source /u/sw/etc/profile.d/mk.sh
+          module load gcc-glibc dealii
+          cd build
+          ctest --output-on-failure --parallel $(nproc)
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            build/space-time-adaptivity
+            build/*.csv
+            build/*.vtu
+            build/*.pvtu
+
+  mpi-performance:
+    name: MPI Performance Tests
+    needs: [infrastructure, build-and-test]
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pjbaioni/amsc_mk:2025
+      options: --user root --cpus 8
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: build/
+
+      - name: Restore executable permissions
+        run: chmod +x build/space-time-adaptivity
+
+      - name: Setup performance monitoring
+        run: |
+          apt-get update && apt-get install -y time sysstat
+          mkdir -p reports
+
+      - name: Run MPI performance tests
+        shell: bash
+        run: |
+          source /u/sw/etc/profile.d/mk.sh
+          module load gcc-glibc dealii openmpi
+          
+          # Create performance test script
+          cat > scripts/run_mpi_tests.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          REPORT_FILE="reports/performance_$(date +%Y%m%d_%H%M%S).json"
+          PROCESSES=${1:-4}
+          TEST_TYPE=${2:-convergence}
+
+          # 'scalability' means a single default (non-convergence) run, timed
+          # across process counts by the scalability.yml workflow separately;
+          # 'convergence' and 'full' both exercise the convergence sweep here.
+          if [ "$TEST_TYPE" = "scalability" ]; then
+            printf 'set mode = adaptive\nset run = default\n' > test.prm
+          else
+            printf 'set mode = adaptive\nset run = convergence\nset n_el_list = 3,6,9,12\n' > test.prm
+          fi
+
+          echo "{" > $REPORT_FILE
+          echo "  \"timestamp\": \"$(date -Iseconds)\"," >> $REPORT_FILE
+          echo "  \"hostname\": \"$(hostname)\"," >> $REPORT_FILE
+          echo "  \"processes\": $PROCESSES," >> $REPORT_FILE
+          echo "  \"cpu_info\": \"$(lscpu | grep 'Model name' | cut -d: -f2 | xargs)\"," >> $REPORT_FILE
+          echo "  \"cpu_count\": $(nproc)," >> $REPORT_FILE
+          echo "  \"memory_gb\": $(free -g | awk '/^Mem:/{print $2}')," >> $REPORT_FILE
+          echo "  \"tests\": [" >> $REPORT_FILE
+
+          # Run the test selected by $TEST_TYPE
+          START=$(date +%s.%N)
+          /usr/bin/time -v mpirun -np $PROCESSES ./build/space-time-adaptivity test.prm 2>&1 | tee /tmp/test_output.txt
+          END=$(date +%s.%N)
+          DURATION=$(echo "$END - $START" | bc)
+
+          MAX_MEM=$(grep "Maximum resident" /tmp/test_output.txt | awk '{print $6}')
+
+          echo "    {" >> $REPORT_FILE
+          echo "      \"name\": \"$TEST_TYPE\"," >> $REPORT_FILE
+          echo "      \"duration_seconds\": $DURATION," >> $REPORT_FILE
+          echo "      \"max_memory_kb\": ${MAX_MEM:-0}," >> $REPORT_FILE
+          echo "      \"exit_code\": $?" >> $REPORT_FILE
+          echo "    }" >> $REPORT_FILE
+
+          echo "  ]" >> $REPORT_FILE
+          echo "}" >> $REPORT_FILE
+
+          cat $REPORT_FILE
+          EOF
+
+          chmod +x scripts/run_mpi_tests.sh
+          scripts/run_mpi_tests.sh ${{ github.event.inputs.mpi_processes || '4' }} ${{ github.event.inputs.test_type || 'convergence' }}
+
+      - name: Collect system metrics
+        run: |
+          cat > reports/system_metrics.txt << EOF
+          === System Information ===
+          Date: $(date)
+          Hostname: $(hostname)
+          Kernel: $(uname -r)
+          
+          === CPU Info ===
+          $(lscpu)
+          
+          === Memory Info ===
+          $(free -h)
+          
+          === Disk Usage ===
+          $(df -h)
+          EOF
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-reports-${{ github.run_number }}
+          path: reports/
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Upload to Azure Storage
+        run: |
+          az storage blob upload-batch \
+            --account-name ${{ env.STORAGE_ACCOUNT }} \
+            --destination performance-reports \
+            --source reports/ \
+            --prefix run-${{ github.run_number }}/ \
+            --auth-mode login
+
+  cuda-performance:
+    name: CUDA Performance Tests (Optional)
+    needs: [infrastructure, build-and-test]
+    runs-on: ubuntu-latest
+    if: contains(github.event.inputs.test_type, 'full') || github.event.inputs.test_type == ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Note CUDA requirements
+        run: |
+          echo "⚠️  CUDA tests require GPU-enabled runners"
+          echo "Consider using Azure Container Instances with GPU support"
+          echo "or self-hosted runners with NVIDIA GPUs"
+
+  summarize:
+    name: Summarize Results
+    needs: [mpi-performance]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Download performance reports
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-reports-${{ github.run_number }}
+          path: reports/
+
+      - name: Generate summary
+        run: |
+          echo "## 🚀 Performance Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f reports/performance_*.json ]; then
+            echo "### Performance Metrics" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat reports/performance_*.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Reports stored in Azure Storage:** \`performance-reports/run-${{ github.run_number }}/\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: List reports in Azure
+        run: |
+          echo "Reports uploaded to Azure Storage:"
+          az storage blob list \
+            --account-name ${{ env.STORAGE_ACCOUNT }} \
+            --container-name performance-reports \
+            --prefix run-${{ github.run_number }}/ \
+            --auth-mode login \
+            --output table

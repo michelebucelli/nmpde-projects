@@ -1,0 +1,71 @@
+name: Verification CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pjbaioni/amsc_mk:2025
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Note container
+        run: |
+          echo "Using container image: quay.io/pjbaioni/amsc_mk:2025"
+
+      - name: Build and Test
+        shell: bash
+        run: |
+          source /u/sw/etc/profile.d/mk.sh
+          module load gcc-glibc dealii
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDEAL_II_ALLOW_TESTS=ON
+          cmake --build build --parallel
+          ctest --output-on-failure --parallel $(( $(nproc) > 1 ? $(nproc) - 1 : 1 ))
+
+      - name: Convergence-mode smoke test
+        shell: bash
+        run: |
+          source /u/sw/etc/profile.d/mk.sh
+          module load gcc-glibc dealii
+          cd build
+          printf 'set mode = adaptive\nset run = convergence\nset n_el_list = 3,6,9,12\n' > convergence-smoke.prm
+          ./space-time-adaptivity convergence-smoke.prm
+          test -f convergence-adaptive.csv
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: build/
+
+  model-validation:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pjbaioni/amsc_mk:2025
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: build/
+
+      - name: Restore executable permissions
+        run: chmod +x build/space-time-adaptivity
+
+      - name: Run model validation
+        shell: bash
+        run: |
+          source /u/sw/etc/profile.d/mk.sh
+          module load gcc-glibc dealii
+          chmod +x scripts/run_model_validation.sh
+          scripts/run_model_validation.sh build

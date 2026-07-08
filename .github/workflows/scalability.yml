@@ -1,0 +1,34 @@
+name: Scalability Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_executable:
+        description: 'Path to test executable (relative to repo root or build dir)'
+        default: 'build/space-time-adaptivity'
+
+jobs:
+  scalability:
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pjbaioni/amsc_mk:2025
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure and Build
+        shell: bash
+        run: |
+          source /u/sw/etc/profile.d/mk.sh
+          module load gcc-glibc dealii
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      - name: Run scalability harness
+        env:
+          TEST_EXEC: ${{ github.event.inputs.test_executable }}
+        run: |
+          chmod +x scripts/run_scalability.sh
+          scripts/run_scalability.sh build

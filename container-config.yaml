@@ -1,0 +1,37 @@
+name: amsc-container
+resourceGroup: amsc
+properties:
+  managedEnvironmentId: /subscriptions/5d7fbbd4-db18-4472-915d-de671cc0f22a/resourceGroups/amsc/providers/Microsoft.App/managedEnvironments/managedEnvironment-amsc-af85
+  workloadProfileName: NC24-A100
+  template:
+    containers:
+    - name: amsc-container
+      image: quay.io/pjbaioni/amsc_mk:2025
+      command:
+      - /bin/sh
+      args:
+      - "-c"
+      - "sleep 999999"
+      volumeMounts:
+      - volumeName: code-volume
+        mountPath: /mnt/code
+      - volumeName: data-volume
+        mountPath: /mnt/data
+      - volumeName: results-volume
+        mountPath: /mnt/results
+      resources:
+        cpu: 24
+        memory: 220Gi
+    volumes:
+    - name: code-volume
+      storageType: AzureFile
+      storageName: amsc-storage
+    - name: data-volume
+      storageType: AzureFile
+      storageName: amsc-data
+    - name: results-volume
+      storageType: AzureFile
+      storageName: amsc-results
+    scale:
+      minReplicas: 1
+      maxReplicas: 1

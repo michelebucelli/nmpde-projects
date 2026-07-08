@@ -1,0 +1,111 @@
+name: Run in Azure Container
+
+on:
+  push:
+    branches: [ tests, main ]
+  pull_request:
+    branches: [ tests, main ]
+  workflow_dispatch:
+    inputs:
+      mpi_processes:
+        description: 'Number of MPI processes'
+        required: false
+        default: '4'
+
+env:
+  AZURE_CONTAINER_NAME: amsc-container
+  AZURE_RESOURCE_GROUP: amsc
+  RESULTS_SHARE: results
+
+jobs:
+  run-on-azure:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Upload latest code to Azure Storage
+        run: |
+          az storage file upload-batch \
+            --account-name nmpdedata \
+            --destination code \
+            --source . \
+            --exclude ".git" ".gitignore" "build" ".DS_Store" ".github" \
+            --auth-mode login
+
+      - name: Build in Container
+        run: |
+          az containerapp exec \
+            --name ${{ env.AZURE_CONTAINER_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --command /bin/bash \
+            --exec-command "
+              cd /mnt/code && \
+              source /u/sw/etc/profile.d/mk.sh && \
+              module load gcc-glibc dealii openmpi && \
+              cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && \
+              cmake --build build --parallel
+            "
+
+      - name: Run Tests
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          az containerapp exec \
+            --name ${{ env.AZURE_CONTAINER_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --command /bin/bash \
+            --exec-command "
+              cd /mnt/code && \
+              source /u/sw/etc/profile.d/mk.sh && \
+              module load gcc-glibc dealii openmpi && \
+              printf 'set mode = adaptive\nset run = convergence\nset n_el_list = 3,6,9,12\n' > convergence.prm && \
+              echo '=== Run Summary ===' > /mnt/results/run_${TIMESTAMP}.txt && \
+              echo 'Timestamp: $(date)' >> /mnt/results/run_${TIMESTAMP}.txt && \
+              echo 'Hostname: $(hostname)' >> /mnt/results/run_${TIMESTAMP}.txt && \
+              echo 'CPU Count: $(nproc)' >> /mnt/results/run_${TIMESTAMP}.txt && \
+              echo '=== Running with MPI ===' >> /mnt/results/run_${TIMESTAMP}.txt && \
+              mpirun -np ${{ github.event.inputs.mpi_processes || '4' }} ./build/space-time-adaptivity convergence.prm >> /mnt/results/run_${TIMESTAMP}.txt 2>&1 && \
+              echo 'Exit Code: 0' >> /mnt/results/run_${TIMESTAMP}.txt || echo 'Exit Code: 1' >> /mnt/results/run_${TIMESTAMP}.txt && \
+              cp convergence-adaptive.csv /mnt/results/convergence_${TIMESTAMP}.csv 2>/dev/null || true
+            "
+
+      - name: Collect Results
+        if: always()
+        run: |
+          mkdir -p ./results
+          az storage file download-batch \
+            --account-name nmpdedata \
+            --source results \
+            --destination ./results/ \
+            --auth-mode login
+          ls -la ./results/
+
+      - name: Upload Results as Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: results/
+          retention-days: 30
+
+      - name: Generate Summary
+        if: always()
+        run: |
+          echo "## 🚀 Run Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Results Location" >> $GITHUB_STEP_SUMMARY
+          echo "- **Azure Storage:** \`nmpdedata/results/\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Artifacts:** Check Actions run" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files Generated" >> $GITHUB_STEP_SUMMARY
+          if [ -d ./results ]; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            ls -lh ./results/ >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
