@@ -1,35 +1,29 @@
 ## matrix-free operators in deal.II
 
-### TODO
-
-In order of relevance:
-- [ ] benchmark (see [here](benchmark/TODO.md))
-- [ ] real-world ADR test case
-- [ ] mb vs mf preconditioners (multigrid here?)
-- [ ] some TODOs in the code (check if they're still relevant though)
+- Luca Ballone 10813225 (lechebs)
+- Matteo Mei 10706418 (FattiMei)
+- Tommaso Angelaccio 11089177 (tiker02)
+- Fabio Ghattas 10764040 (FabioGhattasPolimi)
 
 ### Compiling the program
 
-The program can be compiled with:
+The project was developed and tested on deal.II 9.5.1. and 9.7.1.
+
+Compile using CMake:
 ```
 mkdir build && cd build
 cmake ..
 make
 ```
 
-### Useful resources
-
-- https://dealii.org/current/doxygen/deal.II/step_37.html
-- https://dealii.org/current/doxygen/deal.II/step_64.html
-
-- https://dealii.org/current/doxygen/deal.II/group__matrixfree.html
-- https://dealii.org/current/doxygen/deal.II/classMatrixFreeOperators_1_1Base.html
-- https://dealii.org/current/doxygen/deal.II/classMatrixFree.html
-- https://dealii.org/current/doxygen/deal.II/classFEEvaluation.html
+Run the convergence test with:
+```
+./main
+```
 
 ## Portable matrix-free operators in deal.II
 
-### Installing deal.II with Kokkos (Ubuntu)
+### Installing deal.II with Kokkos for CUDA support (Ubuntu)
 
 Install the required dependencies with:
 ```
@@ -68,3 +62,14 @@ export CMAKE_PREFIX_PATH=/path/to/dealii/install/dir
 cmake -DBUILD_WITH_KOKKOS=ON ..
 make
 ```
+
+### References
+
+- https://dealii.org/current/doxygen/deal.II/step_37.html
+- https://dealii.org/current/doxygen/deal.II/step_64.html
+- https://dealii.org/current/doxygen/deal.II/group__matrixfree.html
+- https://dealii.org/current/doxygen/deal.II/classMatrixFreeOperators_1_1Base.html
+- https://dealii.org/current/doxygen/deal.II/classMatrixFree.html
+- https://dealii.org/current/doxygen/deal.II/classFEEvaluation.html
+
+
