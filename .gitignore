@@ -1,36 +1,21 @@
-## C++ #########################################################################
+build/
 
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
+# CMake and compiler artifacts
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
 *.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
+*.d
 *.a
-*.lib
+*.so
+*.bin
 
-# Executables
-*.exe
-*.out
-*.app
+# Solver output
+*.vtu
+*.pvtu
+*.csv
 
-*/build/*
+# Local editor files
+.vscode/
+.idea/
