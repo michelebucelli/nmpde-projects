@@ -1,0 +1,293 @@
+#ifndef MATRIX_BASED_ADR_HPP
+#define MATRIX_BASED_ADR_HPP
+
+#include <deal.II/base/timer.h>
+#include <deal.II/base/quadrature_lib.h>
+
+#include <deal.II/distributed/tria.h>
+
+#include <deal.II/dofs/dof_tools.h>
+
+#include <deal.II/fe/fe_values.h>
+
+#include <deal.II/lac/vector.h>
+#include <deal.II/lac/full_matrix.h>
+#include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/trilinos_vector.h>
+#include <deal.II/lac/trilinos_precondition.h>
+#include <deal.II/lac/trilinos_sparsity_pattern.h>
+#include <deal.II/lac/trilinos_sparse_matrix.h>
+
+#include <deal.II/numerics/vector_tools.h>
+#include <deal.II/numerics/matrix_tools.h>
+
+#include <iostream>
+
+#include "ADR.hpp"
+#include "ADRSpec.hpp"
+#include "ADRFactory.hpp"
+
+using namespace dealii;
+
+// WARNING: TrilinosWrappers::MPI::Vector and TrilinosWrappers::SparseMatrix
+// use TrilinosScalar as value_type which is hardcoded to double.
+// We can't use the spec defined ADRSpec::ScalarType.
+
+template<typename ADRSpec>
+class MatrixBasedADR :
+    public ADR<
+        ADRSpec, typename ADRSpec::ScalarType, TrilinosWrappers::MPI::Vector>
+{
+    using number = typename ADRSpec::ScalarType;
+    // We need to explicitly bring into this scope the base template
+    // class members due to the two-phase lookup (or use this->member)
+    using ADR<ADRSpec, number, TrilinosWrappers::MPI::Vector>::dim;
+
+    friend class ADRFactory;
+
+    MatrixBasedADR(const parallel::distributed::Triangulation<dim> &mesh,
+                   unsigned int fe_degree);
+
+public:
+    void setup() override;
+
+    void assemble() override;
+
+    std::pair<unsigned int, double> solve(unsigned int max_iter,
+                                          number rel_tol,
+                                          bool apply_preconditioner) override;
+
+    template <class Vector1_, class Vector2_>
+    void vmult(Vector1_& dest, const Vector2_& src);
+
+protected:
+    IndexSet locally_owned_dofs;
+
+    TrilinosWrappers::SparseMatrix system_matrix;
+
+    TrilinosWrappers::MPI::Vector solution_owned;
+};
+
+template<typename ADRSpec>
+MatrixBasedADR<ADRSpec>::MatrixBasedADR(
+    const parallel::distributed::Triangulation<dim> &mesh,
+    unsigned int fe_degree
+)
+    : ADR<ADRSpec, number, TrilinosWrappers::MPI::Vector>(mesh, fe_degree)
+{}
+
+template<typename ADRSpec>
+void MatrixBasedADR<ADRSpec>::setup()
+{
+    this->dof_handler.distribute_dofs(this->fe);
+    locally_owned_dofs = this->dof_handler.locally_owned_dofs();
+
+    IndexSet locally_relevant_dofs =
+        DoFTools::extract_locally_relevant_dofs(this->dof_handler);
+
+    this->constraints.clear();
+#if DEAL_II_VERSION_GTE(9, 6, 0)
+    this->constraints.reinit(locally_owned_dofs,
+                             locally_relevant_dofs);
+#else
+    this->constraints.reinit(locally_relevant_dofs);
+#endif
+
+    DoFTools::make_hanging_node_constraints(this->dof_handler,
+                                            this->constraints);
+
+    BoundaryFuncMap<Function<dim>> tmp_dirichlet_map;
+    std::map<types::boundary_id, const Function<dim> *> dirichlet_map;
+    this->local_spec.fill_dirichlet_map(tmp_dirichlet_map);
+    for (const auto& [boundary_id, dirichlet_function] : tmp_dirichlet_map) {
+        dirichlet_map[boundary_id] = dirichlet_function.get();
+    }
+
+    VectorTools::interpolate_boundary_values(this->mapping,
+                                             this->dof_handler,
+                                             dirichlet_map,
+                                             this->constraints);
+    this->constraints.close();
+
+    TrilinosWrappers::SparsityPattern sparsity(locally_owned_dofs,
+                                               MPI_COMM_WORLD);
+    DoFTools::make_sparsity_pattern(this->dof_handler, sparsity,
+                                    this->constraints);
+    sparsity.compress();
+
+    system_matrix.reinit(sparsity);
+
+    this->solution.reinit(
+        locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+    solution_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+    this->system_rhs.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+}
+
+template<typename ADRSpec>
+void MatrixBasedADR<ADRSpec>::assemble()
+{
+    const QGauss<dim> quadrature(this->fe.degree + 1);
+    const QGauss<dim-1> quadrature_face(this->fe.degree + 1);
+
+    FEValues<dim> fe_values(this->mapping,
+                            this->fe,
+                            quadrature,
+                            update_values | update_gradients |
+                            update_JxW_values | update_quadrature_points);
+
+    FEFaceValues<dim> fe_face_values(this->mapping,
+                                     this->fe,
+                                     quadrature_face,
+                                     update_values | update_JxW_values |
+                                     update_quadrature_points);
+
+    const unsigned int dofs_per_cell = this->fe.n_dofs_per_cell();
+    const unsigned int n_q = quadrature.size();
+    const unsigned int n_q_face = quadrature_face.size();
+
+    FullMatrix<number> cell_matrix(dofs_per_cell, dofs_per_cell);
+    Vector<number> cell_rhs(dofs_per_cell);
+
+    std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+
+    BoundaryFuncMap<NeumannFunction<number, Point<dim, number>>>
+    neumann_func_map;
+    this->local_spec.fill_neumann_map(neumann_func_map);
+
+    for (const auto &cell : this->dof_handler.active_cell_iterators()) {
+        if (!cell->is_locally_owned()) {
+            continue;
+        }
+
+        fe_values.reinit(cell);
+
+        cell_matrix = 0;
+        cell_rhs = 0;
+
+        for (unsigned int q = 0; q < n_q; ++q) {
+            const Point<dim> &x_q = fe_values.quadrature_point(q);
+
+            const typename ADRSpec::TensorType beta =
+                this->local_spec.advection(x_q);
+            const number mu = this->local_spec.diffusion(x_q);
+            const number gamma = this->local_spec.reaction(x_q);
+            const number f = this->local_spec.forcing(x_q);
+
+            for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                for (unsigned int j = 0; j < dofs_per_cell; ++j) {
+
+                    cell_matrix(i, j) += (
+                          mu * fe_values.shape_grad(i, q)
+                             * fe_values.shape_grad(j, q)
+
+                        + beta * fe_values.shape_grad(j, q)
+                               * fe_values.shape_value(i, q)
+
+                        + gamma * fe_values.shape_value(i, q)
+                                * fe_values.shape_value(j, q)
+                    ) * fe_values.JxW(q);
+                }
+
+                cell_rhs(i) += f * fe_values.shape_value(i, q)
+                                 * fe_values.JxW(q);
+            }
+        }
+
+        if (cell->at_boundary()) {
+            for (const auto &face : cell->face_iterators()) {
+                const types::boundary_id b_id = face->boundary_id();
+
+                if (face->at_boundary() && neumann_func_map.count(b_id)) {
+                    fe_face_values.reinit(cell, face);
+
+                    for (unsigned int q = 0; q < n_q_face; ++q) {
+                        const Point<dim> &x_q =
+                            fe_face_values.quadrature_point(q);
+
+                        const number mu = this->local_spec.diffusion(x_q);
+                        const number h = neumann_func_map[b_id]->value(x_q);
+
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                            cell_rhs(i) +=
+                                mu * h * fe_face_values.shape_value(i, q)
+                                       * fe_face_values.JxW(q);
+                        }
+                    }
+                }
+            }
+        }
+
+        cell->get_dof_indices(local_dof_indices);
+        this->constraints.distribute_local_to_global(cell_matrix,
+                                                     cell_rhs,
+                                                     local_dof_indices,
+                                                     system_matrix,
+                                                     this->system_rhs);
+    }
+
+    system_matrix.compress(VectorOperation::add);
+    this->system_rhs.compress(VectorOperation::add);
+
+    solution_owned = 0;
+    this->constraints.distribute(solution_owned);
+}
+
+template<typename ADRSpec>
+std::pair<unsigned int, double> MatrixBasedADR<ADRSpec>::solve(
+    unsigned int max_iter, number rel_tol, bool apply_preconditioner)
+{
+    SolverControl* solver_control;
+
+    if (rel_tol == 0.0) {
+        // this means that the user has no business in making
+        // the solver converge
+        //
+        // profiling use cases require a special type of solver
+        // control. One that doesn't fail when the maximum number
+        // of iterations is reached
+        solver_control = new IterationNumberControl(max_iter, 0.0);
+    } else {
+        solver_control = new SolverControl(
+            max_iter, rel_tol * this->system_rhs.l2_norm());
+    }
+
+    SolverGMRES<TrilinosWrappers::MPI::Vector> solver(*solver_control);
+
+    auto run_solve = [&](const auto &preconditioner) {
+        Timer solver_timer;
+        solver.solve(system_matrix,
+                     solution_owned,
+                     this->system_rhs,
+                     preconditioner);
+        return solver_timer.wall_time();
+    };
+
+    double solver_time = 0.0;
+
+    if (not apply_preconditioner) {
+        solver_time = run_solve(TrilinosWrappers::PreconditionIdentity());
+    } else {
+        TrilinosWrappers::PreconditionILU::AdditionalData ilu_data(1);
+        TrilinosWrappers::PreconditionILU preconditioner;
+        preconditioner.initialize(system_matrix, ilu_data);
+        solver_time = run_solve(preconditioner);
+    }
+
+    this->constraints.distribute(solution_owned);
+    this->solution = solution_owned;
+
+    const auto res = solver_control->last_step();
+    delete solver_control;
+
+    return {res, solver_time};
+}
+
+
+template <class ADRSpec>
+template <class Vector1_, class Vector2_>
+void MatrixBasedADR<ADRSpec>::vmult(
+    Vector1_& dest, const Vector2_& src) {
+    system_matrix.vmult(dest, src);
+}
+
+#endif
