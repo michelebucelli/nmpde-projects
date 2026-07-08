@@ -32,14 +32,6 @@ void cylindric_wall_adapted_mesh(parallel::distributed::Triangulation<dim> &mesh
 			if (cell->at_boundary())
 			{
 				cell->set_refine_flag();
-				//if we want specifically to refine the curved walls
-				for (const auto &face : cell->face_iterators())
-				{
-					if (face->at_boundary() && (face->boundary_id() == 0))
-					{
-						break;
-					}
-				}
 			}
 		}
 		mesh.execute_coarsening_and_refinement();
@@ -266,12 +258,4 @@ int main(int argc, char* argv[])
 	}
 
 	return 0;
-
-
-	// cylindric_wall_adapted_mesh(mesh, length, radius, 10, 2, 1);
-	// auto adr_mf = ADRFactory::matrix_free<dim, 3, double, TubeSpec>(mesh);
-	// adr_mf.setup();
-	// adr_mf.assemble();
-	// adr_mf.solve(5000, 1e-6, false);
-	// adr_mf.output("tube_experiment");
 }

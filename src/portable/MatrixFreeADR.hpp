@@ -85,10 +85,6 @@ MatrixFreeADR<fe_degree, ADRSpec>::MatrixFreeADR(
 template<unsigned int fe_degree, typename ADRSpec>
 void MatrixFreeADR<fe_degree, ADRSpec>::setup()
 {
-#ifdef LOG_TIMERS
-    Timer time;
-#endif
-
     this->dof_handler.distribute_dofs(this->fe);
 
     locally_owned_dofs = this->dof_handler.locally_owned_dofs();
@@ -125,20 +121,11 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup()
     system_matrix_dev->initialize_dof_vector(this->solution);
     solution_update_dev.reinit(this->solution);
     this->system_rhs.reinit(this->solution);
-
-#ifdef LOG_TIMERS
-    this->pcout << std::setw(20) << std::left << "setup()"
-                << std::fixed << time.wall_time() << "s" << std::endl;
-#endif
 }
 
 template<unsigned int fe_degree, typename ADRSpec>
 void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 {
-#ifdef LOG_TIMERS
-    Timer time;
-#endif
-
     ghost_solution_host = 0;
     this->constraints.distribute(ghost_solution_host);
     ghost_solution_host.update_ghost_values();
@@ -220,21 +207,12 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 
     rw_vector.import_elements(rhs_neumann_term, VectorOperation::insert);
     this->system_rhs.import_elements(rw_vector, VectorOperation::add);
-
-#ifdef LOG_TIMERS
-    this->pcout << std::setw(20) << std::left << "assemble()"
-                << std::fixed << time.wall_time() << "s" << std::endl;
-#endif
 }
 
 template<unsigned int fe_degree, typename ADRSpec>
 std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
     unsigned int max_iter, number rel_tol, bool apply_preconditioner)
 {
-#ifdef LOG_TIMERS
-    Timer time;
-#endif
-
     SolverControl *solver_control;
 
     if (rel_tol == 0.0) {
@@ -283,15 +261,6 @@ std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
 
     ghost_solution_host.update_ghost_values();
 
-#ifdef LOG_TIMERS
-    const double elapsed = time.wall_time();
-    const double elapsed_per_iter = elapsed / solver_control->last_step();
-
-    this->pcout << std::setw(20) << std::left << "solve() [tot/iter]"
-                << std::fixed << elapsed << "s/" << elapsed_per_iter
-                << "s" << std::endl;
-#endif
-
     return {solver_control->last_step(), solver_time};
 }
 
@@ -333,6 +302,13 @@ double MatrixFreeADR<fe_degree, ADRSpec>::
                                           norm_type);
 
     return error;
+}
+
+template<unsigned int fe_degree, typename ADRSpec>
+template <class Vector1_, class Vector2_>
+void MatrixFreeADR<fe_degree, ADRSpec>::vmult(
+    Vector1_& dest, const Vector2_& src) {
+    system_matrix_dev->vmult(dest, src);
 }
 
 #endif

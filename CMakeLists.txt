@@ -49,6 +49,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfloat-conversion -Wmissing-braces -Wno
 if (BUILD_WITH_KOKKOS)
   add_compile_definitions(BUILD_WITH_KOKKOS)
 
+  # To be used if kokkos was linked statically against deal.II
   if(TARGET dealii::interface_kokkos)
     get_target_property(_libs dealii::interface_kokkos INTERFACE_LINK_LIBRARIES)
     list(FILTER _libs EXCLUDE REGEX "libkokkos")
@@ -58,7 +59,7 @@ endif()
 
 add_executable(main src/main.cpp)
 target_link_libraries(main)
-target_compile_definitions(main PUBLIC LOG_TIMERS)
+target_compile_definitions(main PUBLIC)
 deal_ii_setup_target(main)
 
 add_executable(single-node benchmark/single_node.cpp)
@@ -69,10 +70,6 @@ deal_ii_setup_target(single-node)
 if (likwid_FOUND)
   target_link_libraries(single-node likwid::likwid)
 endif()
-
-
-add_executable(unstructured mesh/unstructured.cpp)
-deal_ii_setup_target(unstructured)
 
 add_executable(tube_poiseuille tube_poiseuille/experiment.cpp)
 target_include_directories(tube_poiseuille PRIVATE "src/")

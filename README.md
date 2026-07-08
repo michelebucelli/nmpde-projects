@@ -16,10 +16,13 @@ cmake ..
 make
 ```
 
-Run the convergence test with:
+Note that the compilation of the targets `single-node` and `tube_poiseuille` may take some time, since the build compiles the matrix-free implementation for many `fe_degree` values. To build and execute only the convergence test, run:
 ```
+make main
 ./main
 ```
+
+JIT compilation to support runtime `fe_degree` values, as well as the patch to deal.II headers to improve GPU performance under Kokkos, can be found at https://github.com/lechebs/mf-adr/tree/jit.
 
 ## Portable matrix-free operators in deal.II
 
@@ -62,6 +65,8 @@ export CMAKE_PREFIX_PATH=/path/to/dealii/install/dir
 cmake -DBUILD_WITH_KOKKOS=ON ..
 make
 ```
+
+The compilation targets and executable produced are the same as the CPU version.
 
 ### References
 
