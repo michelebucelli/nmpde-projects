@@ -1,11 +1,57 @@
-### Organizing the source code
-Please place all your sources into the `src` folder.
+**Numerical Methods for Partial Differential Equations**  
+Politecnico di Milano, A.Y. 2025/2026
 
-Binary files must not be uploaded to the repository (including executables).
+Authors:
+- Micaela Perlini, 10860443
+- Francesca Marina Pozzi, 10837189
+- Martina Rusconi, 10857811
 
-Mesh files should not be uploaded to the repository. If applicable, upload `gmsh` scripts with suitable instructions to generate the meshes (and ideally a Makefile that runs those instructions). If not applicable, consider uploading the meshes to a different file sharing service, and providing a download link as part of the building and running instructions.
+<br>
 
-### Compiling
+# Navier-Stokes equations
+
+This project solves, by means of the *finite element method*, the unsteady, incompressible Navier–Stokes equations to simulate the benchmark problem "flow past a cylinder" by M. Schäfer and S. Turek for different values of the Reynolds number $Re \le 200$, together with the computation of the drag and lift coefficients acting on the obstacle over
+time.
+
+More information about the problem, the discretization, the methods employed, and the results can be found in the project [report](NMPDE_NavierStokes_Project_Report_PerliniPozziRusconi.pdf).
+
+## Repository structure
+
+```text
+.
+├── CMakeLists.txt
+├── NMPDE_NavierStokes_Project_Report_PerliniPozziRusconi.pdf
+├── README.md
+├── common
+│   └── cmake-common.cmake
+├── mesh
+│   ├── Makefile
+│   ├── README.md
+│   ├── mesh-2D-cylinder-circular-cs-0.0205.geo
+│   ├── mesh-2D-cylinder-circular-cs-0.0410.geo
+│   ├── mesh-2D-cylinder-circular-cs-0.0820.geo
+│   ├── mesh-3D-cylinder-circular-cs-0.0205.geo
+│   ├── mesh-3D-cylinder-circular-cs-0.0410.geo
+│   ├── mesh-3D-cylinder-circular-cs-0.0820.geo
+│   ├── mesh-3D-cylinder-rectangular-cs-0.0205.geo
+│   ├── mesh-3D-cylinder-rectangular-cs-0.0410.geo
+│   └── mesh-3D-cylinder-rectangular-cs-0.0820.geo
+└── src
+    ├── NavierStokes2D.cpp
+    ├── NavierStokes2D.hpp
+    ├── NavierStokes3D.cpp
+    ├── NavierStokes3D.hpp
+    ├── main2D.cpp
+    ├── main3D.cpp
+    └── preconditioners.hpp
+```
+
+## Mesh generation
+
+Instructions about mesh generation can be retrieved [here](mesh/README.md). The `.geo` scripts inside `mesh/` folder relate to the geometry described by M. Schäfer and S. Turek benchmark.
+
+
+## Compiling and running
 To build the executable, make sure you have loaded the needed modules with
 ```bash
 $ module load gcc-glibc dealii
@@ -17,7 +63,29 @@ $ cd build
 $ cmake ..
 $ make
 ```
-The executable will be created into `build`, and can be executed through
-```bash
-$ ./executable-name
-```
+The executables will be created into `build/`. Based on the  problem desired to solve:
+
+ * Use
+    ```bash
+    $ ./main2D
+    ```
+    or
+    ```bash
+    $ mpirun -n <NPROC> ./main2D
+    ```
+    if the test cases to run refer to 2D M. Schäfer and S. Turek benchmark.
+
+ * Use
+    ```bash
+    $ ./main3D
+    ```
+    or
+    ```bash
+    $ mpirun -n <NPROC> ./main3D
+    ```
+    if the test cases to run refer to 3D M. Schäfer and S. Turek benchmark.
+
+
+
+
+

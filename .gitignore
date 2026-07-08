@@ -33,4 +33,11 @@
 *.out
 *.app
 
-*/build/*
+# Build folder
+build/
+
+# MacOS
+.DS_Store
+
+# Mesh files
+*.msh
