@@ -166,7 +166,17 @@ jobs:
           
           REPORT_FILE="reports/performance_$(date +%Y%m%d_%H%M%S).json"
           PROCESSES=${1:-4}
-          
+          TEST_TYPE=${2:-convergence}
+
+          # 'scalability' means a single default (non-convergence) run, timed
+          # across process counts by the scalability.yml workflow separately;
+          # 'convergence' and 'full' both exercise the convergence sweep here.
+          if [ "$TEST_TYPE" = "scalability" ]; then
+            printf 'set mode = adaptive\nset run = default\n' > test.prm
+          else
+            printf 'set mode = adaptive\nset run = convergence\nset n_el_list = 3,6,9,12\n' > test.prm
+          fi
+
           echo "{" > $REPORT_FILE
           echo "  \"timestamp\": \"$(date -Iseconds)\"," >> $REPORT_FILE
           echo "  \"hostname\": \"$(hostname)\"," >> $REPORT_FILE
@@ -175,30 +185,30 @@ jobs:
           echo "  \"cpu_count\": $(nproc)," >> $REPORT_FILE
           echo "  \"memory_gb\": $(free -g | awk '/^Mem:/{print $2}')," >> $REPORT_FILE
           echo "  \"tests\": [" >> $REPORT_FILE
-          
-          # Run convergence test
+
+          # Run the test selected by $TEST_TYPE
           START=$(date +%s.%N)
-          /usr/bin/time -v mpirun -np $PROCESSES ./build/space-time-adaptivity 2>&1 | tee /tmp/test_output.txt
+          /usr/bin/time -v mpirun -np $PROCESSES ./build/space-time-adaptivity test.prm 2>&1 | tee /tmp/test_output.txt
           END=$(date +%s.%N)
           DURATION=$(echo "$END - $START" | bc)
-          
+
           MAX_MEM=$(grep "Maximum resident" /tmp/test_output.txt | awk '{print $6}')
-          
+
           echo "    {" >> $REPORT_FILE
-          echo "      \"name\": \"convergence\"," >> $REPORT_FILE
+          echo "      \"name\": \"$TEST_TYPE\"," >> $REPORT_FILE
           echo "      \"duration_seconds\": $DURATION," >> $REPORT_FILE
           echo "      \"max_memory_kb\": ${MAX_MEM:-0}," >> $REPORT_FILE
           echo "      \"exit_code\": $?" >> $REPORT_FILE
           echo "    }" >> $REPORT_FILE
-          
+
           echo "  ]" >> $REPORT_FILE
           echo "}" >> $REPORT_FILE
-          
+
           cat $REPORT_FILE
           EOF
-          
+
           chmod +x scripts/run_mpi_tests.sh
-          scripts/run_mpi_tests.sh ${{ github.event.inputs.mpi_processes || '4' }}
+          scripts/run_mpi_tests.sh ${{ github.event.inputs.mpi_processes || '4' }} ${{ github.event.inputs.test_type || 'convergence' }}
 
       - name: Collect system metrics
         run: |

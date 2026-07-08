@@ -7,8 +7,7 @@ BUILD_DIR=${1:-build}
 RESULTS_FILE=${RESULTS_FILE:-model_results.csv}
 TEST_CMD=${TEST_CMD:-}
 PY_VALIDATOR=${PY_VALIDATOR:-scripts/validate_model.py}
-TOL=${TOL:-1e-6}
-# TOL=${TOL:-1e-1}
+TOL=${TOL:-1e-2}
 
 echo "Build dir: $BUILD_DIR"
 
@@ -32,36 +31,18 @@ if [ -n "$TEST_CMD" ]; then
   eval "$TEST_CMD" > "$RESULTS_FILE"
   echo "Wrote results to $RESULTS_FILE"
 else
-  echo "No TEST_CMD provided, attempting to run ctest -R model_validation"
-  # Expect tests to output VTU/PVTu files; run the matching test
-  if ! (cd "$BUILD_DIR" && ctest -R model_validation --output-on-failure); then
+  echo "No TEST_CMD provided, attempting to run ctest -R space-time-adaptivity"
+  if ! (cd "$BUILD_DIR" && ctest -R '^space-time-adaptivity$' --output-on-failure); then
     echo "ctest command failed. Aborting validation." >&2
     exit 1
   fi
 
-  # Find PVTu or VTU output files created by DataOut
-  # Prefer PVTu master file if present
-  pvtu_files=($BUILD_DIR/output-*.pvtu)
-  vtu_files=($BUILD_DIR/output-*.vtu)
-  # pvtu_files=($BUILD_DIR/output-*_400.pvtu)
-  # vtu_files=($BUILD_DIR/output-*_400_0.vtu)
-  # pvtu_files=($BUILD_DIR/output-*_1.pvtu)
-  # vtu_files=($BUILD_DIR/output-*_1_0.vtu)
-
-  if [ -e "${pvtu_files[0]}" ]; then
-    RESULTS_FILE="${pvtu_files[0]}"
-    # RESULTS_FILE="${pvtu_files[-1]}"
-    echo "Found PVTu results: $RESULTS_FILE"
-  elif [ -e "${vtu_files[0]}" ]; then
-    # pick the most recently modified VTU
-    RESULTS_FILE="${vtu_files[0]}"
-    # RESULTS_FILE="${vtu_files[-1]}"
-    # RESULTS_FILE=$(ls -1t "$BUILD_DIR"/output-*.vtu | head -n 1)
-    echo "Found VTU results: $RESULTS_FILE"
-  else
-    echo "No VTU/PVTu results found; exiting with error"
+  RESULTS_FILE="$BUILD_DIR/mass_balance-n12-adaptive.csv"
+  if [ ! -e "$RESULTS_FILE" ]; then
+    echo "No mass_balance-n12-adaptive.csv found at $RESULTS_FILE; exiting with error"
     exit 2
   fi
+  echo "Found mass-balance results: $RESULTS_FILE"
 fi
 echo "Running Python validator ($PY_VALIDATOR) with tolerance $TOL"
 

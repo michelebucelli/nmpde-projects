@@ -27,6 +27,16 @@ jobs:
           cmake --build build --parallel
           ctest --output-on-failure --parallel $(( $(nproc) > 1 ? $(nproc) - 1 : 1 ))
 
+      - name: Convergence-mode smoke test
+        shell: bash
+        run: |
+          source /u/sw/etc/profile.d/mk.sh
+          module load gcc-glibc dealii
+          cd build
+          printf 'set mode = adaptive\nset run = convergence\nset n_el_list = 3,6,9,12\n' > convergence-smoke.prm
+          ./space-time-adaptivity convergence-smoke.prm
+          test -f convergence-adaptive.csv
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:

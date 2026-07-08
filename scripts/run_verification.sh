@@ -12,6 +12,6 @@ cmake --build "$BUILD_DIR" --parallel
 
 echo "Running ctest"
 cd "$BUILD_DIR"
-ctest --output-on-failure --parallel $(nproc)-1
+ctest --output-on-failure --parallel $(( $(nproc) - 1 ))
 
 echo "Verification complete"

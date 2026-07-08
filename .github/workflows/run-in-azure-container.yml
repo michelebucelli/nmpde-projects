@@ -64,14 +64,15 @@ jobs:
               cd /mnt/code && \
               source /u/sw/etc/profile.d/mk.sh && \
               module load gcc-glibc dealii openmpi && \
+              printf 'set mode = adaptive\nset run = convergence\nset n_el_list = 3,6,9,12\n' > convergence.prm && \
               echo '=== Run Summary ===' > /mnt/results/run_${TIMESTAMP}.txt && \
               echo 'Timestamp: $(date)' >> /mnt/results/run_${TIMESTAMP}.txt && \
               echo 'Hostname: $(hostname)' >> /mnt/results/run_${TIMESTAMP}.txt && \
               echo 'CPU Count: $(nproc)' >> /mnt/results/run_${TIMESTAMP}.txt && \
               echo '=== Running with MPI ===' >> /mnt/results/run_${TIMESTAMP}.txt && \
-              mpirun -np ${{ github.event.inputs.mpi_processes || '4' }} ./build/space-time-adaptivity >> /mnt/results/run_${TIMESTAMP}.txt 2>&1 && \
+              mpirun -np ${{ github.event.inputs.mpi_processes || '4' }} ./build/space-time-adaptivity convergence.prm >> /mnt/results/run_${TIMESTAMP}.txt 2>&1 && \
               echo 'Exit Code: 0' >> /mnt/results/run_${TIMESTAMP}.txt || echo 'Exit Code: 1' >> /mnt/results/run_${TIMESTAMP}.txt && \
-              cp build/convergence.csv /mnt/results/convergence_${TIMESTAMP}.csv 2>/dev/null || true
+              cp convergence-adaptive.csv /mnt/results/convergence_${TIMESTAMP}.csv 2>/dev/null || true
             "
 
       - name: Collect Results

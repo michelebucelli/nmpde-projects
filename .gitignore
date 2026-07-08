@@ -44,3 +44,4 @@ docs/teoria.md
 scripts/make_run.sh
 src/exact-solution-test.cpp
 lab-04
+.dev/

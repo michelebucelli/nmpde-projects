@@ -1,120 +1,56 @@
 #!/usr/bin/env python3
 """Model validator for this project.
 
-Supports either a CSV/numeric results file or VTU/PVTu outputs produced by
-the `Heat` program. For VTU/PVTu files the script reads the `solution` field
-and computes the volume-weighted average (mass). For the default `FunctionU0`
-initial condition the mean over the unit cube is 1/216 and should be conserved
-by the scheme with homogeneous Neumann boundary conditions; the validator
-compares the computed mass to the expected reference and fails if the
-relative error exceeds the given tolerance.
+Checks the theta-method mass-balance identity: for homogeneous Neumann BCs,
+taking v_h = 1 (which lies in the FE space) in the fully discrete scheme
+yields exactly
+
+    integral_Omega u_h(T) = sum_n dt_n [theta * integral f^(n+1) + (1-theta) * integral f^n]
+
+`Heat::run()` writes both sides of this identity to a two-column CSV
+(`computed_mass,expected_mass`) after the run completes; this script compares
+them and fails if the relative error exceeds the given tolerance.
 """
 
 import argparse
+import csv
 import sys
 from pathlib import Path
 
-import numpy as np
 
-
-def read_numeric_file(path: Path):
-    try:
-        data = np.loadtxt(path, delimiter=',')
-    except Exception:
-        data = np.loadtxt(path)
-    return data
-
-
-def compute_mean_from_numeric(data: np.ndarray):
-    if data.ndim == 1:
-        if data.size < 2:
-            raise ValueError('Numeric result file too small')
-        # assume two entries: x and y
-        y = data[1]
-        return float(y)
-    else:
-        # assume first column x, next columns are data; take column 1
-        y = data[:, 1]
-        return float(np.mean(y))
-
-
-def compute_mean_from_vtu(path: Path):
-    """Computes the mean of the 'solution' data array from a VTU/PVTu file."""
-    try:
-        import pyvista as pv
-    except Exception as e:
-        raise RuntimeError('pyvista is required to read VTU files; please install it') from e
-
-    print("---------------In compute_mean_from_vtu-------------")
-    # pyvista is more robust with string paths
-    mesh = pv.read(str(path))
-
-    # pyvista provides direct access to data arrays.
-    # Check for 'solution' in point data, then cell data.
-    if 'solution' in mesh.point_data:
-        return float(np.mean(mesh.point_data['solution']))
-        # solution = mesh.point_data['solution']
-        # # Create a boolean mask for values greater than 0
-        # positive_mask = solution > 0
-        # # Get the minimum value from the array where the mask is True
-        # min_positive_value = np.min(solution[positive_mask])
-        # return float(min_positive_value)
-    if 'solution' in mesh.cell_data:
-        return float(np.mean(mesh.cell_data['solution']))
-        # print("mesh.cell_data['solution']:", mesh.cell_data['solution'])
-        # return float(mesh.cell_data['solution'][-1])
-    
-
-    # Fallback: try the first available data array if 'solution' is not found
-    if mesh.point_data:
-        key = list(mesh.point_data.keys())[0]
-        # return float(np.mean(mesh.point_data[key]))
-        print("mesh.point_data[key]:", mesh.point_data[key])
-        return float(mesh.point_data[key][0])
-    if mesh.cell_data:
-        key = list(mesh.cell_data.keys())[0]
-        # return float(np.mean(mesh.cell_data[key]))
-        print("mesh.cell_data[key]:", mesh.cell_data[key])
-        return float(mesh.cell_data[key][0])
-
-    raise ValueError('No suitable data arrays found in VTU/PVTu file')
+def read_masses(path: Path):
+    with path.open(newline="") as fh:
+        reader = csv.reader(fh)
+        next(reader)
+        row = next(reader)
+    return float(row[0]), float(row[1])
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--results', '-r', required=True, help='Results file (CSV or VTU/PVTu)')
-    p.add_argument('--tolerance', '-t', type=float, default=1e-6)
-    p.add_argument('--expected-mean', type=float, default=1.0 / 216.0,
-                   help='Expected spatial mean (default is 1/216 for FunctionU0)')
+    p.add_argument("--results", "-r", required=True, help="mass_balance.csv produced by the solver")
+    p.add_argument("--tolerance", "-t", type=float, default=1e-6)
     args = p.parse_args()
 
     path = Path(args.results)
-    print(f"Attempting to read absolute path: {path.resolve()}", file=sys.stderr)
     if not path.exists():
-        print(f'Results file not found: {path}', file=sys.stderr)
+        print(f"Results file not found: {path}", file=sys.stderr)
         sys.exit(2)
 
-    print(f'path.suffix: {path.suffix}')
-    if path.suffix in ['.vtu', '.pvtu']:
-        mean = compute_mean_from_vtu(path)
-    else:
-        data = read_numeric_file(path)
-        mean = compute_mean_from_numeric(data)
+    computed_mass, expected_mass = read_masses(path)
+    rel_err = abs(computed_mass - expected_mass) / max(abs(expected_mass), 1e-12)
 
-    rel_err = abs(mean - args.expected_mean) / (abs(args.expected_mean) if args.expected_mean != 0 else 1.0)
-    # rel_err = mean
-
-    print(f'Computed mean: {mean:.12g}')
-    print(f'Expected mean: {args.expected_mean:.12g}')
-    print(f'Relative error: {rel_err:.6g} (tolerance {args.tolerance})')
+    print(f"Computed mass:  {computed_mass:.12g}")
+    print(f"Expected mass:  {expected_mass:.12g}  (theta-method mass balance)")
+    print(f"Relative error: {rel_err:.6g} (tolerance {args.tolerance})")
 
     if rel_err > args.tolerance:
-        print('Validation FAILED', file=sys.stderr)
+        print("Validation FAILED", file=sys.stderr)
         sys.exit(5)
-    else:
-        print('Validation PASSED')
-        sys.exit(0)
+
+    print("Validation PASSED")
+    sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
