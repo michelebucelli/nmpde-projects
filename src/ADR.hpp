@@ -24,9 +24,6 @@
 
 using namespace dealii;
 
-// TODO: Consider having an additional non-templated interface
-// at the top of the hierarchy
-
 template<typename ADRSpec, typename number, typename Vector_>
 class ADR
 {
@@ -43,7 +40,6 @@ protected:
     // Alternatively, we could have a virtual get_fe_degree()
     const unsigned int fe_degree_;
 
-    // TODO: Do we need MappingQ on unstructured meshes?
     const MappingQ1<dim> mapping;
     const FE_Q<dim> fe;
 

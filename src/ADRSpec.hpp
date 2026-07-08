@@ -17,20 +17,6 @@ using namespace dealii;
 //   3. use the same exact description for both matrix based and matrix free simulations
 //
 //   4. remove function call overheads by favouring inlining (we already solved that)
-//
-//
-// Here are the bits that I still have to understand:
-//   * vectorized implementations: the coefficient functions must be parametric on the
-//     return type. In the matrix free context, we need them to yield VectorizedArray
-//     I think we can template on the return type -> DONE
-//
-//   * how to pass functions to maps: we need to be careful about memory leaks. Since
-//     the AdrSpec is stateless, we can't pass references to Function because they will
-//     die after the `fill_.._map` call.
-//
-//     For the same reason we can't pass just pointers, because the memory will leak.
-//     We must pass smart pointers, but then we will need to clone the map for using
-//     `VectorTools::interpolate_boundary_values`. It's not a big deal
 
 template<typename Function>
 using BoundaryFuncMap = std::map<types::boundary_id,
@@ -52,7 +38,6 @@ struct ADRSpec
     using TensorType = Tensor;
     using PointType = Point;
 
-    // TODO: Consider DEAL_II_HOST_DEVICE_ALWAYS_INLINE
     DEAL_II_HOST_DEVICE virtual Tensor advection(const Point &p) const = 0; // beta
     DEAL_II_HOST_DEVICE virtual Scalar diffusion(const Point &p) const = 0; // mu
     DEAL_II_HOST_DEVICE virtual Scalar reaction(const Point &p) const = 0; // gamma

@@ -71,7 +71,6 @@ private:
     IndexSet locally_owned_dofs;
     IndexSet locally_relevant_dofs;
 
-    // TODO: Make sure DEAL_II_MPI_WITH_DEVICE_SUPPORT is defined
     DistributedDeviceVector<number> solution_update_dev;
     DistributedVector<number> ghost_solution_host;
 };
@@ -90,7 +89,6 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup()
     Timer time;
 #endif
 
-    // TODO: Check DoFRenumbering::matrix_free_data_locality()
     this->dof_handler.distribute_dofs(this->fe);
 
     locally_owned_dofs = this->dof_handler.locally_owned_dofs();
@@ -120,8 +118,6 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup()
     system_matrix_dev.reset(new ADROperator<fe_degree, ADRSpec>(
         this->dof_handler, this->mapping, this->constraints));
 
-    //system_matrix_dev->template precompute_coefs<ForcingTerm>(dof_handler);
-
     ghost_solution_host.reinit(locally_owned_dofs,
                                locally_relevant_dofs,
                                MPI_COMM_WORLD);
@@ -147,18 +143,13 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
     this->constraints.distribute(ghost_solution_host);
     ghost_solution_host.update_ghost_values();
 
-    // TODO: Can you avoid this transfer? I guess only if there's a way
-    // to interpolate constraints directly on the device
     LinearAlgebra::ReadWriteVector<number> rw_vector(locally_owned_dofs);
-    // TODO: Does this two-copy transfer have to do with the usage of
-    // non-pinned memory?
     rw_vector.import_elements(ghost_solution_host, VectorOperation::insert);
     this->solution.import_elements(rw_vector, VectorOperation::insert);
 
     system_matrix_dev->compute_rhs(this->system_rhs, this->solution);
 
-    // TODO: Neumann bcs rhs contribution is currently computed on the host.
-    // Check wether overlapping this computation with compute_rhs is possible.
+    // Neumann bcs rhs contribution is currently computed on the host.
 
     DistributedVector<number> rhs_neumann_term(locally_owned_dofs,
                                                locally_relevant_dofs,
@@ -184,7 +175,6 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
-    // TODO: Manually use kokkos to dispatch this loop on the host
     for (const auto &cell : this->dof_handler.active_cell_iterators()) {
         if (cell->is_locally_owned() && cell->at_boundary()) {
 
@@ -219,7 +209,7 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
             }
 
             cell->get_dof_indices(local_dof_indices);
-            // TODO: We could avoid using constraints object, right?
+
             this->constraints.distribute_local_to_global(cell_neumann_term,
                                                          local_dof_indices,
                                                          rhs_neumann_term);
@@ -285,7 +275,6 @@ std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
     this->solution += solution_update_dev;
 
     // Copy solution to host
-    // TODO: Time d2h copy
     LinearAlgebra::ReadWriteVector<number> rw_vector(locally_owned_dofs);
     rw_vector.import_elements(this->solution, VectorOperation::insert);
     ghost_solution_host.import_elements(rw_vector, VectorOperation::insert);
@@ -330,9 +319,6 @@ double MatrixFreeADR<fe_degree, ADRSpec>::
 {
     Vector<double> error_per_cell(this->mesh.n_active_cells());
 
-    // TODO: Check if you can use the base class compute_error()
-    // which computes the error on this->solution instead of
-    // ghost_solution_host, same for output()
     VectorTools::integrate_difference(this->mapping,
                                       this->dof_handler,
                                       ghost_solution_host,

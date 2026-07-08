@@ -126,7 +126,6 @@ void MatrixBasedADR<ADRSpec>::setup()
 template<typename ADRSpec>
 void MatrixBasedADR<ADRSpec>::assemble()
 {
-    // TODO: quadratures could be class members
     const QGauss<dim> quadrature(this->fe.degree + 1);
     const QGauss<dim-1> quadrature_face(this->fe.degree + 1);
 

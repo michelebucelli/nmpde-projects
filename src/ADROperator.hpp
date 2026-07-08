@@ -31,8 +31,7 @@ private:
     static constexpr int dim = ADRSpec::dim;
 
     using number = typename ADRSpec::ScalarType::value_type;
-    // TODO: Consider using auto inside the quadrature loops
-    // instead of using these aliases
+
     using ArrayScalar = typename ADRSpec::ScalarType;
     using ArrayPoint = typename ADRSpec::PointType;
     using ArrayTensor = typename ADRSpec::TensorType;
@@ -104,8 +103,6 @@ void ADROperator<fe_degree, ADRSpec>::local_compute_diagonal(
 
     phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
-    // TODO: Move this loop inside a function to avoid duplicating
-    // the weak form evaluation in local_apply
     for (const unsigned int q : phi.quadrature_point_indices()) {
         const ArrayPoint q_p = phi.quadrature_point(q);
 
@@ -144,9 +141,6 @@ void ADROperator<fe_degree, ADRSpec>::local_apply(
 {
     FEEvaluation<dim, fe_degree, fe_degree + 1, 1, number, ArrayScalar>
     phi(data);
-
-    // TODO: Check if precomputing coefficients is faster
-    // than re-evaluating them on the fly
 
     for (unsigned int cell = cell_range.first;
                       cell < cell_range.second; ++cell) {

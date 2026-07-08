@@ -66,7 +66,6 @@ int main(int argc, char *argv[])
     for (const unsigned int N : Ns) {
 
         parallel::distributed::Triangulation<dim> mesh(MPI_COMM_WORLD);
-        // TODO: Check matrix-free simplex mesh support
         GridGenerator::subdivided_hyper_cube(mesh, N, 0.0, 1.0, true);
 
         // ConcreteSpec could be passed as template template parameter

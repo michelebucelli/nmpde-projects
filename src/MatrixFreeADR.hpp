@@ -47,31 +47,11 @@ class MatrixFreeADR :
     MatrixFreeADR(const parallel::distributed::Triangulation<dim> &mesh);
 
 public:
-    // @DISCUSSION: in the setup function the mesh is initialized with
-    // a specific grid generator...
-    //
-    // As users of the benchmark we would like to swap at runtime, without
-    // recompilation, the type of mesh, which could be either generated or
-    // user supplied. The point was testing structured and unstructured meshes.
-    //
-    // So I would change this interface and add a mesh generator function
-
     void setup() override;
     void setup(bool dof_reorder);
 
     void assemble() override;
 
-    // @DISCUSSION: as users of the benchmark, we need some experiments:
-    //   1. measure the time per iteration MB vs. MF without any preconditioner
-    //   2. sweep the preconditioning strategies
-    //
-    // so this makes sense to have control parameters as function arguments
-    //
-    // As Tommaso pointed out, rtol should be specialized on number, otherwise
-    // on floating point runs, it won't converge. Let's make it a responsibility
-    // of the caller of this class
-    //
-    // Ideally this interface should be replicated for the matrix based solver
     std::pair<unsigned int, double> solve(unsigned int max_iter,
                                           number rel_tol,
                                           bool apply_preconditioner) override;
@@ -187,14 +167,6 @@ void MatrixFreeADR<fe_degree, ADRSpec>::setup(bool dof_reorder)
 template<unsigned int fe_degree, typename ADRSpec>
 void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
 {
-    // NOTE: There's another method to handle inhomogeneous dirichlet
-    // bcs which should be faster for high-order elements with hanging-nodes.
-    // See https://dealii.org/current/doxygen/deal.II/group__matrixfree.html
-
-#ifdef LOG_TIMERS
-    Timer time;
-#endif
-
     this->solution = 0;
     this->constraints.distribute(this->solution);
     this->solution.update_ghost_values();
@@ -258,23 +230,12 @@ void MatrixFreeADR<fe_degree, ADRSpec>::assemble()
         }
     }
     this->system_rhs.compress(VectorOperation::add);
-
-#ifdef LOG_TIMERS
-    this->pcout << std::setw(20) << std::left << "assemble()"
-                << std::fixed << time.wall_time() << "s" << std::endl;
-#endif
 }
 
 template<unsigned int fe_degree, typename ADRSpec>
 std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
     unsigned int max_iter, number rel_tol, bool apply_preconditioner)
 {
-#ifdef LOG_TIMERS
-    Timer time;
-#endif
-
-    // TODO: Find a way to implement solve() in the base ADR class
-
     // we can reuse somewhere this piece of code
     // static constexpr number tolerance_factor =
     //     std::is_same_v<number, float> ? 1e-6f : 1e-12;
@@ -304,7 +265,6 @@ std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
     // ENUM value of supported preconditioners
     if (apply_preconditioner) {
         // Ensure diagonal is ready for the preconditioner
-        // TODO: Consider performing compute_diagonal() in the assembly
         system_matrix.compute_diagonal();
 
         PreconditionJacobi<ADROperator<fe_degree, ADRSpec>> preconditioner;
@@ -318,18 +278,6 @@ std::pair<unsigned int, double> MatrixFreeADR<fe_degree, ADRSpec>::solve(
     this->solution += solution_update;
 
     this->solution.update_ghost_values();
-
-    //pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
-
-#ifdef LOG_TIMERS
-    const double elapsed = time.wall_time();
-    const double elapsed_per_iter = elapsed / solver_control->last_step();
-
-    this->pcout << std::setw(20) << std::left << "solve() [tot/iter]"
-                << std::fixed << elapsed << "s/" << elapsed_per_iter
-                << "s" << std::endl;
-
-#endif
 
     const auto res = solver_control->last_step();
     delete solver_control;

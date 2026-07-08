@@ -74,7 +74,6 @@ public:
             ADRSpec::dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
         const int q) const;
 
-    // TODO: Remove this if not used
     static constexpr unsigned int n_q_points =
         Utilities::pow(fe_degree + 1, ADRSpec::dim);
 };
@@ -86,9 +85,6 @@ QuadRhsEvaluator<fe_degree, ADRSpec>::operator()(
         ADRSpec::dim, fe_degree, fe_degree + 1, 1, number> *fe_eval,
     const int q) const
 {
-    // TODO: How do I get the boundary id here? Could be used to build the
-    // neumann contribution on the device
-
     const unsigned int cell_idx = fe_eval->get_current_cell_index();
     const typename Portable::MatrixFree<ADRSpec::dim, number>::Data *data =
         fe_eval->get_matrix_free_data();
@@ -97,9 +93,6 @@ QuadRhsEvaluator<fe_degree, ADRSpec>::operator()(
     const auto q_val = fe_eval->get_value(q);
     const auto q_grad = fe_eval->get_gradient(q);
 
-    // TODO: Perhaps store this object as class member
-    // to reduce the number of instantiations? Check of parallel_for
-    // schedules the loop
     const ADRSpec spec;
 
     fe_eval->submit_value(spec.forcing(q_p) -
@@ -194,8 +187,6 @@ public:
                 const MappingQ<dim> &mapping,
                 const AffineConstraints<number> &constraints);
 
-    void precompute_coefs(const DoFHandler<dim> &dof_handler);
-
     void vmult(DistributedDeviceVector<number> &dst,
                const DistributedDeviceVector<number> &src) const;
 
@@ -241,25 +232,6 @@ ADROperator<fe_degree, ADRSpec>::ADROperator(
                    constraints,
                    QGauss<1>(fe_degree + 1),
                    additional_data);
-}
-
-template<unsigned int fe_degree, typename ADRSpec>
-void ADROperator<fe_degree, ADRSpec>::precompute_coefs(
-    const DoFHandler<dim> &dof_handler)
-{
-    /*
-    const unsigned int n_owned_cells =
-        dynamic_cast<const parallel::TriangulationBase<dim> *>(
-            &dof_handler.get_triangulation())->n_locally_owned_active_cells();
-
-    forcing_coefs.reinit(n_owned_cells *
-        LocalADROperator<dim, fe_degree, number>::n_q_points);
-
-    const ForcingEvaluator<dim, fe_degree, number, ForcingPointFunctor>
-    forcing_eval(forcing_coefs.get_values());
-
-    mf_data.evaluate_coefficients(forcing_eval);
-    */
 }
 
 template<unsigned int fe_degree, typename ADRSpec>
@@ -317,7 +289,6 @@ void ADROperator<fe_degree, ADRSpec>::compute_diagonal()
         EvaluationFlags::values | EvaluationFlags::gradients,
         EvaluationFlags::values | EvaluationFlags::gradients);
 
-    // TODO: Is this not needed anymore?
     // Set Dirichlet constrained DoFs to 1 to allow invertibility
     // this->set_constrained_entries_to_one(inverse_diagonal);
 
@@ -342,8 +313,6 @@ ADROperator<fe_degree, ADRSpec>::get_matrix_diagonal_inverse() const
 template<unsigned int fe_degree, typename ADRSpec>
 types::global_dof_index ADROperator<fe_degree, ADRSpec>::m() const
 {
-    // TODO: This returns the local size, right? I have to understand
-    // how vmult is distributed across MPI processes
     return mf_data.get_vector_partitioner()->size();
 }
 
