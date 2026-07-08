@@ -31,7 +31,7 @@ template<typename ADRSpec, typename number, typename Vector_>
 class ADR
 {
 protected:
-    static constexpr int dim = ADRSpec::dim;
+    static constexpr unsigned int dim = ADRSpec::dim;
 
     ADR(const parallel::distributed::Triangulation<dim> &mesh_,
         unsigned int fe_degree);
