@@ -1,0 +1,19 @@
+0.02 against 0.04
+L2_error = 4.03e-05
+
+0.04 against 0.06
+Computing L2 against baseline
+L2_error = 4.76e-04
+
+0.06 against 0.08
+Computing L2 against baseline
+L2_error = 3.81e-04
+
+0.08 against 0.1
+Computing L2 against baseline
+L2_error = 1.04e-03
+
+
+0.01 vs 0.02
+Computing L2 against baseline
+L2_error = 9.86e-06
