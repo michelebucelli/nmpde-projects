@@ -1,0 +1,64 @@
+# Listing of Parameters
+# ---------------------
+subsection Discretization
+  # Number of refinement cycles. Convergence rates are only tabulated when
+  # this is larger than one.
+  set Cycles      = 1
+
+  # Global refinements of the coarsest cycle.
+  set Refinements = 5
+end
+
+
+subsection Output
+  # Timed bare operator applications per cycle. Zero skips the benchmark.
+  set Benchmark applications = 0
+
+  # Print the per cycle log and the convergence table.
+  set Verbose                = true
+
+  # Write the solution of each cycle to a .vtu record.
+  set Write VTU              = false
+end
+
+
+subsection Parallelism
+  # TBB threads per MPI rank. Zero means one per core. The MPI rank count
+  # comes from mpirun, not from here.
+  set Threads = 0
+end
+
+
+subsection Problem
+  # Convection field, comma separated. Entries past the space dimension are
+  # ignored.
+  set Beta      = 1, 1.5, 2
+
+  # Lagrange element degree, 1 to 3.
+  set Degree    = 2
+
+  # Space dimension, 2 or 3.
+  set Dimension = 2
+
+  # Reaction coefficient, non negative.
+  set Gamma     = 1
+
+  # Diffusion coefficient, positive.
+  set Mu        = 1
+end
+
+
+subsection Solver
+  # Operator representation. 'matrix_based' assembles a sparse matrix and is
+  # the reference for the matrix-free benchmark.
+  set Backend        = matrix_free
+
+  # FGMRES preconditioner. 'multigrid' means the geometric V-cycle for the
+  # matrix-free backend and algebraic multigrid for the matrix-based one.
+  set Preconditioner = multigrid
+
+  # Relative residual stopping tolerance.
+  set Tolerance      = 1e-09
+end
+
+

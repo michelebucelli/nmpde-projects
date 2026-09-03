@@ -33,4 +33,12 @@
 *.out
 *.app
 
-*/build/*
+build/
+Testing/
+
+# macOS
+.DS_Store
+
+# Solver output
+*.vtu
+*.pvtu
