@@ -1,23 +1,44 @@
-### Organizing the source code
-Please place all your sources into the `src` folder.
+# Wave Equation Project
 
-Binary files must not be uploaded to the repository (including executables).
+Finite Element solver for the wave equation using deal.II and Newmark time integration.
 
-Mesh files should not be uploaded to the repository. If applicable, upload `gmsh` scripts with suitable instructions to generate the meshes (and ideally a Makefile that runs those instructions). If not applicable, consider uploading the meshes to a different file sharing service, and providing a download link as part of the building and running instructions.
+## Source organization
 
-### Compiling
-To build the executable, make sure you have loaded the needed modules with
+All source files are contained in the `src` folder.
+
+Main files:
+
+- `src/main.cpp`
+- `src/TimeADR.cpp`
+- `src/TimeADR.hpp`
+- `src/TestCases.hpp`
+- `src/convergence.cpp`
+
+## Build instructions
+
+Load the required modules:
+
 ```bash
-$ module load gcc-glibc dealii
+module load gcc-glibc dealii
 ```
-Then run the following commands:
+
+Then compile with:
+
 ```bash
-$ mkdir build
-$ cd build
-$ cmake ..
-$ make
+mkdir build
+cd build
+cmake ..
+make
 ```
-The executable will be created into `build`, and can be executed through
+
+The executable is generated inside the `build` directory.
+
+## Running
+
+From inside the `build` directory, run:
+
 ```bash
-$ ./executable-name
+./<executable-name>
 ```
+
+Replace `<executable-name>` with the executable name defined in `CMakeLists.txt`.
