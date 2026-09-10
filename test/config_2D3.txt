@@ -1,0 +1,14 @@
+# DFG Benchmark 2D-3: Unsteady flow with pulsating inflow (0 ≤ Re(t) ≤ 100)
+# Inflow: U(0,y,t) = 4*Um*y*(H-y)*sin(πt/8)/H², V=0
+# Um = 1.5 m/s, H = 0.41 m, D = 0.1 m
+# Time interval: 0 ≤ t ≤ 8 s
+# Initial: U=V=P=0
+
+mesh_file_name = ../mesh/Navier_Stokes_2D_fine.msh
+degree_velocity = 2
+degree_pressure = 1
+regime = Unsteady
+peak_velocity = 1.5
+preconditioner = SIMPLE
+T = 8.0
+dt = 0.005

@@ -1,0 +1,12 @@
+# DFG Benchmark 2D-1: Steady flow around cylinder (Re=20)
+# Inflow: U(0,y) = 4*Um*y*(H-y)/H², V=0
+# Um = 0.3 m/s, H = 0.41 m, D = 0.1 m
+
+mesh_file_name = ../mesh/Navier_Stokes_2D_fine.msh
+degree_velocity = 2
+degree_pressure = 1
+regime = Steady
+peak_velocity = 0.3
+preconditioner = SIMPLE
+T = 20.0
+dt = 0.1

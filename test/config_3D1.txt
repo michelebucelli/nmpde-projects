@@ -1,0 +1,13 @@
+# DFG Benchmark 3D-1Q/3D-1Z: Steady flow around cylinder (Re=20)
+# Inflow: U(0,y,z) = 16*Um*y*z*(H-y)*(H-z)/H^4, V=W=0
+# Um = 0.45 m/s, H = 0.41 m, D = 0.1 m
+# Mesh: square (Q)
+
+mesh_file_name = ../mesh/Navier_Stokes_3D_fine.msh
+degree_velocity = 2
+degree_pressure = 1
+regime = Steady
+peak_velocity = 0.45
+preconditioner = SIMPLE
+T = 20.0
+dt = 0.1
