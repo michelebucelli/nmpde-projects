@@ -1,0 +1,83 @@
+\chapter{Validation and Diagnostics}
+
+The exact solution and its substituted load are
+\[
+ u=\sin(\pi x)\sin(\pi y)\cos(\omega t),\qquad
+ f=(2\pi^2-\omega^2)\sin(\pi x)\sin(\pi y)\cos(\omega t).
+\]
+The free case uses \(\omega=\sqrt{2}\pi\); the forced case uses \(\omega=\pi\).
+Both satisfy the boundary and initial conditions and are smooth in space
+and time. These tests exercise a single standing spatial mode, not arbitrary
+wave data.
+
+\section{What the Error Curves Measure}
+At every stored diagnostic time the code evaluates absolute displacement errors
+\[
+ e_{L^2}(t)=\left(\int_\Omega|u(t)-u_h(t)|^2\dd x\right)^{1/2},\quad
+ e_{H^1}(t)=\left(\int_\Omega|\nabla u(t)-\nabla u_h(t)|^2\dd x\right)^{1/2}.
+\]
+The latter is a seminorm, not the full \(H^1\) norm. Neither is divided by
+the exact solution norm. \texttt{integrate\_difference} and
+\texttt{compute\_global\_error} sum squared cell errors using
+\texttt{QGauss(degree+2)}, i.e. \(3\times3\) points for \(Q_1\).
+The exact gradient is supplied explicitly. These are quadrature approximations
+to the integrals, not errors sampled only at nodes.
+
+Time-evolution plots use time on a linear horizontal axis and absolute error
+on a logarithmic vertical axis. Their dips reflect the oscillatory solution
+and spatial/temporal error cancellation; they are not mesh-convergence rates.
+
+\section{Spatial Convergence}
+On this shape-regular affine square mesh, standard \(Q_1\) approximation gives
+\[
+ \|u-I_hu\|_{L^2}\leq Ch^2|u|_{H^2},\qquad
+ |u-I_hu|_{H^1}\leq Ch|u|_{H^2}.
+\]
+Together with Galerkin stability and suitable regularity of the solution and
+its time derivatives, this motivates spatial errors of orders two and one
+for the wave problem at fixed finite time. These are expected asymptotic
+orders, not exact equalities or an application of the elliptic
+Cea lemma directly to a time-dependent problem.
+The smooth manufactured data satisfy the regularity assumptions.
+The \(Q_1\) approximation space on affine cells supports these estimates
+\cite{arnold}.
+
+We define \(h=\max_C\operatorname{diam}(C)=\sqrt{2}/N\), recorded in
+\texttt{parameters.csv}; it is not the side length \(1/N\).
+The constant factor does not change the experimental order
+\[
+ p=\frac{\log(e_h/e_{\tilde h})}{\log(h/\tilde h)}.
+\]
+The controlled study uses \(N=12,24,48\), \(T=1\), \(\Delta t=0.00125\).
+Each mesh is also run with half this time step. Changes in the final error
+norms quantify time-step sensitivity; they are not rigorous bounds on the
+temporal error. This check matters because total errors combine space,
+time, quadrature, and linear-solver contributions.
+Log--log plots show final errors versus \(h\), with slopes two and one.
+The older fixed-mesh time-step table is retained as a mixed-error experiment,
+not evidence of second-order time convergence.
+
+\section{Energy and Forcing}
+In both cases the code computes, with the original unconstrained matrices,
+\[
+ E_h^n=\tfrac12(\vect V^n)^TM\vect V^n+
+       \tfrac12(\vect U^n)^TK\vect U^n.
+\]
+Boundary entries of the solution vectors are zero. Continuously,
+\(E'(t)=(f,u_t)\), so energy is conserved for \(f=0\).
+The Newmark parameters imply
+\[
+ E_h^{n+1}-E_h^n
+ =(\vect U^{n+1}-\vect U^n)^T
+   \frac{\vect F^{n+1}+\vect F^n}{2}
+\]
+with exact algebraic solves. Thus discrete free energy is exactly conserved
+in exact arithmetic; measured drift reflects round-off and solve tolerances.
+We report \(\max_n|E_h^n-E_h^0|/E_h^0\), not just a visually flat curve.
+
+For the manufactured forced solution,
+\[
+ E(t)=\frac{\pi^2}{4}\cos^2(\pi t)+\frac{\pi^2}{8}\sin^2(\pi t).
+\]
+It decreases then increases on \([0,1]\) as the force removes and supplies
+energy. Similar initial and final values alone would miss this variation.

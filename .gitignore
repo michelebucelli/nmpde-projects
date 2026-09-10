@@ -1,36 +1,59 @@
-## C++ #########################################################################
+## Build directories
+build/
+*/build/
+presentation/__pycache__/
 
-# Prerequisites
+## C++ build artifacts
 *.d
-
-# Compiled Object files
 *.slo
 *.lo
 *.o
 *.obj
-
-# Precompiled Headers
 *.gch
 *.pch
-
-# Compiled Dynamic libraries
 *.so
 *.dylib
 *.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
 *.lai
 *.la
 *.a
 *.lib
-
-# Executables
 *.exe
 *.out
 *.app
 
-*/build/*
+## Generated meshes and visualization output
+output/
+output_*/
+output-*/
+validation-output/
+validation-output_*/
+validation-output-*/
+validation-*/
+validation-*/
+scalability-output/
+*.msh
+*.vtu
+*.pvtu
+*.pvd
+*.vtk
+
+## Local editor/system files
+.DS_Store
+Thumbs.db
+__pycache__/
+
+## LaTeX auxiliary files
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.toc
+
+## Local reference books
+Book Resources/
+other/
+presentation/PDE - ShallowWatersEquations by Andrea.pptx
+
+## PowerPoint temporary files
+~$*.pptx

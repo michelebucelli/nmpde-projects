@@ -1,0 +1,16 @@
+\chapter{Introduction}
+
+WaveFEM solves \(u_{tt}-\Delta u=f\) on the unit square with a fixed boundary.
+The implementation uses deal.II, a structured square mesh, continuous bilinear
+\(Q_1\) elements by default, and Newmark average acceleration in time.
+The \texttt{wave\_fem} target is the serial reference implementation, while
+\texttt{wave\_fem\_mpi} provides a distributed-memory version of the same
+discretization.
+
+Two smooth manufactured solutions test the free wave and a nonzero forcing.
+We measure absolute displacement errors, mesh convergence, mechanical energy
+and phase behaviour, and compare CG and GMRES with SSOR and Jacobi
+preconditioning. The MPI version is also executed on one, two and four
+processes to check distributed consistency and measure the cost of this
+workload. The experiments verify this particular discretization and data;
+they are not a benchmark of general wave propagation.

@@ -1,0 +1,20 @@
+\chapter{Mathematical Problem}
+
+With wave speed one and no damping, the model is
+\[
+ u_{tt}-\Delta u=f \quad\hbox{in }(0,1)^2\times(0,T],\qquad
+ u=0\quad\hbox{on }\partial\Omega.
+\]
+Both implemented tests start from
+\(u_0(x,y)=\sin(\pi x)\sin(\pi y)\) and \(u_1(x,y)=0\).
+Here \(u\) is the transverse displacement of a membrane fixed along its edge.
+Only displacement is prescribed at the boundary, not its normal derivative.
+
+\section{Weak Formulation}
+Set \(V=H^1_0(\Omega)\). Multiplication by \(v\in V\) and integration by parts
+in space give
+\[
+ (u_{tt},v)_\Omega+(\nabla u,\nabla v)_\Omega=(f,v)_\Omega.
+\]
+The boundary term vanishes because the test function has zero trace.
+The two terms on the left become the mass and stiffness matrices.

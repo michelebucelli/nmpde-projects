@@ -1,0 +1,8 @@
+Platform: Linux-5.15.153.1-microsoft-standard-WSL2-x86_64-with-glibc2.33
+Processor: x86_64
+Reference toolchain: course deal.II 9.5.1, CMake Release.
+Execution: serial, OMP/OPENBLAS threads=1.
+Benchmark: forced Q1 N=48 (2401 DoFs), T=0.1, dt=0.005; three repetitions.
+Timings: median total for 20 Newmark solves; setup separate; initial mass solve excluded.
+Residual: maximum recomputed Euclidean norm over Newmark solves/repetitions.
+Stats for every solve, including the initial mass solve, are in each solver_stats.csv.

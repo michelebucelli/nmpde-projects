@@ -1,0 +1,76 @@
+\chapter{Numerical Method}
+
+\section{The Actual Finite Element Space}
+\texttt{GridGenerator::subdivided\_hyper\_cube} creates \(N^2\) squares of side
+\(1/N\). There is no subdivision into triangles. The deal.II class name
+\texttt{Triangulation} does not imply triangular cells.
+The code constructs \texttt{FE\_Q(degree)} and \texttt{QGauss(degree+1)}.
+
+For degree one,
+\[
+ V_h=\{v_h\in C^0(\overline\Omega):v_h|_C\in Q_1(C),\
+       v_h|_{\partial\Omega}=0\}.
+\]
+Here \(C\) ranges over the square cells and
+\(Q_1=\operatorname{span}\{1,x,y,xy\}\).
+The basis is bilinear on each square, not affine on triangles.
+On a reference square its four functions are
+\((1-\xi)(1-\eta),\,\xi(1-\eta),\,(1-\xi)\eta,\,\xi\eta\).
+The coefficients in \(u_h=\sum_j U_j(t)\varphi_j\) are nodal displacement
+values. There are \((N+1)^2\) stored degrees of freedom (DoFs) and
+\((N-1)^2\) free DoFs.
+Degree \(p>1\) selects \(Q_p\); the reported convergence study uses only \(p=1\).
+
+Each square contributes local matrices and a load vector:
+\[
+ M^C_{ij}=\int_C\varphi_j\varphi_i\dd x,\quad
+ K^C_{ij}=\int_C\nabla\varphi_j\cdot\nabla\varphi_i\dd x,\quad
+ F^C_i(t)=\int_C f(t)\varphi_i\dd x.
+\]
+Cell DoF indices add these contributions into the global sparse system
+\(M\ddot{\vect U}+K\vect U=\vect F\).
+For \(Q_1\), two Gauss points in each direction integrate the matrix
+polynomials exactly on these affine squares. The sine load is integrated
+numerically, not exactly.
+
+\section{Constant Matrices}
+\texttt{run()} calls \texttt{assemble\_matrices()} once, before initialization.
+The mesh, FE space, unit coefficients, and boundary constraints are fixed.
+Thus both the entries and sparsity of \(M,K\) are reused; reassembling them at
+every step would repeat identical work. The original matrices are kept for
+energy and right-hand-side products.
+
+The constant time step also makes \(B=M+\frac14\Delta t^2K\) constant.
+A boundary-constrained copy of \(M\) is used once for the initial acceleration;
+the constrained \(B\) is reused at every time step.
+No direct factorization is performed. The preconditioner is initialized
+inside each solve, so preconditioner setup is \emph{not} cached.
+A reusable factorization or cached preconditioner would be possible but is
+not claimed here.
+
+\section{Newmark Average Acceleration}
+Initial displacement and velocity are interpolated, with boundary values
+set to zero. Initial acceleration solves \(M\vect A^0=\vect F^0-K\vect U^0\)
+on the free DoFs; it is not obtained by interpolating \(u_{tt}(0)\).
+With \(\beta=1/4,\gamma=1/2\), each step performs
+\begin{align*}
+ \vect U_{\rm pred}&=\vect U^n+\Delta t\vect V^n+
+                  \Delta t^2(1/2-\beta)\vect A^n,\\
+ B\vect A^{n+1}&=\vect F(t_{n+1})-K\vect U_{\rm pred},\\
+ \vect U^{n+1}&=\vect U_{\rm pred}+\beta\Delta t^2\vect A^{n+1},\\
+ \vect V^{n+1}&=\vect V^n+\Delta t[(1-\gamma)\vect A^n+\gamma\vect A^{n+1}].
+\end{align*}
+The force, predictor, right-hand side, and unknown vectors change; \(M,K,B\)
+do not. The free force is zero; the forced load is assembled at \(t_{n+1}\).
+Inputs require an integer \(T/\Delta t\), so the final time is reached without
+changing the last step or its matrix.
+
+The scheme is equivalent to the trapezoidal rule for the first-order
+displacement--velocity system \cite{newmark}. For a free mode with frequency
+\(\omega_h\), this symbol denotes the semi-discrete spatial frequency and is
+not the manufactured-solution frequency \(\omega\) introduced in Chapter 5.
+The amplification factors have modulus one and phase increment
+\(2\arctan(\omega_h\Delta t/2)\). This gives unconditional linear stability,
+no artificial damping, and second-order phase accuracy, not unrestricted
+accuracy for large time steps. The centre probe used in the results chapter
+provides a small empirical check of this phase behaviour.
