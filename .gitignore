@@ -33,4 +33,31 @@
 *.out
 *.app
 
-*/build/*
+build/*
+*.cache
+# result/*
+*.pyc
+
+# Keep the benchmark data and coefficient image needed to reproduce report.pdf;
+# ignore all other generated experiment output.
+result/*
+!result/benchmark_results.csv
+!result/plots/
+result/plots/*
+!result/plots/mu.png
+output/
+*.vtu
+*.pvtu
+*.pvd
+
+## LaTeX ######################################################################
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+
+
+requirements-presentation.txt
+scripts/*

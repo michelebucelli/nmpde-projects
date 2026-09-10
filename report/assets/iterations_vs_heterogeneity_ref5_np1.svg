@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="520" viewBox="0 0 860 520">
+<style>text{font-family:Arial,sans-serif;font-size:13px;fill:#1f2933}.title{font-size:20px;font-weight:700}.grid{stroke:#d9e2ec}.axis{stroke:#243b53;stroke-width:1.3}.label{fill:#52606d;font-size:12px}</style>
+<rect width="100%" height="100%" fill="white"/>
+<text class="title" x="70" y="34">iters vs p, ref=5, np=1</text>
+<line class="grid" x1="80" y1="60.0" x2="650" y2="60.0"/>
+<line class="grid" x1="80" y1="152.5" x2="650" y2="152.5"/>
+<line class="grid" x1="80" y1="245.0" x2="650" y2="245.0"/>
+<line class="grid" x1="80" y1="337.5" x2="650" y2="337.5"/>
+<line class="grid" x1="80" y1="430.0" x2="650" y2="430.0"/>
+<line class="axis" x1="80" y1="430" x2="650" y2="430"/>
+<line class="axis" x1="80" y1="430" x2="80" y2="60"/>
+<text class="label" transform="translate(24 310) rotate(-90)">CG iters, log</text>
+<text class="label" x="42" y="434.0">1</text>
+<text class="label" x="42" y="360.0">10</text>
+<text class="label" x="42" y="286.0">100</text>
+<text class="label" x="42" y="212.0">1k</text>
+<text class="label" x="42" y="138.0">10k</text>
+<polyline points="80.0,251.3 222.5,214.4 365.0,178.3 507.5,145.3 650.0,118.8" fill="none" stroke="#1d4ed8" stroke-width="2.5"/>
+<circle cx="80.0" cy="251.3" r="4" fill="#1d4ed8"/>
+<circle cx="222.5" cy="214.4" r="4" fill="#1d4ed8"/>
+<circle cx="365.0" cy="178.3" r="4" fill="#1d4ed8"/>
+<circle cx="507.5" cy="145.3" r="4" fill="#1d4ed8"/>
+<circle cx="650.0" cy="118.8" r="4" fill="#1d4ed8"/>
+<line x1="690" y1="78.0" x2="724" y2="78.0" stroke="#1d4ed8" stroke-width="3"/>
+<circle cx="707" cy="78.0" r="3.5" fill="#1d4ed8"/>
+<text x="734" y="82.0">none</text>
+<polyline points="80.0,273.8 222.5,253.7 365.0,242.6 507.5,233.7 650.0,223.8" fill="none" stroke="#dc2626" stroke-width="2.5"/>
+<circle cx="80.0" cy="273.8" r="4" fill="#dc2626"/>
+<circle cx="222.5" cy="253.7" r="4" fill="#dc2626"/>
+<circle cx="365.0" cy="242.6" r="4" fill="#dc2626"/>
+<circle cx="507.5" cy="233.7" r="4" fill="#dc2626"/>
+<circle cx="650.0" cy="223.8" r="4" fill="#dc2626"/>
+<line x1="690" y1="102.0" x2="724" y2="102.0" stroke="#dc2626" stroke-width="3"/>
+<circle cx="707" cy="102.0" r="3.5" fill="#dc2626"/>
+<text x="734" y="106.0">jacobi</text>
+<polyline points="80.0,300.6 222.5,283.3 365.0,274.3 507.5,267.3 650.0,258.0" fill="none" stroke="#059669" stroke-width="2.5"/>
+<circle cx="80.0" cy="300.6" r="4" fill="#059669"/>
+<circle cx="222.5" cy="283.3" r="4" fill="#059669"/>
+<circle cx="365.0" cy="274.3" r="4" fill="#059669"/>
+<circle cx="507.5" cy="267.3" r="4" fill="#059669"/>
+<circle cx="650.0" cy="258.0" r="4" fill="#059669"/>
+<line x1="690" y1="126.0" x2="724" y2="126.0" stroke="#059669" stroke-width="3"/>
+<circle cx="707" cy="126.0" r="3.5" fill="#059669"/>
+<text x="734" y="130.0">ssor</text>
+<polyline points="80.0,305.6 222.5,287.6 365.0,278.4 507.5,271.0 650.0,264.6" fill="none" stroke="#7c3aed" stroke-width="2.5"/>
+<circle cx="80.0" cy="305.6" r="4" fill="#7c3aed"/>
+<circle cx="222.5" cy="287.6" r="4" fill="#7c3aed"/>
+<circle cx="365.0" cy="278.4" r="4" fill="#7c3aed"/>
+<circle cx="507.5" cy="271.0" r="4" fill="#7c3aed"/>
+<circle cx="650.0" cy="264.6" r="4" fill="#7c3aed"/>
+<line x1="690" y1="150.0" x2="724" y2="150.0" stroke="#7c3aed" stroke-width="3"/>
+<circle cx="707" cy="150.0" r="3.5" fill="#7c3aed"/>
+<text x="734" y="154.0">ilu</text>
+<polyline points="80.0,338.9 222.5,337.1 365.0,333.7 507.5,329.2 650.0,319.6" fill="none" stroke="#ea580c" stroke-width="2.5"/>
+<circle cx="80.0" cy="338.9" r="4" fill="#ea580c"/>
+<circle cx="222.5" cy="337.1" r="4" fill="#ea580c"/>
+<circle cx="365.0" cy="333.7" r="4" fill="#ea580c"/>
+<circle cx="507.5" cy="329.2" r="4" fill="#ea580c"/>
+<circle cx="650.0" cy="319.6" r="4" fill="#ea580c"/>
+<line x1="690" y1="174.0" x2="724" y2="174.0" stroke="#ea580c" stroke-width="3"/>
+<circle cx="707" cy="174.0" r="3.5" fill="#ea580c"/>
+<text x="734" y="178.0">amg</text>
+<text class="label" x="75.0" y="454">1</text>
+<text class="label" x="217.5" y="454">2</text>
+<text class="label" x="360.0" y="454">3</text>
+<text class="label" x="502.5" y="454">4</text>
+<text class="label" x="645.0" y="454">5</text>
+<text class="label" x="335" y="492">p</text>
+</svg>
