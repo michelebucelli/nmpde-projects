@@ -44,7 +44,8 @@ cd ..
 
 Runs a manufactured-solution convergence test with μ = 1 (homogeneous),
 using u(x,y,z) = sin(πx) sin(πy) sin(πz). Prints an L²/H¹ convergence
-table. Expected rates: L² = 2.0, H¹ = 1.0 (Q1 elements).
+table. Expected rates: L² = 2.0, H¹ = 1.0 (continuous P1 elements on
+tetrahedra).
 
 ```bash
 ./build/elliptic verify              # refinements 3 to 5
@@ -100,6 +101,14 @@ ParaView output (`.pvtu` files) is written to `output/` and includes:
 mpirun -n 4 ./build/elliptic 5 4 amg
 # Open output/heterogeneous-amg-p5-ref4.pvtu in ParaView
 ```
+
+## Report and presentation
+
+The report in `report/report.tex` explains the strong, weak, and discrete
+formulations, the CG/preconditioner algorithms, the distributed-memory
+implementation, and the benchmark results. Rebuild it with `make report`.
+The short presentation outline is in `presentation.md` and follows the same
+notation and results.
 
 ## Verification results
 

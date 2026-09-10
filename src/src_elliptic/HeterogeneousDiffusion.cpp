@@ -66,10 +66,8 @@ HeterogeneousDiffusion::setup_and_assemble()
 
   Timer timer;
 
-  // Build the mesh directly from tetrahedra. The parameter `refinements`
-  // keeps the same meaning as in the hexahedral version: h = 2^{-r}.
-  // We therefore use 2^refinements subdivisions in every coordinate
-  // direction. The generator fills the unit cube directly with simplices.
+  // Build a tetrahedral mesh. The parameter `refinements` means
+  // h = 2^{-r}; each Cartesian subdivision is split into six tetrahedra.
   {
     Triangulation<dim> serial_tet_mesh;
 

@@ -175,21 +175,24 @@ Writing $u_h=\sum_{j=1}^{N_h}U_j\phi_j$ and testing with each nodal basis functi
  \quad b_i=\int_\Omega f\phi_i\,\mathrm dx.
  \label{eq:discrete}
 \end{equation}
-Two-point Gauss quadrature per coordinate integrates the $Q_1$ element terms exactly when the
-coefficient is constant on a quadrature neighborhood. Cells cut by an inclusion interface inherit
-the pointwise coefficient samples, which is consistent with the implementation described above.
+The assembly uses the deal.II simplex quadrature rule of order two. Since $P_1$ shape-function
+gradients are constant on each tetrahedron, the stiffness integrand is integrated exactly when the
+coefficient is constant over the quadrature neighborhood. Cells cut by an inclusion interface
+inherit pointwise coefficient samples, which is consistent with the unfitted implementation.
 
 \begin{table}[h]
 \centering
-\caption{Uniform-grid sizes used in the benchmark. The formula $N_h=(2^r+1)^3$ includes
-boundary nodes; homogeneous Dirichlet constraints eliminate boundary values algebraically.}
+\caption{Uniform-grid sizes used in the benchmark. The cube is subdivided into $2^r$ intervals per
+direction and each Cartesian cell is split into six tetrahedra. The $P_1$ DoFs are the vertices,
+so $N_h=(2^r+1)^3$ includes boundary nodes; homogeneous Dirichlet constraints eliminate boundary
+values algebraically.}
 \begin{tabular}{rrrr}
 \toprule
-Refinement $r$ & $h=2^{-r}$ & active cells $8^r$ & global DoFs $N_h$\\
+Refinement $r$ & $h=2^{-r}$ & active tetrahedra $6\,8^r$ & global DoFs $N_h$\\
 \midrule
-3 & $1/8$  & 512    & 729\\
-4 & $1/16$ & 4,096  & 4,913\\
-5 & $1/32$ & 32,768 & 35,937\\
+3 & $1/8$  & 3,072    & 729\\
+4 & $1/16$ & 24,576  & 4,913\\
+5 & $1/32$ & 196,608 & 35,937\\
 \bottomrule
 \end{tabular}
 \label{tab:meshes}
@@ -372,7 +375,7 @@ $1/32$ & $3.5919\times10^{-4}$ & 2.00 & $5.4524\times10^{-2}$ & 1.00\\
 \label{tab:verification}
 \end{table}
 
-The observed rates exactly match the $Q_1$ expectations. Halving $h$ divides the $L^2$ error by
+The observed rates exactly match the continuous $P_1$ expectations. Halving $h$ divides the $L^2$ error by
 four and the $H^1$ error by two. This simultaneously exercises mesh creation, quadrature, load and
 stiffness assembly, constraints, the distributed solve, ghost-vector construction, and error
 integration. It does not validate the benchmark's absolute timings or the geometric accuracy of
@@ -395,7 +398,7 @@ coefficient contrast as the experimental variable.
 \includegraphics[width=0.72\textwidth]{../result/plots/mu.png}
 \caption{Cellwise visualization of the coefficient field for $p=5$. Orange inclusions have
 $\mu=10^5$ and the background has $\mu=1$. The apparent faceting comes from evaluation on the
-uniform hexahedral mesh.}
+uniform tetrahedral mesh.}
 \label{fig:mu}
 \end{figure}
 
@@ -661,7 +664,7 @@ ranking persists when communication is amortized by substantial local work.
 \newpage
 \section{Conclusions}
 The finite-element implementation is verified: the manufactured solution achieves the theoretical
-$Q_1$ rates of two in $L^2$ and one in $H^1$. The production sweep then demonstrates that
+$P_1$ rates of two in $L^2$ and one in $H^1$. The production sweep then demonstrates that
 coefficient heterogeneity, not merely mesh size, is the decisive algebraic challenge. Without
 preconditioning, the hardest system requires 16,067 CG iterations and has an estimated condition
 number above $10^7$.
