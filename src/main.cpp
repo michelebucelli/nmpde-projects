@@ -11,7 +11,7 @@ main(int argc, char *argv[])
 
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-  const int      chosen_case = 5;
+  const int      chosen_case = 6;
   const TestCase tc          = make_test_case(chosen_case);
 
   const unsigned int Nel     = 80;

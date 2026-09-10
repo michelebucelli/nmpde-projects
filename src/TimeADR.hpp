@@ -48,7 +48,7 @@ using namespace dealii;
 class TimeADR
 {
 public:
-  ù static constexpr unsigned int dim = 2;
+  static constexpr unsigned int dim = 2;
 
   class FunctionDirichlet : public Function<dim>
   {

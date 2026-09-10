@@ -28,6 +28,7 @@ struct TestCase
   std::function<double(const Point<dim> &)>         u1;
 };
 
+class ExactSolutionFunction : public Function<TestCase::dim>
 {
 public:
   static constexpr unsigned int dim = TestCase::dim;
@@ -37,14 +38,16 @@ public:
     , grad_exact(tc.grad_exact)
   {}
 
-  double value(const Point<dim> &p, const unsigned int /*component*/ = 0)
-    const override
+  double
+  value(const Point<dim> &p,
+        const unsigned int /*component*/ = 0) const override
   {
     return u_exact(p, this->get_time());
   }
 
-  Tensor<1, dim> gradient(const Point<dim> &p,
-                          const unsigned int /*component*/ = 0) const override
+  Tensor<1, dim>
+  gradient(const Point<dim> &p,
+           const unsigned int /*component*/ = 0) const override
   {
     return grad_exact(p, this->get_time());
   }
