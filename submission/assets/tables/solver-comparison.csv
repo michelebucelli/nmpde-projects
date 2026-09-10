@@ -1,0 +1,5 @@
+solver,preconditioner,converged,mean_iterations,max_iterations,max_residual,max_relative_residual,solve_ms,setup_ms
+cg,ssor,3/3,6.00,6,2.615100e-12,2.547329e-11,29.87302,1.98151
+cg,jacobi,3/3,1.00,1,1.447179e-14,1.474670e-13,5.65763,0.06972
+gmres,ssor,3/3,6.00,6,2.605978e-12,2.538445e-11,44.73600,1.98325
+gmres,jacobi,3/3,1.00,1,1.425311e-14,1.452387e-13,6.06195,0.07157

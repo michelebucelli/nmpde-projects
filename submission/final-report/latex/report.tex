@@ -1,0 +1,85 @@
+\documentclass[a4paper, oneside, openright]{book}
+
+% --------------------------
+% ---- DECLARE PACKAGES ----
+% --------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage[a4paper,top=2.5cm,bottom=2.5cm,left=3cm,right=3cm]{geometry}
+\usepackage[fontsize=12pt]{scrextend}
+\usepackage[parfill]{parskip}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{titlesec}
+\usepackage{hyperref}
+
+% ------------------------
+% ---- DOCUMENT SETUP ----
+% ------------------------
+\pagestyle{plain}
+\raggedbottom
+
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries}{}{0pt}{\LARGE}
+\titlespacing*{\chapter}{0pt}{0pt}{20pt}
+
+\hypersetup{
+  colorlinks,
+  citecolor=black,
+  filecolor=black,
+  linkcolor=black,
+  urlcolor=black
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.65em}
+
+\newcommand{\OmegaDomain}{\Omega=(0,1)^2}
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\vect}[1]{\mathbf{#1}}
+
+% ------------------------
+% ---- DOCUMENT START ----
+% ------------------------
+\begin{document}
+\pagenumbering{gobble}
+\input{Frontespizio.tex}
+
+\pagenumbering{arabic}
+\setcounter{chapter}{0}
+
+\tableofcontents
+
+\newpage
+\input{sections/section1_intro}
+
+\newpage
+\input{sections/section2_problem}
+
+\newpage
+\input{sections/section3_numerical_method}
+
+\newpage
+\input{sections/section4_implementation}
+
+\newpage
+\input{sections/section5_validation}
+
+\newpage
+\input{sections/section6_results}
+
+\newpage
+\input{sections/section7_visualization}
+
+\newpage
+\input{sections/section8_conclusions}
+
+\end{document}

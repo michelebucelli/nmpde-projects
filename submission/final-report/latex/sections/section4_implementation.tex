@@ -1,0 +1,76 @@
+\chapter{Implementation and Linear Solves}
+
+\texttt{main.cpp} validates run parameters. \texttt{WaveEquation} keeps the
+laboratory sequence: setup, matrix assembly, initialization, time loop,
+diagnostics, and output. The PDE assembly, manufactured data, and Newmark
+predictor/corrector are shared by every solver option.
+
+\section{Why CG Is Applicable}
+For a nonzero coefficient vector on the unconstrained space,
+\[
+ z^TMz=\|z_h\|_{L^2}^2>0,\qquad
+ z^TKz=\|\nabla z_h\|_{L^2}^2\geq0.
+\]
+Both matrices are symmetric. On \(V_h\subset H^1_0(\Omega)\), the second
+quadratic form is also strictly positive: a constant function with zero
+boundary trace must be zero. Therefore
+\[
+ z^TBz=\|z_h\|_{L^2}^2+\tfrac14\Delta t^2\|\nabla z_h\|_{L^2}^2>0.
+\]
+\texttt{apply\_boundary\_values(...,true)} eliminates both rows and columns,
+retaining positive diagonal entries on boundary DoFs. The solved matrices are
+an SPD interior block plus a positive diagonal boundary block. Merely
+eliminating rows would not justify the same symmetry argument.
+
+Setting \texttt{WAVE\_CHECK\_MATRIX=1} checks the sparse entries for symmetry,
+positive diagonals, and eight deterministic random Rayleigh quotients for
+each constrained matrix. These checks can detect mistakes; they are not a
+proof of positive definiteness. No dense conversion or eigendecomposition
+is used.
+
+\section{Solvers and Preconditioners}
+The default is CG with SSOR at relaxation one. SSOR applies forward and
+backward triangular sweeps to reduce the conditioning difficulty seen by CG.
+For an SPD matrix and \(0<\omega_{\rm SSOR}<2\), the symmetric SSOR
+preconditioner is SPD, as required by preconditioned CG.
+Jacobi uses the inverse positive diagonal and is also SPD.
+At relaxation one, writing \(B=D+L+L^T\), the SSOR matrix is
+\(P=(D+L)D^{-1}(D+L)^T\), which makes its positive definiteness explicit.
+
+The executable also accepts GMRES with right preconditioning, using a restart
+basis of 30 in deal.II 9.5.1. Right preconditioning makes its stopping
+criterion use the original residual, matching CG. All runs start each
+linear solve from zero and use at most 5000 iterations, absolute tolerance
+\(10^{-14}\), or relative reduction \(10^{-10}\).
+After solving, the code independently computes the Euclidean residual
+\(\|Ba-b\|_2\) (or \(\|Ma-b\|_2\)) and rejects an unsuccessful solve.
+This algebraic residual is distinct from the spatial FEM error norms.
+
+SSOR accounts for off-diagonal coupling, but costs triangular sweeps, depends
+on ordering, is not mesh-independent, and is awkward to parallelize.
+Jacobi is cheaper but ignores coupling. Neither is universally best.
+Chapter 6 reports the measured comparison, including an important limitation:
+a single smooth sine mode on a uniform mesh is unusually easy for Jacobi.
+
+\section{Files and Reproduction}
+The output files are:
+\begin{itemize}
+ \item \path{parameters.csv}: run parameters;
+ \item \path{diagnostics.csv}: time, displacement errors and energy;
+ \item \path{solver_stats.csv}: iterations, residuals and timings;
+ \item \path{matrix_checks.csv}: sparse check data, only when enabled;
+ \item \path{probe.csv}: centre displacement samples for phase/dispersion checks;
+ \item \path{mesh.vtk}: mesh; PVD/VTU files: solution time series.
+\end{itemize}
+Python creates the plots.
+\begin{verbatim}
+bash scripts/docker_build_run.sh
+source scripts/common.sh
+load_course_modules
+python scripts/review_validation.py
+\end{verbatim}
+The final two optional executable arguments select \texttt{cg|gmres} and
+\texttt{ssor|jacobi}. Old argument lists retain the default.
+Each run replaces its named CSV/PVD and matching snapshots.
+Other files, including older unreferenced snapshots, are retained; open the
+PVD rather than collecting VTU files by wildcard.
